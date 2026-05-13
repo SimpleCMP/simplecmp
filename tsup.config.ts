@@ -28,9 +28,12 @@ const sharedDefine = {
 } as const;
 
 export default defineConfig([
-  // ESM build with type definitions
+  // ESM build with type definitions. Two entries:
+  //  - `simplecmp` — full library (engine + UI + recorder + service-db).
+  //  - `engine`    — UI-free headless surface (REQ-N2); reached via the
+  //    `simplecmp/engine` subpath export in `package.json`.
   {
-    entry: { simplecmp: 'src/index.ts' },
+    entry: { simplecmp: 'src/index.ts', engine: 'src/engine/index.ts' },
     format: ['esm'],
     outDir: 'dist',
     outExtension: () => ({ js: '.mjs' }),

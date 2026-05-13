@@ -535,10 +535,11 @@ fragmentiert.
 Nur Consent-State, Storage, Events — keine UI. Für SPAs (Vue, React, Svelte),
 die ihre eigene UI rendern wollen.
 
-**Status:** wird durch den Rewrite-Track abgedeckt — die Engine-Extraction
-(REQ-11 bis REQ-13) liefert ein UI-freies `simplecmp/engine`-Subpath-Export,
-das genau das ermöglicht. Wird als erledigt markiert, sobald REQ-13 abgeschlossen
-ist.
+**Status:** ✅ erledigt 2026-05-13 — `simplecmp/engine`-Subpath-Export in
+`package.json` verdrahtet, eigener tsup-Entry baut `dist/engine.mjs` +
+`dist/engine.d.ts`. Smoke-Test in `tests/engine-headless.test.ts` deckt
+Manager-Erzeugung, Persistenz, Legacy-`apps`-Migration und Event-Bus ab und
+bestätigt, dass der Engine-Import keine UI-Komponenten mountet.
 
 ### REQ-N3 — Tag-Manager-Friendly
 

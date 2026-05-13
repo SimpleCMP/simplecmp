@@ -32,6 +32,10 @@
       "types": "./dist/simplecmp.d.ts",
       "import": "./dist/simplecmp.mjs"
     },
+    "./engine": {
+      "types": "./dist/engine.d.ts",
+      "import": "./dist/engine.mjs"
+    },
     "./styles/*": "./dist/styles/*",
     "./package.json": "./package.json"
   },
