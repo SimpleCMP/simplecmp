@@ -446,7 +446,8 @@ Sieben Stages, jede mit grünem `pnpm run ci` als Akzeptanz:
 
 ### REQ-11 — Engine-Extract: Utils zu TS
 
-**Status:** ⬜ offen
+**Status:** ✅ erledigt 2026-05-13 — Implementation in `src/engine/utils/`
+(`compat.ts`, `config.ts`, `cookies.ts`, `i18n.ts`, `maps.ts`, `strings.ts`).
 
 `src/core/utils/{maps,strings,config,cookies,compat,i18n}.js` werden zu
 TypeScript in `src/engine/utils/`. Pure Logic, keine UI-Berührung. Updates
@@ -456,7 +457,8 @@ der UI-Migration entfernt.
 
 ### REQ-12 — Engine-Extract: Stores + ConsentManager
 
-**Status:** ⬜ offen — blockiert durch REQ-11
+**Status:** ✅ erledigt 2026-05-13 — Implementation in `src/engine/stores.ts`
+und `src/engine/consent-manager.ts`.
 
 `stores.js` (Cookie/LocalStorage/SessionStorage-Wrapper) und
 `consent-manager.js` (State-Management, Versioning aus REQ-3, GPC aus
@@ -464,7 +466,8 @@ REQ-5) werden TS in `src/engine/`. Tests für REQ-3/REQ-5 bleiben grün.
 
 ### REQ-13 — Engine-Extract: Lib-Funktionen
 
-**Status:** ⬜ offen — blockiert durch REQ-12
+**Status:** ✅ erledigt 2026-05-13 — Implementation in `src/engine/index.ts`.
+UI-freier Public-Entry für die Engine.
 
 Engine-Anteile von `lib.js` (`getManager`, `addEventListener`, `fireEvent`,
 `validateConfig`, `defaultTranslations`-Verdrahtung, `version`) zu TS in
@@ -473,7 +476,10 @@ Engine-Anteile von `lib.js` (`getManager`, `addEventListener`, `fireEvent`,
 
 ### REQ-14 — UI-Rewrite: Lit Web Components
 
-**Status:** ⬜ offen — blockiert durch REQ-13, größtes Stück
+**Status:** ✅ erledigt 2026-05-13 — Implementation in `src/ui/components/`
+(`banner.ts`, `modal.ts`, `trigger.ts`, `purpose-group.ts`, `service-toggle.ts`,
+`policy-links.ts`, `contextual-notice.ts`). Mount-Logik in `src/ui/init.ts`,
+i18n-Brücke in `src/ui/i18n-bridge.ts`.
 
 `<simplecmp-banner>`, `<simplecmp-modal>`, `<simplecmp-trigger>`,
 `<simplecmp-service-toggle>`, `<simplecmp-purpose-group>`,
@@ -483,7 +489,9 @@ Runtime-Dep ergänzt, Preact + prop-types + classnames raus.
 
 ### REQ-15 — Translations: YAML zu JSON, lazy-load
 
-**Status:** ⬜ offen — kann parallel zu REQ-14 laufen
+**Status:** ✅ erledigt 2026-05-13 — Implementation in `src/engine/translations/`
+(27 JSON-Sprachpakete inkl. `de`, `en`; Registry in `index.ts`). Kein
+YAML-Plugin mehr in `tsup.config.ts` / `vitest.config.ts`.
 
 `src/core/translations/*.yml` → `src/translations/*.json`. Inline `de` +
 `en` im Bundle, andere Sprachen via dynamic-import on demand.
@@ -491,7 +499,9 @@ Runtime-Dep ergänzt, Preact + prop-types + classnames raus.
 
 ### REQ-16 — Themes: Default + Bootstrap-Adapter
 
-**Status:** ⬜ offen — blockiert durch REQ-14
+**Status:** ✅ erledigt 2026-05-13 — Implementation in `src/ui/styles/`
+(`default.css`, `bootstrap.css`, `tokens.ts`). SCSS-Pipeline entfernt;
+`build:themes` kopiert die CSS-Dateien per `cpSync` nach `dist/styles/`.
 
 Default-Theme (CSS Custom Properties) als Component-internes
 `static styles`. Bootstrap-Adapter als separate `dist/themes/bootstrap.css`
@@ -500,7 +510,9 @@ entfernt — nur noch hand-authored CSS.
 
 ### REQ-17 — Klaro-Cleanup + Build-Targets
 
-**Status:** ⬜ offen — Abschluss-Stage
+**Status:** ✅ erledigt 2026-05-13 — `src/core/` entfernt, Build-Pipeline auf
+ESM (.mjs) + IIFE (.global.js) umgestellt (`tsup.config.ts`). `LICENSE-KLARO`
+bleibt im Repo als historisches Artefakt.
 
 `src/core/` wird komplett gelöscht. `LICENSE-KLARO` aus
 `package.json.files` ausgeschlossen (im Repo bleibt es als historisches
