@@ -5,9 +5,11 @@
 [![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 [![Status: Early Development](https://img.shields.io/badge/Status-Early%20Development-orange.svg)]()
 
-**SimpleCMP** is a consent manager (CMP) designed to be straightforward to integrate, easy to
-adapt to common frontend frameworks, and helpful in actively detecting cookies and external
-connections that need consent.
+**SimpleCMP** is a consent manager (CMP) designed to be straightforward to integrate,
+easy to adapt to common frontend frameworks, and helpful in actively detecting cookies
+and external connections that need consent. Originally hard-forked from
+[Klaro!](https://github.com/KIProtect/klaro) 0.7.22, since rewritten in TypeScript with
+a Lit-based UI; the original BSD-3-Clause notice is preserved in `LICENSE-KLARO`.
 
 > ⚠️ **Status: Early development.** SimpleCMP is in the initial design phase. APIs, file
 > structures, and features will change without notice. Not ready for production use.
@@ -28,18 +30,41 @@ SimpleCMP provides all three on top of a battle-tested consent UI.
 
 ## Architecture
 
-SimpleCMP is built on a fork of [Klaro!](https://github.com/KIProtect/klaro) (BSD-3-Clause)
-as its consent UI engine. On top of that, SimpleCMP adds:
+SimpleCMP began as a fork of [Klaro!](https://github.com/KIProtect/klaro) 0.7.22 in
+April 2026 and has since diverged completely: the engine was rewritten in TypeScript
+(`src/engine/`) and the Preact UI was replaced with Lit-based Web Components
+(`src/ui/`). The original Klaro! copyright is preserved in `LICENSE-KLARO`. The four
+pieces sitting on top of the consent state machine:
 
-- **Recorder**: a development-time mode that observes `document.cookie`, `MutationObserver`
-  on script/iframe tags, and `PerformanceObserver` for outgoing connections.
-- **Service DB Client**: looks up detected cookies and domains against a shared registry of
-  known services (Google Analytics, Matomo, YouTube, etc.).
-- **CMS Bridge**: an optional webhook that notifies a configurable backend API when an
-  unknown cookie or connection is observed in production.
-- **Themes**: prebuilt stylesheets (Tailwind, Bootstrap, Default) for drop-in integration.
+- **Recorder** (`src/recorder/`): a development- and monitoring-time mode that observes
+  `document.cookie`, `MutationObserver` on `<script>` / `<iframe>` / `<img>` / `<link>`
+  tags, and `PerformanceObserver` for outgoing connections. Reports unknown items
+  through the event bus, the console, and a workflow-friendly API
+  (`exportConfig()`, `assertNoUnknown()`).
+- **Service DB Client** (`src/service-db/`): speaks the HTTP/JSON protocol in
+  [docs/service-db-protocol.md](docs/service-db-protocol.md) against any conformant
+  backend (a CMS plugin, the PHP+SQLite reference in `reference-server/`, or a
+  community DB). Caches with stale-while-revalidate; falls back to local
+  classification on any failure.
+- **CMS Bridge** (`src/cms-bridge/`): an optional webhook that POSTs a JSON payload to
+  a configurable CMS endpoint when the recorder detects an unknown tracker in
+  production. Per-`${kind}:${identifier}` dedup with a 1 h TTL by default. Webhook
+  schema in [docs/cms-bridge-webhook.md](docs/cms-bridge-webhook.md).
+- **Themes** (`src/ui/styles/`): hand-authored CSS with custom-property tokens.
+  Ships `default.css` and a Bootstrap-adapter `bootstrap.css` that re-maps the
+  tokens onto `--bs-*` variables.
 
-See [docs/adr/](docs/adr/) for architecture decision records.
+**Headless mode.** Consumers who only want the state machine (SPAs with their own
+UI — Vue, React, Svelte) can import from `simplecmp/engine`:
+
+```ts
+import { getManager, addEventListener } from 'simplecmp/engine';
+```
+
+That subpath ships the engine without the Lit UI, recorder, or service-DB client.
+
+See [docs/adr/](docs/adr/) for architecture decision records, including ADR-0006
+(hard-fork rationale) and ADR-0007 (Lit Web Components).
 
 ## Installation
 
@@ -59,7 +84,20 @@ pnpm add simplecmp
 import { init } from 'simplecmp';
 
 init({
-  // configuration goes here
+  storageName: 'simplecmp-myapp',
+  privacyPolicy: 'https://example.com/privacy',
+  imprint: 'https://example.com/imprint',
+  floatingTrigger: { label: 'Cookie settings' },
+  services: [
+    {
+      name: 'analytics',
+      title: 'Analytics',
+      purposes: ['analytics'],
+      cookies: [/^_ga/, '_gid'],
+      required: false,
+      default: false,
+    },
+  ],
 });
 ```
 
@@ -110,14 +148,14 @@ pnpm ci             # full pipeline (typecheck + check + test + build)
 
 ## Roadmap
 
-- **Phase 1** — Core: forked Klaro! engine, build pipeline, default theme
-- **Phase 2** — Recorder: cookie/connection detection in development mode
-- **Phase 3** — Service DB: client + initial registry
-- **Phase 4** — CMS Bridge: webhook for production alerts
-- **Phase 5** — CMS plugins: WordPress, TYPO3, Contao (separate repos)
+- ✅ **Phase 1** — Core: TypeScript engine, Lit-based UI (REQ-11–17), build pipeline, default + Bootstrap themes
+- ✅ **Phase 2** — Recorder: cookie / DOM / network detection (REQ-7)
+- ✅ **Phase 3** — Service DB: client + protocol + 23-service PHP+SQLite reference backend (REQ-8)
+- ✅ **Phase 4** — CMS Bridge: webhook for production alerts on unknown trackers (REQ-9)
+- ⬜ **Phase 5** — CMS plugins: WordPress, TYPO3, Contao (separate repos) (REQ-10)
 
-For concrete features and acceptance criteria, see
-[docs/requirements.md](docs/requirements.md).
+The API surface is still pre-1.0 and may change. For granular feature status and
+acceptance criteria, see [docs/requirements.md](docs/requirements.md).
 
 ## License
 
