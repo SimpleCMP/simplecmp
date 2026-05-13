@@ -10,6 +10,15 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Added
 
+- **Accessibility CI gate (REQ-6 follow-up).** Playwright-based
+  axe-core suite (`tests/a11y/*.spec.ts`) runs on every CI build as a
+  parallel job. Scans demos 1, 4, 5, 6 (skipping the demos that load
+  external resources, which would make CI flaky) against WCAG 2.1 AA;
+  blocks PRs on `serious` or `critical` violations, surfaces lower
+  severities as non-blocking log entries. The `color-contrast` rule is
+  disabled with a documented brand exception for the `green1` button
+  color (3.5:1) — see `docs/accessibility.md`. Browser binaries cached
+  by lockfile hash so cold-install only happens on dep bumps.
 - **Phase 4 — CMS Bridge (REQ-9).** Webhook-based alerting for unknown
   trackers in production. When the Recorder produces a detection with
   `status: 'unknown'` (no local-services match, no Service-DB hit), the

@@ -293,8 +293,14 @@ für alle. Klaro ist nicht audited.
 - Color-Contrast für `green1` ist als manueller Punkt im Audit-Doc
   festgehalten — ein Theme-Switch zu z.B. `#0f7458` (≈5.4:1) wäre die
   einfachste Lösung, ist aber eine eigene Brand-Entscheidung.
-- `axe-core`-Run im CI ist als Open Item im Audit-Doc notiert; wird mit
-  einem späteren Playwright-Setup nachgezogen.
+- `axe-core`-Run im CI ist verdrahtet: separater Job in
+  `.github/workflows/ci.yml`, Playwright + `@axe-core/playwright`,
+  scannt die Demos 1 / 4 / 5 / 6 (die ohne externe Resourcen, sonst
+  flaky bei CI-Netzwerkschwächen) gegen WCAG 2.1 AA. Blockt PRs bei
+  `serious` / `critical`-Verstößen; `moderate` / `minor` werden geloggt
+  aber blockieren nicht. Color-Contrast-Rule deaktiviert mit
+  dokumentierter Brand-Exception für `green1` (siehe
+  `docs/accessibility.md`).
 
 ---
 

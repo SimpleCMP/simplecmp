@@ -18,8 +18,14 @@ same checks.
 - Automated tests cover the parts that are testable in happy-dom (no
   visual/contrast assertions; see "Manual checks" below).
 
-No browser-based axe-core scan has been run yet — that's a follow-up once we
-have a CI Playwright job. Tracked as an open item below.
+Automated axe-core scan via Playwright runs on every CI build (see
+`tests/a11y/` + the `a11y` job in `.github/workflows/ci.yml`). It scans
+demos 1 / 4 / 5 / 6 (the ones with no external resources, which would
+otherwise make the suite flaky on CI network blips) under WCAG 2.1 AA
+rules. The `color-contrast` rule is disabled with a documented brand
+exception for the `green1` button color (see "Color contrast" below).
+Blocking severity is `serious` or `critical`; `moderate` / `minor`
+violations are logged but don't fail CI.
 
 ## What Klaro upstream provided
 
@@ -143,7 +149,9 @@ In a real browser, Tab through the consent UI in:
 
 ## Open items
 
-- [ ] Add `axe-core` scan to CI via Playwright. Block PRs on regressions.
+- [x] Add `axe-core` scan to CI via Playwright. Block PRs on regressions.
+      Shipped 2026-05-13 — see `tests/a11y/` and the `a11y` job in
+      `.github/workflows/ci.yml`.
 - [ ] Color contrast: pick a darker green default (`green1` ≈ `#0f7458`) so
       the out-of-the-box theme passes AA without theming. Decide separately
       from REQ-6 — affects brand look.

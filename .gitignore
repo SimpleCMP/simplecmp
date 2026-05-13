@@ -11,6 +11,11 @@ build/
 coverage/
 .nyc_output/
 
+# Playwright (a11y suite)
+test-results/
+playwright-report/
+.playwright/
+
 # Environment
 .env
 .env.local
