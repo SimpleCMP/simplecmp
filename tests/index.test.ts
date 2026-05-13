@@ -40,16 +40,19 @@ describe('SimpleCMP public API', () => {
     expect(document.body.querySelector('simplecmp-modal')).not.toBeNull();
   });
 
-  it('warns when not-yet-implemented features are configured', () => {
+  // REQ-9: misconfig warning fires when cmsBridgeUrl is set without `record`.
+  it('warns when cmsBridgeUrl is set without record: true', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       init({
-        storageName: 'simplecmp-test',
+        storageName: 'simplecmp-test-cms-misconfig',
         services: [],
         cmsBridgeUrl: 'https://example.com/bridge',
       });
       const messages = warn.mock.calls.map((call) => String(call[0]));
-      expect(messages.some((m) => /cmsBridgeUrl/i.test(m))).toBe(true);
+      expect(
+        messages.some((m) => /cmsBridgeUrl.*record/i.test(m) || /record.*cmsBridgeUrl/i.test(m))
+      ).toBe(true);
     } finally {
       warn.mockRestore();
     }
@@ -393,18 +396,91 @@ describe('SimpleCMP public API', () => {
       }
     });
 
-    it('still warns about cmsBridgeUrl (Phase 4 not yet implemented)', () => {
+    it('does not warn about cmsBridgeUrl any more (it is implemented)', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       try {
         init({
-          storageName: 'simplecmp-test-req8-cms-warn',
+          storageName: 'simplecmp-test-req9-no-warn',
           services: [],
+          record: true,
           cmsBridgeUrl: 'https://example.com/bridge',
         });
         const messages = warn.mock.calls.map((c) => String(c[0]));
-        expect(messages.some((m) => /cmsBridgeUrl/i.test(m))).toBe(true);
+        // REQ-9: the only acceptable warning mentioning cmsBridgeUrl would
+        // be the misconfig warning when `record` is missing — and we set it.
+        expect(messages.some((m) => /not yet implemented/i.test(m))).toBe(false);
       } finally {
         warn.mockRestore();
+      }
+    });
+  });
+
+  // REQ-9: end-to-end. Make sure the bridge POSTs once with the documented
+  // schema and does NOT double-fire when the Service-DB later upgrades an
+  // unknown detection to known (the "enrichment re-announce" gotcha).
+  describe('REQ-9 — CMS bridge end-to-end', () => {
+    it('POSTs once per unknown detection and does not fire again when enrichment upgrades it to known', async () => {
+      // First request the bridge sees is its own POST. We capture it and
+      // mock the Service-DB POST that follows to return a hit so the
+      // recorder calls enrichDetection() — the bridge must ignore that
+      // re-announcement because status is now 'known'.
+      const bridgePosts: Array<{ url: string; body: unknown }> = [];
+      const fetchMock = vi.fn().mockImplementation(async (url: string, init: RequestInit) => {
+        if (url.startsWith('https://example.test/bridge')) {
+          bridgePosts.push({ url, body: JSON.parse(init.body as string) });
+          return new Response('', { status: 200 });
+        }
+        if (url.includes('/v1/lookup')) {
+          // Service-DB returns a hit for the cookie '_unknown_to_known'.
+          return new Response(
+            JSON.stringify({
+              items: [
+                {
+                  query: { cookie: '_unknown_to_known' },
+                  matches: [{ id: 'late-known', name: 'Late-Known', purposes: ['analytics'] }],
+                },
+              ],
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response('', { status: 404 });
+      });
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = fetchMock as typeof fetch;
+      try {
+        init({
+          storageName: 'simplecmp-test-req9-e2e',
+          services: [],
+          record: { silenceProductionWarning: true },
+          serviceDbUrl: 'https://example.test/db',
+          cmsBridgeUrl: 'https://example.test/bridge',
+        });
+        const recorder = getRecorder();
+        expect(recorder).toBeDefined();
+        // Inject a cookie that classifies locally as unknown. The bridge
+        // fires synchronously; the Service-DB lookup runs in the
+        // background and (per our mock) returns a match → enrichDetection
+        // re-announces with status 'known' → bridge must ignore.
+        document.cookie = '_unknown_to_known=1';
+        // Tick the cookie watcher a few times to make sure it sees the value.
+        await new Promise((r) => setTimeout(r, 1100));
+        // Give the layered classifier's background lookup time to settle.
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(bridgePosts.length).toBe(1);
+        expect(bridgePosts[0]?.url).toBe('https://example.test/bridge');
+        const payload = bridgePosts[0]?.body as {
+          schemaVersion: number;
+          detection: { kind: string; identifier: string; status: string };
+        };
+        expect(payload.schemaVersion).toBe(1);
+        expect(payload.detection.kind).toBe('cookie');
+        expect(payload.detection.identifier).toBe('_unknown_to_known');
+        expect(payload.detection.status).toBe('unknown');
+      } finally {
+        globalThis.fetch = originalFetch;
+        document.cookie = '_unknown_to_known=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
       }
     });
   });

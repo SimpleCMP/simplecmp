@@ -8,6 +8,8 @@
  * @packageDocumentation
  */
 
+import { CmsBridge } from './cms-bridge/index.js';
+import type { CmsBridgeAuth, CmsBridgeOptions } from './cms-bridge/index.js';
 import {
   defaultTranslations,
   addEventListener as engineAddEventListener,
@@ -38,8 +40,10 @@ export type {
   RecorderOptions,
 } from './recorder/types.js';
 export type { LookupQuery, ServiceDbAuth, ServiceMatch } from './service-db/types.js';
+export type { CmsBridgeAuth, CmsBridgeOptions, CmsBridgePayload } from './cms-bridge/index.js';
 export { ServiceDbClient } from './service-db/client.js';
 export { LayeredClassifier } from './service-db/layered-classifier.js';
+export { CmsBridge } from './cms-bridge/index.js';
 
 // Seed the engine's translation registry with the bundled language packs at
 // import time. Consumers get sensible defaults out of the box; per-config
@@ -156,10 +160,33 @@ export interface SimpleCMPConfig extends ConsentConfig {
    */
   serviceDbAuth?: ServiceDbAuth;
   /**
-   * CMS bridge webhook URL for production alerts on unknown trackers.
-   * Phase 4 — not yet implemented.
+   * CMS bridge webhook URL. When set together with `record: true`, the
+   * bridge POSTs a JSON payload to this URL each time the recorder sees a
+   * tracker that classifies as `'unknown'` (no local match, no Service-DB
+   * hit). Production-oriented alerting — your CMS receives the webhook
+   * and surfaces unknown trackers to admins before they compound into a
+   * compliance issue.
+   *
+   * Schema and example POST: `docs/cms-bridge-webhook.md`. SimpleCMP-
+   * specific (REQ-9).
+   *
+   * Dedup: same `${kind}:${identifier}` only re-fires after
+   * `cmsBridge.dedupTtlMs` (default 1 hour). URL query strings are
+   * stripped from the payload for privacy.
    */
   cmsBridgeUrl?: string;
+  /**
+   * Optional auth header for the CMS bridge webhook. Bearer-by-default;
+   * pass `header` / `scheme` to use a custom header. SimpleCMP-specific
+   * (REQ-9).
+   */
+  cmsBridgeAuth?: CmsBridgeAuth;
+  /**
+   * Advanced overrides for the CMS bridge. Most consumers should leave
+   * this off and rely on `cmsBridgeUrl` + `cmsBridgeAuth` alone. SimpleCMP-
+   * specific (REQ-9).
+   */
+  cmsBridge?: Pick<CmsBridgeOptions, 'source' | 'dedupTtlMs' | 'timeoutMs'>;
 }
 
 /**
@@ -182,6 +209,7 @@ let activeHandle: LitInitHandle | null = null;
  */
 export function init(config: SimpleCMPConfig): LitInitHandle {
   warnOnUnimplementedFeatures(config);
+  warnOnConfigInconsistencies(config);
   warnOnComplianceRisks(config);
 
   // Replace any prior handle cleanly — re-init shouldn't leak DOM.
@@ -213,7 +241,10 @@ export function show(): void {
 let activeRecorder: Recorder | null = null;
 
 function startRecorder(config: SimpleCMPConfig): void {
-  // Replace any prior recorder so re-init doesn't leak watchers.
+  // Replace any prior recorder so re-init doesn't leak watchers. The CMS
+  // bridge lives only as a closure captured by `recorder.on('detection',
+  // ...)` below — replacing the recorder drops the listener, which drops
+  // the bridge reference (and its dedup map) on the next GC.
   if (activeRecorder) {
     activeRecorder.stop();
     activeRecorder = null;
@@ -254,6 +285,19 @@ function startRecorder(config: SimpleCMPConfig): void {
       recorder.enrichDetection(raw, enrichment);
     });
   }
+  // REQ-9: when cmsBridgeUrl is configured, subscribe the bridge to the
+  // recorder's detection stream. The bridge filters for status: 'unknown'
+  // and dedupes by `${kind}:${identifier}` with a TTL window.
+  if (config.cmsBridgeUrl) {
+    const bridge = new CmsBridge({
+      url: config.cmsBridgeUrl,
+      auth: config.cmsBridgeAuth,
+      source: config.cmsBridge?.source ?? options.storageName ?? 'default',
+      dedupTtlMs: config.cmsBridge?.dedupTtlMs,
+      timeoutMs: config.cmsBridge?.timeoutMs,
+    });
+    recorder.on('detection', (d) => bridge.onDetection(d));
+  }
   activeRecorder = recorder;
   activeRecorder.start();
 }
@@ -278,10 +322,18 @@ export const getManager = engineGetManager;
 /** Update a config object in place. */
 export const updateConfig = engineUpdateConfig;
 
-function warnOnUnimplementedFeatures(config: SimpleCMPConfig): void {
-  if (config.cmsBridgeUrl) {
+function warnOnUnimplementedFeatures(_config: SimpleCMPConfig): void {
+  // Reserved for future Phase 5 features. Currently no-op — REQ-8 and
+  // REQ-9 are both implemented.
+}
+
+// REQ-9: the CMS bridge listens to recorder detections. Without
+// `record: true` the bridge has no source of events and silently does
+// nothing — surface that misconfiguration loudly so it's debuggable.
+function warnOnConfigInconsistencies(config: SimpleCMPConfig): void {
+  if (config.cmsBridgeUrl && !config.record) {
     console.warn(
-      'SimpleCMP: `cmsBridgeUrl` (CMS bridge) is planned for Phase 4 and not yet implemented.'
+      'SimpleCMP: `cmsBridgeUrl` is set but `record` is not enabled. The CMS bridge listens to recorder detections — without the recorder running, no webhooks will ever fire. Set `record: true` or remove `cmsBridgeUrl`.'
     );
   }
 }

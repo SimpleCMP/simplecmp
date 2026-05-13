@@ -411,16 +411,55 @@ Community-DB).
 
 ### REQ-9 — CMS Bridge (Phase 4)
 
-**Status:** ⬜ offen — Phase 4, blockiert durch REQ-7
+**Status:** ✅ erledigt 2026-05-13 — Implementation in `src/cms-bridge/`,
+Schema-Dokumentation in [docs/cms-bridge-webhook.md](cms-bridge-webhook.md).
 
 Webhook-Notifications für unbekannte Tracker in Production.
 
-- [ ] Config: `cmsBridgeUrl: string`, optional `cmsBridgeAuth: string` (Bearer-Token).
-- [ ] Bei Detektion eines unbekannten Items (Recorder + Service-DB-Miss):
-      `fetch(cmsBridgeUrl, { method: 'POST', body: JSON.stringify(...) })`.
-- [ ] Rate-Limiting / De-Duplication clientseitig (gleiches Item nicht 100x).
-- [ ] Schema des Webhook-Payloads dokumentiert.
-- [ ] Test: Mock-Server bekommt korrekt strukturierten Payload.
+- [x] Config: `cmsBridgeUrl: string`, optional `cmsBridgeAuth: CmsBridgeAuth`
+      (Bearer-by-default, custom `header` / `scheme` möglich; strukturell
+      identisch zu `ServiceDbAuth`, damit ein CMS-Plugin denselben Token
+      für beide Endpoints verwenden kann). Zusätzlich
+      `cmsBridge?: { source, dedupTtlMs, timeoutMs }` für Advanced-Overrides.
+- [x] Bei Detektion eines unbekannten Items (Recorder + Service-DB-Miss):
+      `fetch(cmsBridgeUrl, { method: 'POST', body: JSON.stringify(payload) })`
+      mit `Content-Type: application/json` und optionalem Auth-Header.
+      Verdrahtet in `startRecorder()` über `recorder.on('detection', ...)`.
+- [x] Rate-Limiting / De-Duplication clientseitig: Dedup nach
+      `${kind}:${identifier}` mit konfigurierbarer TTL (Default 1 h). Map
+      lebt im Speicher; reset bei `init()`-Re-Call oder Hard-Navigation.
+- [x] Schema des Webhook-Payloads dokumentiert in
+      `docs/cms-bridge-webhook.md` (schemaVersion 1, page-Context,
+      library-Identity, detection-Echo). `page.url` und
+      `detection.firstSeenOn` werden um Query-Strings/Fragmente gekürzt
+      (Privacy-Default — Session-Tokens / Magic-Link-Params).
+- [x] Test: 12 Unit-Tests in `src/cms-bridge/bridge.test.ts` (Payload,
+      Dedup, Auth, Failure-Modes inkl. 4xx-keep / 5xx-clear / Network-clear,
+      Timeout/Abort) plus ein End-to-End-Test in `tests/index.test.ts`,
+      der das "Double-Fire bei Enrichment"-Problem absichert. 138/138 Tests grün.
+
+**Hinweise:**
+
+- **Double-Fire-Gotcha:** Der `LayeredClassifier` veröffentlicht jede
+  Detection synchron mit `status: 'unknown'` und stößt parallel einen
+  Service-DB-Lookup an. Bei DB-Treffer ruft er `recorder.enrichDetection()`,
+  was die Detection mit `status: 'known'` erneut veröffentlicht. Der
+  Bridge-Filter auf `status === 'unknown'` plus die TTL-Dedup-Map fangen
+  das ab; der End-to-End-Test in `tests/index.test.ts` schützt das gegen
+  Regressionen.
+- **Failure-Modes asymmetrisch:** 4xx (Receiver hat explizit abgelehnt)
+  hält die Dedup-Map, damit wir nicht hämmern. 5xx und Netzwerkfehler
+  löschen den Map-Eintrag, damit die nächste Detection es nochmal
+  versuchen kann. Beides ist `console.warn`-gateed pro Error-Kategorie
+  pro Session.
+- **Kein Retry mit Backoff:** Bewusst nicht gebaut. Die Bridge ist
+  Monitoring-Telemetry, nicht consent-kritisch; eine verlorene Webhook
+  bedeutet ein verpasster Alert auf einer Seite, beim nächsten Aufruf
+  (post-TTL) feuert es wieder. Retry mit Auth-Token gegen eine
+  fehlerhafte Receiver-URL hätte schlechtes DoS-Verhalten.
+- **Misconfig-Warning:** Wenn `cmsBridgeUrl` gesetzt ist aber `record`
+  fehlt, gibt `init()` ein `console.warn` aus — sonst wäre die Bridge
+  stumm und die Konfiguration silent broken.
 
 ### REQ-10 — CMS-Plugins (Phase 5)
 

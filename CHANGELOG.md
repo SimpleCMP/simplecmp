@@ -10,6 +10,26 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Added
 
+- **Phase 4 — CMS Bridge (REQ-9).** Webhook-based alerting for unknown
+  trackers in production. When the Recorder produces a detection with
+  `status: 'unknown'` (no local-services match, no Service-DB hit), the
+  bridge POSTs a JSON payload to `cmsBridgeUrl`. Schema documented in
+  `docs/cms-bridge-webhook.md` (schemaVersion 1; page context, library
+  identity, detection echo). Configurable Bearer auth via `cmsBridgeAuth`
+  (structurally identical to `ServiceDbAuth` so one CMS plugin token
+  works for both endpoints). Per-`${kind}:${identifier}` dedup with 1 h
+  TTL by default, overridable via `cmsBridge.dedupTtlMs`. Query strings
+  and URL fragments are stripped from `page.url` and `detection.firstSeenOn`
+  for privacy. Failure modes split 4xx (keep dedup, receiver said no) vs
+  5xx / network errors (clear dedup so a future detection can retry),
+  with `_warnOnce` gating per error category. Misconfig warning fires
+  when `cmsBridgeUrl` is set without `record: true`. Bridge suppresses
+  detections whose `origin` matches its own host so the bridge's webhook
+  POSTs (and any sibling polling on the same host) don't generate
+  synthetic "unknown tracker" alerts about the bridge itself. 13 unit
+  tests in `src/cms-bridge/bridge.test.ts` plus an end-to-end test in
+  `tests/index.test.ts` guarding the "double-fire on enrichment" gotcha
+  where a Service-DB hit re-announces a detection as known.
 - Initial repository scaffolding: TypeScript, tsup, Vitest, Biome, GitHub Actions CI
 - Architecture decision records:
   - ADR-0001: Record architecture decisions
