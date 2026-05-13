@@ -1,0 +1,458 @@
+/**
+ * SimpleCMP — default theme as a standalone stylesheet (REQ-16 / ADR-0007).
+ *
+ * Most consumers don't need this file. Components in Shadow DOM mode
+ * (the default) carry these rules inline via `static styles`, scoped
+ * automatically. This file exists for two scenarios:
+ *
+ *   1. **Light DOM mode** (`<simplecmp-banner mode="light">`). Components
+ *      render into the host's regular DOM where `static styles` don't
+ *      apply, so the host page must `<link>` this file (or write its own).
+ *
+ *   2. **Server-rendered preview / no-JS fallback** where the component
+ *      HTML is emitted server-side and styled before Lit hydrates.
+ *
+ * The selectors are scoped to the `simplecmp-*` tag names so the rules
+ * never bleed onto unrelated host elements. Override any token at any
+ * level — they cascade through the tag-name selectors:
+ *
+ *     simplecmp-banner { --simplecmp-color-primary: #ff6600; }
+ *
+ * The Bootstrap adapter in `bootstrap.css` is the canonical example.
+ *
+ * **Drift warning:** these rules duplicate the component `static styles`.
+ * Keep them in sync when updating either side. Long-term, REQ-17 may
+ * consolidate to a single source of truth.
+ */
+
+/* --- design tokens -------------------------------------------------- */
+
+:where(
+    simplecmp-banner,
+    simplecmp-modal,
+    simplecmp-purpose-group,
+    simplecmp-service-toggle,
+    simplecmp-trigger,
+    simplecmp-policy-links,
+    simplecmp-contextual-notice
+  ) {
+  --simplecmp-color-primary: #1a936f;
+  --simplecmp-color-primary-hover: #15775a;
+  --simplecmp-color-secondary: #6c757d;
+  --simplecmp-color-danger: #da2c43;
+  --simplecmp-color-bg: #ffffff;
+  --simplecmp-color-bg-alt: #f5f7f9;
+  --simplecmp-color-border: #dde2e7;
+  --simplecmp-color-text: #1a232c;
+  --simplecmp-color-text-muted: #5f6b78;
+
+  --simplecmp-radius: 6px;
+  --simplecmp-spacing: 0.75rem;
+  --simplecmp-spacing-sm: 0.5rem;
+  --simplecmp-spacing-lg: 1.25rem;
+
+  --simplecmp-font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --simplecmp-font-size: 0.95rem;
+  --simplecmp-font-size-sm: 0.85rem;
+  --simplecmp-line-height: 1.5;
+
+  --simplecmp-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --simplecmp-z-index: 2147483000;
+
+  color: var(--simplecmp-color-text);
+  font-family: var(--simplecmp-font-family);
+  font-size: var(--simplecmp-font-size);
+  line-height: var(--simplecmp-line-height);
+}
+
+/* --- banner --------------------------------------------------------- */
+
+simplecmp-banner {
+  display: block;
+  position: fixed;
+  right: var(--simplecmp-spacing);
+  bottom: var(--simplecmp-spacing);
+  max-width: 30rem;
+  z-index: var(--simplecmp-z-index);
+}
+
+simplecmp-banner[hidden] {
+  display: none;
+}
+
+simplecmp-banner .cn-body {
+  background: var(--simplecmp-color-bg);
+  color: var(--simplecmp-color-text);
+  border: 1px solid var(--simplecmp-color-border);
+  border-radius: var(--simplecmp-radius);
+  box-shadow: var(--simplecmp-shadow);
+  padding: var(--simplecmp-spacing-lg);
+}
+
+simplecmp-banner h2 {
+  margin: 0 0 var(--simplecmp-spacing) 0;
+  font-size: 1.1rem;
+}
+
+simplecmp-banner p {
+  margin: 0 0 var(--simplecmp-spacing) 0;
+}
+
+simplecmp-banner .cn-policy-links,
+simplecmp-banner .cn-policy-links a {
+  font-size: var(--simplecmp-font-size-sm);
+  color: var(--simplecmp-color-text-muted);
+}
+
+simplecmp-banner .cn-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--simplecmp-spacing-sm);
+  margin-top: var(--simplecmp-spacing);
+}
+
+simplecmp-banner button {
+  font: inherit;
+  border: 1px solid transparent;
+  border-radius: var(--simplecmp-radius);
+  padding: var(--simplecmp-spacing-sm) var(--simplecmp-spacing);
+  cursor: pointer;
+}
+
+simplecmp-banner button.cn-accept {
+  background: var(--simplecmp-color-primary);
+  color: white;
+}
+
+simplecmp-banner button.cn-accept:hover {
+  background: var(--simplecmp-color-primary-hover);
+}
+
+simplecmp-banner button.cn-decline {
+  background: transparent;
+  color: var(--simplecmp-color-danger);
+  border-color: var(--simplecmp-color-danger);
+}
+
+simplecmp-banner button.cn-configure {
+  background: transparent;
+  color: var(--simplecmp-color-text);
+  border-color: var(--simplecmp-color-border);
+}
+
+simplecmp-banner a {
+  color: var(--simplecmp-color-primary);
+}
+
+simplecmp-banner .cn-changes {
+  font-size: var(--simplecmp-font-size-sm);
+  font-style: italic;
+  color: var(--simplecmp-color-text-muted);
+}
+
+/* --- modal ---------------------------------------------------------- */
+
+simplecmp-modal {
+  display: contents;
+}
+
+simplecmp-modal dialog {
+  max-width: 40rem;
+  width: 90%;
+  border: 1px solid var(--simplecmp-color-border);
+  border-radius: var(--simplecmp-radius);
+  padding: 0;
+  background: var(--simplecmp-color-bg);
+  color: var(--simplecmp-color-text);
+  font-family: var(--simplecmp-font-family);
+  font-size: var(--simplecmp-font-size);
+}
+
+simplecmp-modal dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+simplecmp-modal .header,
+simplecmp-modal .body,
+simplecmp-modal .footer {
+  padding: var(--simplecmp-spacing-lg);
+}
+
+simplecmp-modal .header {
+  border-bottom: 1px solid var(--simplecmp-color-border);
+  position: relative;
+}
+
+simplecmp-modal h1 {
+  margin: 0 0 var(--simplecmp-spacing) 0;
+  font-size: 1.25rem;
+}
+
+simplecmp-modal .description {
+  margin: 0 0 var(--simplecmp-spacing) 0;
+}
+
+simplecmp-modal .policy-links,
+simplecmp-modal .policy-links a {
+  margin: 0;
+  font-size: var(--simplecmp-font-size-sm);
+  color: var(--simplecmp-color-text-muted);
+}
+
+simplecmp-modal .close {
+  position: absolute;
+  top: var(--simplecmp-spacing);
+  right: var(--simplecmp-spacing);
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--simplecmp-color-text-muted);
+}
+
+simplecmp-modal .footer {
+  border-top: 1px solid var(--simplecmp-color-border);
+  display: flex;
+  gap: var(--simplecmp-spacing-sm);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+simplecmp-modal button.action {
+  font: inherit;
+  border: 1px solid transparent;
+  border-radius: var(--simplecmp-radius);
+  padding: var(--simplecmp-spacing-sm) var(--simplecmp-spacing);
+  cursor: pointer;
+}
+
+simplecmp-modal button.accept-all,
+simplecmp-modal button.save {
+  background: var(--simplecmp-color-primary);
+  color: white;
+}
+
+simplecmp-modal button.accept-all:hover,
+simplecmp-modal button.save:hover {
+  background: var(--simplecmp-color-primary-hover);
+}
+
+simplecmp-modal button.decline {
+  background: transparent;
+  color: var(--simplecmp-color-danger);
+  border-color: var(--simplecmp-color-danger);
+}
+
+simplecmp-modal ul.services {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* --- purpose-group -------------------------------------------------- */
+
+simplecmp-purpose-group {
+  display: block;
+  border: 1px solid var(--simplecmp-color-border);
+  border-radius: var(--simplecmp-radius);
+  padding: var(--simplecmp-spacing);
+  margin-bottom: var(--simplecmp-spacing-sm);
+}
+
+simplecmp-purpose-group .header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--simplecmp-spacing-sm);
+}
+
+simplecmp-purpose-group input[type="checkbox"] {
+  margin-top: 0.25rem;
+}
+
+simplecmp-purpose-group .title {
+  font-weight: 500;
+}
+
+simplecmp-purpose-group .description {
+  margin: 0.25rem 0 0 0;
+  font-size: var(--simplecmp-font-size-sm);
+  color: var(--simplecmp-color-text-muted);
+}
+
+simplecmp-purpose-group .toggle-services {
+  margin-top: var(--simplecmp-spacing-sm);
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--simplecmp-font-size-sm);
+  color: var(--simplecmp-color-primary);
+  cursor: pointer;
+}
+
+simplecmp-purpose-group .services {
+  margin-top: var(--simplecmp-spacing-sm);
+  padding-left: var(--simplecmp-spacing-lg);
+  border-left: 2px solid var(--simplecmp-color-border);
+}
+
+simplecmp-purpose-group .services[hidden] {
+  display: none;
+}
+
+/* --- service-toggle ------------------------------------------------- */
+
+simplecmp-service-toggle {
+  display: block;
+  margin: var(--simplecmp-spacing-sm) 0;
+}
+
+simplecmp-service-toggle .row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--simplecmp-spacing-sm);
+}
+
+simplecmp-service-toggle input[type="checkbox"] {
+  margin-top: 0.25rem;
+  flex-shrink: 0;
+}
+
+simplecmp-service-toggle .meta {
+  flex: 1;
+}
+
+simplecmp-service-toggle .title {
+  font-weight: 500;
+}
+
+simplecmp-service-toggle .badge {
+  display: inline-block;
+  margin-left: var(--simplecmp-spacing-sm);
+  padding: 0 0.4rem;
+  font-size: var(--simplecmp-font-size-sm);
+  background: var(--simplecmp-color-bg-alt);
+  border-radius: var(--simplecmp-radius);
+  color: var(--simplecmp-color-text-muted);
+}
+
+simplecmp-service-toggle .description,
+simplecmp-service-toggle .purposes {
+  margin: 0.25rem 0 0 0;
+  font-size: var(--simplecmp-font-size-sm);
+  color: var(--simplecmp-color-text-muted);
+}
+
+/* --- trigger -------------------------------------------------------- */
+
+simplecmp-trigger {
+  display: contents;
+}
+
+simplecmp-trigger button {
+  position: fixed;
+  z-index: var(--simplecmp-z-index);
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--simplecmp-color-primary);
+  color: white;
+  border: none;
+  box-shadow: var(--simplecmp-shadow);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+simplecmp-trigger button:hover {
+  background: var(--simplecmp-color-primary-hover);
+}
+
+simplecmp-trigger[position="bottom-right"] button {
+  right: var(--simplecmp-spacing);
+  bottom: var(--simplecmp-spacing);
+}
+
+simplecmp-trigger[position="bottom-left"] button {
+  left: var(--simplecmp-spacing);
+  bottom: var(--simplecmp-spacing);
+}
+
+simplecmp-trigger[position="top-right"] button {
+  right: var(--simplecmp-spacing);
+  top: var(--simplecmp-spacing);
+}
+
+simplecmp-trigger[position="top-left"] button {
+  left: var(--simplecmp-spacing);
+  top: var(--simplecmp-spacing);
+}
+
+simplecmp-trigger svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* --- policy-links --------------------------------------------------- */
+
+simplecmp-policy-links {
+  display: inline;
+  font-size: var(--simplecmp-font-size-sm);
+  color: var(--simplecmp-color-text-muted);
+}
+
+simplecmp-policy-links a {
+  color: var(--simplecmp-color-text-muted);
+}
+
+/* --- contextual-notice --------------------------------------------- */
+
+simplecmp-contextual-notice {
+  display: block;
+  padding: var(--simplecmp-spacing-lg);
+  background: var(--simplecmp-color-bg-alt);
+  border: 1px solid var(--simplecmp-color-border);
+  border-radius: var(--simplecmp-radius);
+  color: var(--simplecmp-color-text);
+}
+
+simplecmp-contextual-notice p {
+  margin: 0 0 var(--simplecmp-spacing) 0;
+}
+
+simplecmp-contextual-notice .buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--simplecmp-spacing-sm);
+}
+
+simplecmp-contextual-notice button {
+  font: inherit;
+  border: 1px solid transparent;
+  border-radius: var(--simplecmp-radius);
+  padding: var(--simplecmp-spacing-sm) var(--simplecmp-spacing);
+  cursor: pointer;
+}
+
+simplecmp-contextual-notice button.accept {
+  background: var(--simplecmp-color-primary);
+  color: white;
+}
+
+simplecmp-contextual-notice button.accept:hover {
+  background: var(--simplecmp-color-primary-hover);
+}
+
+simplecmp-contextual-notice button.accept-once {
+  background: transparent;
+  color: var(--simplecmp-color-primary);
+  border-color: var(--simplecmp-color-primary);
+}
+
+simplecmp-contextual-notice button.configure {
+  background: transparent;
+  color: var(--simplecmp-color-text);
+  border-color: var(--simplecmp-color-border);
+}

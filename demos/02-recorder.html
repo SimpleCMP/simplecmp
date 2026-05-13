@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SimpleCMP Demo 2 — Recorder</title>
+  <link rel="stylesheet" href="/dist/styles/default.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      line-height: 1.6;
+    }
+    h1 { font-size: 1.6rem; }
+    nav { margin-bottom: 1.5rem; }
+    nav a { color: #1a936f; text-decoration: none; font-size: 0.9rem; }
+    section { margin: 1.5rem 0; }
+    button { margin: 0.25rem; padding: 0.5rem 1rem; cursor: pointer; }
+    pre {
+      background: #f4f4f4;
+      padding: 1rem;
+      border-radius: 4px;
+      max-height: 400px;
+      overflow: auto;
+      font-size: 0.85rem;
+    }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+    th, td { border-bottom: 1px solid #ddd; padding: 0.4rem 0.5rem; text-align: left; }
+    th { background: #fafafa; }
+    .status-known { color: #1a936f; font-weight: bold; }
+    .status-unknown { color: #da2c43; }
+    .empty { color: #888; font-style: italic; padding: 0.5rem 0; }
+  </style>
+</head>
+<body>
+  <nav><a href="/">← zurück zur Demo-Übersicht</a></nav>
+
+  <h1>Demo 2 — Recorder mit Live-Panel</h1>
+
+  <p>
+    Recorder läuft mit <code>record: true</code>. Die Buttons unten lösen jeweils
+    eine Detection aus — entweder über einen <code>document.cookie</code>-Schreibvorgang,
+    ein Cross-Origin-Script, oder ein Iframe. Das Panel rechts wird live aktualisiert
+    via <code>getRecorder().on('detection', ...)</code>.
+  </p>
+
+  <p>
+    Der LocalClassifier kennt nur einen Service (<code>my-analytics</code> mit
+    Cookie <code>_demo_analytics</code>). Alles andere bleibt <em>unknown</em> —
+    in Demo 3 wird das durch die Service-DB-Anreicherung gelöst.
+  </p>
+
+  <section>
+    <h3>Detections auslösen</h3>
+    <button id="btn-cookie-known" type="button">Cookie setzen (known)</button>
+    <button id="btn-cookie-unknown" type="button">Cookie setzen (unknown)</button>
+    <button id="btn-load-script" type="button">Script laden (jsdelivr)</button>
+    <button id="btn-load-iframe" type="button">Iframe laden (example.com)</button>
+    <button id="btn-load-image" type="button">Image laden (placehold.co)</button>
+  </section>
+
+  <section>
+    <h3>Workflow-Utilities</h3>
+    <button id="btn-export" type="button">exportConfig()</button>
+    <button id="btn-assert" type="button">assertNoUnknown() (wirft bei Unknowns)</button>
+    <button id="btn-clear" type="button">Snapshot leeren</button>
+  </section>
+
+  <section>
+    <h3>Live Snapshot</h3>
+    <table id="detections-table">
+      <thead>
+        <tr>
+          <th>Kind</th>
+          <th>Identifier</th>
+          <th>Origin</th>
+          <th>Status</th>
+          <th>Service</th>
+          <th>Count</th>
+        </tr>
+      </thead>
+      <tbody id="detections-body">
+        <tr><td colspan="6" class="empty">Noch keine Detections — drück oben einen Button.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="export-output" style="display:none;">
+    <h3>exportConfig() Output</h3>
+    <pre id="export-pre"></pre>
+  </section>
+
+  <section id="assert-output" style="display:none;">
+    <h3>assertNoUnknown() Result</h3>
+    <pre id="assert-pre"></pre>
+  </section>
+
+  <script src="/dist/simplecmp.global.js"></script>
+  <script>
+    // Auf einen Klick einen Tracker (Cookie/Script/Iframe) erzeugen.
+    document.getElementById('btn-cookie-known').addEventListener('click', () => {
+      document.cookie = '_demo_analytics=1; path=/';
+    });
+    document.getElementById('btn-cookie-unknown').addEventListener('click', () => {
+      document.cookie = '__hjid=' + Math.random().toString(36).slice(2) + '; path=/';
+    });
+    document.getElementById('btn-load-script').addEventListener('click', () => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js';
+      s.async = true;
+      s.onload = () => {
+        if (window.confetti) window.confetti({ particleCount: 60, spread: 70 });
+      };
+      document.head.appendChild(s);
+    });
+    document.getElementById('btn-load-iframe').addEventListener('click', () => {
+      const f = document.createElement('iframe');
+      f.src = 'https://www.example.com/';
+      f.width = '0';
+      f.height = '0';
+      f.style.border = '0';
+      document.body.appendChild(f);
+    });
+    document.getElementById('btn-load-image').addEventListener('click', () => {
+      const i = new Image();
+      i.src = 'https://placehold.co/1x1.png?_=' + Date.now();
+      i.style.display = 'none';
+      document.body.appendChild(i);
+    });
+
+    // SimpleCMP starten
+    SimpleCMP.init({
+      storageName: 'simplecmp-demo-2',
+      services: [
+        {
+          name: 'my-analytics',
+          purposes: ['analytics'],
+          title: 'My Analytics',
+          cookies: ['_demo_analytics'],
+        },
+      ],
+      privacyPolicy: 'https://example.de/datenschutz',
+      imprint: 'https://example.de/impressum',
+      floatingTrigger: { label: 'Cookie-Einstellungen' },
+      lang: 'de',
+      record: { summaryIntervalMs: 0 },  // Console-Summary aus, wir haben das DOM-Panel
+    });
+
+    const recorder = SimpleCMP.getRecorder();
+    if (!recorder) {
+      console.error('Recorder ist nicht aktiv — `record: true` muss gesetzt sein.');
+    }
+
+    function rerender() {
+      const tbody = document.getElementById('detections-body');
+      const snapshot = recorder.getSnapshot();
+      if (snapshot.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">Noch keine Detections — drück oben einen Button.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = '';
+      for (const d of snapshot) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = [
+          '<td>', d.kind, '</td>',
+          '<td><code>', escapeHtml(d.identifier), '</code></td>',
+          '<td>', d.origin || '—', '</td>',
+          '<td class="status-' + d.status + '">', d.status, '</td>',
+          '<td>', d.matchedService || '—', '</td>',
+          '<td>', d.count, '</td>',
+        ].join('');
+        tbody.appendChild(tr);
+      }
+    }
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    // Subscribe — fires on every new + enriched detection
+    recorder.on('detection', rerender);
+    rerender();
+
+    // Cookie-Watcher pollt alle 1s; rerender Snapshot regelmäßig auch
+    setInterval(rerender, 1500);
+
+    // Workflow-Utility-Buttons
+    document.getElementById('btn-export').addEventListener('click', () => {
+      const cfg = recorder.exportConfig();
+      document.getElementById('export-output').style.display = 'block';
+      document.getElementById('export-pre').textContent = JSON.stringify(cfg, null, 2);
+    });
+    document.getElementById('btn-assert').addEventListener('click', () => {
+      const out = document.getElementById('assert-pre');
+      try {
+        recorder.assertNoUnknown();
+        out.textContent = '✓ Keine unbekannten Detections — assertNoUnknown() OK';
+      } catch (e) {
+        out.textContent = e.message;
+      }
+      document.getElementById('assert-output').style.display = 'block';
+    });
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      recorder.clear();
+      rerender();
+    });
+  </script>
+</body>
+</html>

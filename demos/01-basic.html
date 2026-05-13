@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SimpleCMP Demo 1 — Banner + Compliance-Basics</title>
+  <link rel="stylesheet" href="/dist/styles/default.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 720px;
+      margin: 4rem auto;
+      padding: 0 1.5rem;
+      line-height: 1.6;
+    }
+    h1 { font-size: 1.6rem; }
+    nav { margin-bottom: 2rem; }
+    nav a { color: #1a936f; text-decoration: none; font-size: 0.9rem; }
+    code { background: #f4f4f4; padding: 0.1em 0.4em; border-radius: 3px; }
+    .row { margin: 1rem 0; }
+    .row code { display: inline-block; max-width: 100%; overflow-x: auto; vertical-align: top; }
+  </style>
+</head>
+<body>
+  <nav><a href="/">← zurück zur Demo-Übersicht</a></nav>
+
+  <h1>Demo 1 — Banner + Compliance-Basics</h1>
+
+  <p>
+    Das Banner unten am Bildschirm wird gerade live von SimpleCMP gerendert.
+    Wenn du es nicht siehst (z.B. weil schon mal Consent erteilt wurde),
+    klick auf den Cookie-Button rechts unten — das ist der Floating-Trigger
+    aus REQ-4.
+  </p>
+
+  <p>Konfiguriert sind:</p>
+
+  <ul>
+    <li>
+      Getrennte Datenschutz- und Impressum-Links
+      <strong>(REQ-1)</strong> — sichtbar im Banner und im Modal
+    </li>
+    <li>
+      Decline-Button mit roter Farbe statt grauem Default
+      <strong>(REQ-2)</strong> — visuell gleich gewichtig wie Accept
+    </li>
+    <li>
+      Floating-Trigger unten rechts <strong>(REQ-4)</strong>,
+      keyboard-erreichbar (Tab dorthin, Enter öffnet Modal)
+    </li>
+    <li>
+      Modal hat <code>role="dialog"</code>, Focus-Trap, Esc schließt
+      <strong>(REQ-6)</strong>
+    </li>
+  </ul>
+
+  <div class="row">
+    <button id="btn-show" type="button">Modal manuell öffnen</button>
+    <button id="btn-clear" type="button">localStorage / Cookie löschen + reload</button>
+  </div>
+
+  <h3>Aktueller Manager-Status</h3>
+  <pre id="status" style="background:#f4f4f4;padding:1rem;border-radius:4px;"></pre>
+
+  <script src="/dist/simplecmp.global.js"></script>
+  <script>
+    // SimpleCMP wird unter dem globalen Namen `SimpleCMP` exposed (siehe ADR-0003).
+    SimpleCMP.init({
+      storageName: 'simplecmp-demo-1',
+      services: [
+        {
+          name: 'analytics',
+          purposes: ['analytics'],
+          title: 'Analytics (Demo)',
+          description: 'Nur Demo — würde Analytics laden.',
+          cookies: ['_demo_analytics'],
+        },
+      ],
+      privacyPolicy: 'https://example.de/datenschutz',
+      imprint: 'https://example.de/impressum',
+      floatingTrigger: { label: 'Cookie-Einstellungen' },
+      // SimpleCMP-Defaults: noAutoLoad=false, default=false, ...
+      lang: 'de',
+      translations: {
+        zz: {
+          consentNotice: { title: 'SimpleCMP Demo 1' },
+        },
+      },
+    });
+
+    document.getElementById('btn-show').addEventListener('click', () => {
+      SimpleCMP.show();
+    });
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      // Klaros Cookie / localStorage-Eintrag rauspusten
+      document.cookie = 'simplecmp-demo-1=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+      localStorage.removeItem('simplecmp-demo-1');
+      location.reload();
+    });
+
+    // Manager-State live anzeigen
+    function refreshStatus() {
+      const config = {
+        storageName: 'simplecmp-demo-1',
+        services: [{ name: 'analytics', purposes: ['analytics'] }],
+      };
+      const m = SimpleCMP.getManager(config);
+      const out = {
+        confirmed: m.confirmed,
+        changed: m.changed,
+        consents: m.consents,
+      };
+      document.getElementById('status').textContent = JSON.stringify(out, null, 2);
+    }
+    refreshStatus();
+    SimpleCMP.addEventListener('saveConsents', refreshStatus);
+    setInterval(refreshStatus, 1000);
+  </script>
+</body>
+</html>

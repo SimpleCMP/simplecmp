@@ -1,0 +1,18 @@
+{
+  "id": "cloudflare",
+  "name": "Cloudflare",
+  "vendor": "Cloudflare Inc.",
+  "vendorCountry": "US",
+  "purposes": ["security", "functional"],
+  "privacyPolicyUrl": "https://www.cloudflare.com/privacypolicy/",
+  "description": "CDN, DDoS protection, and bot mitigation. The `__cf_bm` cookie is set as part of bot management; typically treated as a necessary cookie when Cloudflare proxies the site.",
+  "i18n": {
+    "description": {
+      "de": "CDN, DDoS-Schutz und Bot-Erkennung. Das Cookie `__cf_bm` ist Teil des Bot-Managements; gilt in der Regel als notwendig, wenn Cloudflare die Site fronted."
+    }
+  },
+  "matches": {
+    "cookies": ["__cf_bm", "__cflb", "__cfduid", "cf_clearance"],
+    "origins": ["*.cloudflare.com", "*.cloudflareinsights.com"]
+  }
+}

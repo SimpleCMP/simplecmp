@@ -1,0 +1,18 @@
+{
+  "id": "typekit",
+  "name": "Adobe Fonts (Typekit)",
+  "vendor": "Adobe Inc.",
+  "vendorCountry": "US",
+  "purposes": ["functional", "personalization"],
+  "privacyPolicyUrl": "https://www.adobe.com/privacy/policy.html",
+  "description": "Web fonts hosted by Adobe. Transmits IP per request and may set tracking cookies on Adobe domains.",
+  "i18n": {
+    "description": {
+      "de": "Von Adobe gehostete Web-Fonts. Übermittelt IP pro Anfrage und setzt ggf. Tracking-Cookies auf Adobe-Domains."
+    }
+  },
+  "matches": {
+    "cookies": [],
+    "origins": ["use.typekit.net", "p.typekit.net", "*.adobe.com"]
+  }
+}

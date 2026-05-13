@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SimpleCMP Demo 4 — neue Lit-UI</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 720px;
+      margin: 4rem auto;
+      padding: 0 1.5rem;
+      line-height: 1.6;
+    }
+    h1 { font-size: 1.6rem; }
+    nav { margin-bottom: 2rem; }
+    nav a { color: #1a936f; text-decoration: none; font-size: 0.9rem; }
+    code { background: #f4f4f4; padding: 0.1em 0.4em; border-radius: 3px; }
+    .row { margin: 1rem 0; }
+    .badge {
+      display: inline-block;
+      background: #1a936f;
+      color: white;
+      padding: 0.1em 0.5em;
+      border-radius: 3px;
+      font-size: 0.8em;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <nav><a href="/">← zurück zur Demo-Übersicht</a></nav>
+
+  <h1>Demo 4 — neue Lit-UI <span class="badge">REQ-14</span></h1>
+
+  <p>
+    Dieselbe Funktionalität wie Demo 1, aber mit der neu gebauten Lit-basierten
+    UI (REQ-14, ADR-0007). Banner, Modal, Trigger sind Web Components mit
+    Shadow DOM — keine Klaro-Preact-Reste mehr.
+  </p>
+
+  <ul>
+    <li>
+      <code>&lt;simplecmp-banner&gt;</code>: bottom-right, REQ-1
+      Datenschutz/Impressum-Links separat
+    </li>
+    <li>
+      <code>&lt;simplecmp-modal&gt;</code>: native <code>&lt;dialog&gt;</code>,
+      Focus-Trap und Esc von der Plattform (REQ-6)
+    </li>
+    <li>
+      <code>&lt;simplecmp-trigger&gt;</code>: Floating-Button (REQ-4)
+    </li>
+    <li>
+      Hybride Shadow/Light-DOM via <code>mode="light"</code> — siehe Demo 5
+      mit Bootstrap-Theme
+    </li>
+  </ul>
+
+  <div class="row">
+    <button id="btn-show" type="button">Modal manuell öffnen</button>
+    <button id="btn-clear" type="button">localStorage löschen + reload</button>
+  </div>
+
+  <h3>Aktueller Manager-Status</h3>
+  <pre id="status" style="background:#f4f4f4;padding:1rem;border-radius:4px;"></pre>
+
+  <script src="/dist/simplecmp.global.js"></script>
+  <script>
+    // init() liefert ein Handle mit
+    // show()/hide()/destroy()/manager.
+    const handle = SimpleCMP.init({
+      storageName: 'simplecmp-demo-4',
+      storageMethod: 'localStorage',
+      services: [
+        {
+          name: 'analytics',
+          purposes: ['analytics'],
+          title: 'Analytics (Demo)',
+          description: 'Nur Demo — würde Analytics laden.',
+          cookies: ['_demo_analytics'],
+        },
+        {
+          name: 'youtube',
+          purposes: ['marketing'],
+          title: 'YouTube',
+          description: 'Eingebettete Videos.',
+        },
+      ],
+      privacyPolicy: 'https://example.de/datenschutz',
+      imprint: 'https://example.de/impressum',
+      floatingTrigger: { label: 'Cookie-Einstellungen' },
+      lang: 'de',
+      translations: {
+        zz: {
+          consentNotice: { title: 'SimpleCMP Demo 4 — Lit-UI' },
+        },
+      },
+    });
+
+    document.getElementById('btn-show').addEventListener('click', () => handle.show());
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      localStorage.removeItem('simplecmp-demo-4');
+      location.reload();
+    });
+
+    function refreshStatus() {
+      const m = handle.manager;
+      document.getElementById('status').textContent = JSON.stringify({
+        confirmed: m.confirmed,
+        changed: m.changed,
+        consents: m.consents,
+      }, null, 2);
+    }
+    refreshStatus();
+    setInterval(refreshStatus, 1000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SimpleCMP Demo 6 — Light-DOM-Modus mit default.css</title>
+  <!-- Light-DOM-Modus: kein Shadow-Root → die default-CSS muss vom Host geladen werden -->
+  <link rel="stylesheet" href="/dist/styles/default.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 720px;
+      margin: 4rem auto;
+      padding: 0 1.5rem;
+      line-height: 1.6;
+    }
+    nav a { color: #1a936f; text-decoration: none; font-size: 0.9rem; }
+    code { background: #f4f4f4; padding: 0.1em 0.4em; border-radius: 3px; }
+    .badge {
+      display: inline-block;
+      background: #1a936f;
+      color: white;
+      padding: 0.1em 0.5em;
+      border-radius: 3px;
+      font-size: 0.8em;
+      vertical-align: middle;
+    }
+    /*
+     * In Light-DOM-Modus rendern die Components in den regulären DOM. Das
+     * heißt, host-CSS schlägt durch. Hier overriden wir kurz die primary-
+     * Color, um zu demonstrieren, dass Custom Properties auch in Light-DOM
+     * funktionieren — keine Shadow-Boundary, kein Theming-Framework.
+     */
+    simplecmp-banner,
+    simplecmp-modal {
+      --simplecmp-color-primary: #6f42c1;
+      --simplecmp-color-primary-hover: #5a3699;
+    }
+  </style>
+</head>
+<body>
+  <nav class="mb-4"><a href="/">← zurück zur Demo-Übersicht</a></nav>
+
+  <h1>Demo 6 — Light-DOM-Modus <span class="badge">REQ-16</span></h1>
+
+  <p>
+    Wie Demo 4, aber Banner und Modal mit <code>mode="light"</code>. Die
+    <code>static styles</code> der Components rendern in dem Modus nicht
+    durch — stattdessen lädt diese Seite <code>default.css</code> aus
+    <code>dist/styles/</code> direkt im Host.
+  </p>
+
+  <p>
+    Use-Case: Du willst Klarem Host-CSS-Zugriff auf SimpleCMP geben (z.B.
+    weil dein Bootstrap-Theme bereits eigene Button-Klassen
+    durchgesetzt hat). Im Trade-off verlierst du die Shadow-DOM-Isolation
+    — Host-Styles können jetzt einsickern.
+  </p>
+
+  <p style="background:#fff8e0;border-left:3px solid #f5b700;padding:0.75rem 1rem;">
+    <strong>Inline-Override:</strong> ein <code>&lt;style&gt;</code>-Block
+    in dieser Seite setzt <code>--simplecmp-color-primary</code> auf
+    Bootstrap-Lila. Custom Properties cascaden durch — also funktioniert
+    das Override genauso wie in Shadow-DOM.
+  </p>
+
+  <h3>Aktueller Manager-Status</h3>
+  <pre id="status" style="background:#f4f4f4;padding:1rem;border-radius:4px;"></pre>
+
+  <script src="/dist/simplecmp.global.js"></script>
+  <script>
+    // domMode: 'light' setzt das Attribut auf jedem Component, BEVOR es
+    // gemountet wird — das ist der einzige Zeitpunkt an dem die Component
+    // entscheidet ob sie ein Shadow Root erstellt oder nicht.
+    const handle = SimpleCMP.init({
+      storageName: 'simplecmp-demo-6',
+      storageMethod: 'localStorage',
+      domMode: 'light',
+      services: [
+        { name: 'analytics', purposes: ['analytics'], title: 'Analytics' },
+      ],
+      privacyPolicy: 'https://example.de/datenschutz',
+      imprint: 'https://example.de/impressum',
+      lang: 'de',
+    });
+
+    function refreshStatus() {
+      const m = handle.manager;
+      document.getElementById('status').textContent = JSON.stringify({
+        confirmed: m.confirmed,
+        changed: m.changed,
+        consents: m.consents,
+      }, null, 2);
+    }
+    refreshStatus();
+    setInterval(refreshStatus, 1000);
+  </script>
+</body>
+</html>

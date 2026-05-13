@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SimpleCMP — Demos</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 720px;
+      margin: 4rem auto;
+      padding: 0 1.5rem;
+      line-height: 1.6;
+      color: #222;
+    }
+    h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
+    h1 small { color: #888; font-weight: normal; font-size: 0.7em; }
+    .demo-card {
+      display: block;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 120ms;
+    }
+    .demo-card:hover { border-color: #1a936f; }
+    .demo-card h3 { margin: 0 0 0.25rem; color: #1a936f; }
+    .demo-card p { margin: 0; color: #555; font-size: 0.95rem; }
+    code { background: #f4f4f4; padding: 0.1em 0.4em; border-radius: 3px; }
+    .note {
+      background: #fff8e0;
+      border-left: 3px solid #f5b700;
+      padding: 0.75rem 1rem;
+      margin: 1.5rem 0;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>SimpleCMP <small>— Live-Demos</small></h1>
+  <p>
+    Drei Demos, die Phase&nbsp;1–3 in Aktion zeigen. Die Bundles werden
+    direkt aus <code>../dist/</code> geladen — wenn du gerade Code änderst,
+    läuft <code>pnpm build</code> davor.
+  </p>
+
+  <a class="demo-card" href="/01-basic.html">
+    <h3>1. Banner + Compliance-Basics</h3>
+    <p>
+      Klaro-Banner, getrennte Datenschutz/Impressum-Links (REQ-1), gleichberechtigte
+      Decline/Accept-Buttons (REQ-2), Floating-Trigger zum Wieder-Öffnen (REQ-4),
+      Modal-Accessibility (REQ-6).
+    </p>
+  </a>
+
+  <a class="demo-card" href="/02-recorder.html">
+    <h3>2. Recorder mit Live-Panel</h3>
+    <p>
+      Wie #1, plus aktiver Recorder. Buttons unten lösen Cookie-/Script-/Iframe-Detections
+      aus, ein Live-Panel zeigt was der Recorder findet. Inklusive
+      <code>exportConfig()</code>-Snippet-Generator und <code>assertNoUnknown()</code>-Test.
+    </p>
+  </a>
+
+  <a class="demo-card" href="/03-service-db.html">
+    <h3>3. Full-Stack mit Service-DB</h3>
+    <p>
+      Wie #2, plus DB-Lookup gegen die ddev-Reference-Backend. Detections werden
+      mit Vendor-Metadata angereichert. Health-Check-Button gegen <code>/v1/health</code>.
+    </p>
+    <div style="margin-top: 0.5rem; font-size: 0.85em; color: #888;">
+      ⚠️ Erfordert vorab gestartetes Backend: <code>cd reference-server && ddev start</code>
+    </div>
+  </a>
+
+  <a class="demo-card" href="/04-lit-ui.html">
+    <h3>4. Lit-UI im Detail</h3>
+    <p>
+      Wie #1, aber mit zusätzlichen Hooks: <code>SimpleCMP.init()</code>
+      gibt ein Handle zurück (<code>show()</code>, <code>hide()</code>,
+      <code>destroy()</code>, <code>manager</code>) — siehe REQ-14 / ADR-0007.
+    </p>
+  </a>
+
+  <a class="demo-card" href="/05-lit-bootstrap.html">
+    <h3>5. Lit-UI mit Bootstrap-Theme</h3>
+    <p>
+      Wie #4, plus dem Bootstrap-Adapter-Stylesheet
+      (<code>simplecmp/styles/bootstrap.css</code>). Eine einzige
+      <code>&lt;link&gt;</code>-Zeile mappt SimpleCMPs Custom Properties auf
+      <code>--bs-*</code> — kein JS, kein Fork.
+    </p>
+  </a>
+
+  <a class="demo-card" href="/06-lit-light-dom.html">
+    <h3>6. Light-DOM-Modus mit default.css</h3>
+    <p>
+      Wie #4, aber alle Components mit <code>domMode: 'light'</code>. Statt
+      Shadow-DOM-Encapsulation lädt der Host
+      <code>simplecmp/styles/default.css</code> direkt — host-CSS schlägt
+      durch, Custom Properties cascaden ungehindert (REQ-16, ADR-0007).
+    </p>
+  </a>
+
+  <div class="note">
+    <strong>Alle Demos brauchen einen frischen Build.</strong>
+    Aus dem Repo-Root: <code>pnpm build</code> (oder <code>pnpm demo</code>, das tut beides).
+  </div>
+</body>
+</html>

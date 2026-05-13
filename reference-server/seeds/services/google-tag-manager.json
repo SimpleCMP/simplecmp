@@ -1,0 +1,18 @@
+{
+  "id": "google-tag-manager",
+  "name": "Google Tag Manager",
+  "vendor": "Google LLC",
+  "vendorCountry": "US",
+  "purposes": ["functional"],
+  "privacyPolicyUrl": "https://policies.google.com/privacy",
+  "description": "Container script that loads other tags. GTM itself does not set tracking cookies; consent depends on which tags it injects.",
+  "i18n": {
+    "description": {
+      "de": "Container-Skript, das andere Tags lädt. GTM selbst setzt keine Tracking-Cookies; die Einwilligung hängt von den eingebundenen Tags ab."
+    }
+  },
+  "matches": {
+    "cookies": [],
+    "origins": ["*.googletagmanager.com"]
+  }
+}

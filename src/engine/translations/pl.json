@@ -1,0 +1,76 @@
+{
+  "acceptAll": "Zaakceptuj wszystkie",
+  "acceptSelected": "Zaakceptuj wybrane",
+  "close": "Zamknij",
+  "consentModal": {
+    "description": "Tutaj mogą Państwo ocenić i dostosować usługi, które chcielibyśmy wykorzystać na tej stronie. Włączaj lub wyłączaj usługi według własnego uznania.",
+    "privacyPolicy": {
+      "name": "polityką prywatności",
+      "text": "Aby dowiedzieć się więcej, prosimy o zapoznanie się z naszą {privacyPolicy}."
+    },
+    "title": "Usługi, z których chcielibyśmy skorzystać"
+  },
+  "consentNotice": {
+    "changeDescription": "Od Twojej ostatniej wizyty nastąpiły zmiany, prosimy o odnowienie zgody.",
+    "description": "Czy możemy włączyć dodatkowe usługi dla {purposes}? W każdej chwili mogą Państwo później zmienić lub wycofać swoją zgodę.",
+    "imprint": {
+      "name": "Imprint"
+    },
+    "learnMore": "Pozwól mi wybrać",
+    "privacyPolicy": {
+      "name": "polityka prywatności"
+    },
+    "testing": "Tryb testowy!"
+  },
+  "contextualConsent": {
+    "acceptAlways": "Zawsze",
+    "acceptOnce": "Tak",
+    "description": "Czy chcą Państwo załadować treści zewnętrzne dostarczane przez {title}?"
+  },
+  "decline": "Odmawiam",
+  "ok": "Ok",
+  "poweredBy": "Technologia dostarczona przez Klaro",
+  "privacyPolicy": {
+    "name": "polityka prywatności",
+    "text": "Aby dowiedzieć się więcej, prosimy o zapoznanie się z naszą {privacyPolicy}."
+  },
+  "purposeItem": {
+    "service": "usługa",
+    "services": "usługi"
+  },
+  "purposes": {
+    "advertising": {
+      "description": "Usługi te przetwarzają dane osobowe w celu pokazania Państwu spersonalizowanych lub opartych na zainteresowaniach reklam.",
+      "title": "Reklama"
+    },
+    "functional": {
+      "description": "Usługi te są niezbędne do prawidłowego funkcjonowania niniejszej strony internetowej. Nie mogą Państwo ich tutaj wyłączyć, ponieważ w przeciwnym razie strona nie działałaby prawidłowo.\n",
+      "title": "Świadczenie usług"
+    },
+    "marketing": {
+      "description": "Usługi te przetwarzają dane osobowe w celu pokazania Państwu istotnych treści dotyczących produktów, usług lub tematów, którymi mogą być Państwo zainteresowani.",
+      "title": "Marketing"
+    },
+    "performance": {
+      "description": "Usługi te przetwarzają dane osobowe w celu optymalizacji usług oferowanych przez tę stronę.\n",
+      "title": "Optymalizacja wydajności"
+    }
+  },
+  "save": "Zapisz",
+  "service": {
+    "disableAll": {
+      "description": "Za pomocą tego przełącznika można włączać lub wyłączać wszystkie usługi.",
+      "title": "Włącz lub wyłącz wszystkie usługi"
+    },
+    "optOut": {
+      "description": "Ta usługa jest domyślnie załadowana (ale mogą Państwo z niej zrezygnować)",
+      "title": "(opt-out)"
+    },
+    "purpose": "Cel",
+    "purposes": "Cele",
+    "required": {
+      "description": "Usługi te są zawsze wymagane",
+      "title": "(zawsze wymagane)"
+    }
+  }
+}

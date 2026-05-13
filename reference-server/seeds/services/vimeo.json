@@ -1,0 +1,18 @@
+{
+  "id": "vimeo",
+  "name": "Vimeo",
+  "vendor": "Vimeo.com Inc.",
+  "vendorCountry": "US",
+  "purposes": ["functional", "personalization"],
+  "privacyPolicyUrl": "https://vimeo.com/privacy",
+  "description": "Embedded video player. Sets cookies for player preferences and ad personalization (when ads are shown).",
+  "i18n": {
+    "description": {
+      "de": "Eingebetteter Video-Player. Setzt Cookies für Player-Einstellungen und Werbe-Personalisierung (sofern Anzeigen ausgespielt werden)."
+    }
+  },
+  "matches": {
+    "cookies": ["vuid", "_ga"],
+    "origins": ["*.vimeo.com", "*.vimeocdn.com"]
+  }
+}

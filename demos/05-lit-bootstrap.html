@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SimpleCMP Demo 5 — Lit + Bootstrap-Theme</title>
+  <!-- Bootstrap 5 — die Tokens, gegen die SimpleCMP gemappt wird -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap/dist/css/bootstrap.min.css" crossorigin="anonymous">
+  <!-- SimpleCMP Bootstrap-Adapter — leitet --simplecmp-* aus --bs-* ab -->
+  <link rel="stylesheet" href="/dist/styles/bootstrap.css">
+  <style>
+    body {
+      max-width: 720px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+    }
+    nav a { font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <nav class="mb-4"><a href="/" class="text-decoration-none">← zurück zur Demo-Übersicht</a></nav>
+
+  <h1 class="h3">Demo 5 — Lit + Bootstrap-Adapter</h1>
+
+  <p class="lead">
+    Dieselben Components wie Demo 4. Nur ein zusätzliches Stylesheet
+    (<code>simplecmp/styles/bootstrap.css</code>) und schon übernimmt das UI
+    Bootstraps Farben, Radius, Schriftart.
+  </p>
+
+  <div class="alert alert-info">
+    <strong>So funktioniert's:</strong> Der Adapter mappt
+    <code>--simplecmp-color-primary</code> auf <code>--bs-primary</code>,
+    <code>--simplecmp-radius</code> auf <code>--bs-border-radius</code>, usw.
+    Custom Properties durchqueren die Shadow-DOM-Grenze automatisch — kein JS,
+    kein Fork, kein Theming-Framework.
+  </div>
+
+  <div class="row mt-3">
+    <div class="col">
+      <button id="btn-show" type="button" class="btn btn-primary">
+        Modal manuell öffnen
+      </button>
+      <button id="btn-clear" type="button" class="btn btn-outline-secondary">
+        localStorage löschen + reload
+      </button>
+    </div>
+  </div>
+
+  <h3 class="h5 mt-4">Aktueller Manager-Status</h3>
+  <pre id="status" class="bg-light p-3 rounded"></pre>
+
+  <script src="/dist/simplecmp.global.js"></script>
+  <script>
+    const handle = SimpleCMP.init({
+      storageName: 'simplecmp-demo-5',
+      storageMethod: 'localStorage',
+      services: [
+        {
+          name: 'analytics',
+          purposes: ['analytics'],
+          title: 'Analytics',
+          description: 'Statistik-Tools.',
+          cookies: ['_demo_analytics'],
+        },
+        {
+          name: 'youtube',
+          purposes: ['marketing'],
+          title: 'YouTube',
+        },
+      ],
+      privacyPolicy: 'https://example.de/datenschutz',
+      imprint: 'https://example.de/impressum',
+      floatingTrigger: { label: 'Cookie-Einstellungen' },
+      lang: 'de',
+      translations: {
+        zz: {
+          consentNotice: { title: 'SimpleCMP Demo 5 — Bootstrap-Theme' },
+        },
+      },
+    });
+
+    document.getElementById('btn-show').addEventListener('click', () => handle.show());
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      localStorage.removeItem('simplecmp-demo-5');
+      location.reload();
+    });
+
+    function refreshStatus() {
+      const m = handle.manager;
+      document.getElementById('status').textContent = JSON.stringify({
+        confirmed: m.confirmed,
+        changed: m.changed,
+        consents: m.consents,
+      }, null, 2);
+    }
+    refreshStatus();
+    setInterval(refreshStatus, 1000);
+  </script>
+</body>
+</html>

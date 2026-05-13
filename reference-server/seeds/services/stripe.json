@@ -1,0 +1,18 @@
+{
+  "id": "stripe",
+  "name": "Stripe",
+  "vendor": "Stripe Payments Europe Ltd",
+  "vendorCountry": "IE",
+  "purposes": ["functional", "security"],
+  "privacyPolicyUrl": "https://stripe.com/privacy",
+  "description": "Payment processing. The cookies and scripts loaded from js.stripe.com are required for payment forms and fraud-prevention checks; they are typically considered necessary cookies.",
+  "i18n": {
+    "description": {
+      "de": "Zahlungsabwicklung. Die von js.stripe.com geladenen Cookies und Skripte sind für Zahlungsformulare und Betrugsprävention erforderlich; sie werden in der Regel als notwendige Cookies eingestuft."
+    }
+  },
+  "matches": {
+    "cookies": ["__stripe_mid", "__stripe_sid"],
+    "origins": ["*.stripe.com", "*.stripe.network"]
+  }
+}

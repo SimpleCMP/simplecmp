@@ -1,0 +1,11 @@
+/vendor/
+/var/
+/.phpunit.cache/
+/.phpunit.result.cache
+/.ddev/.gitignore
+/.ddev/db_snapshots/
+/.ddev/.dbimageBuild/
+/.ddev/.global_commands/
+/.ddev/import-db/
+/.ddev/import.yaml
+/.ddev/db_data/

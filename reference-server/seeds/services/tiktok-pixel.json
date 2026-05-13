@@ -1,0 +1,18 @@
+{
+  "id": "tiktok-pixel",
+  "name": "TikTok Pixel",
+  "vendor": "TikTok Information Technologies UK Limited",
+  "vendorCountry": "GB",
+  "purposes": ["marketing", "advertising", "analytics"],
+  "privacyPolicyUrl": "https://www.tiktok.com/legal/page/eea/privacy-policy/en",
+  "description": "Conversion tracking and audience targeting for TikTok ads.",
+  "i18n": {
+    "description": {
+      "de": "Conversion-Tracking und Zielgruppen-Targeting für TikTok-Werbeanzeigen."
+    }
+  },
+  "matches": {
+    "cookies": ["_ttp", "tt_appInfo", "tt_pixel_session_index"],
+    "origins": ["*.tiktok.com", "*.tiktokcdn.com", "analytics.tiktok.com"]
+  }
+}

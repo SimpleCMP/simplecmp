@@ -1,0 +1,18 @@
+{
+  "id": "hubspot",
+  "name": "HubSpot",
+  "vendor": "HubSpot Inc.",
+  "vendorCountry": "US",
+  "purposes": ["marketing", "analytics"],
+  "privacyPolicyUrl": "https://legal.hubspot.com/privacy-policy",
+  "description": "Marketing automation, lead capture, and visitor analytics.",
+  "i18n": {
+    "description": {
+      "de": "Marketing-Automation, Lead-Erfassung und Besucheranalyse."
+    }
+  },
+  "matches": {
+    "cookies": ["__hstc", "__hssc", "__hssrc", "hubspotutk", "messagesUtk"],
+    "origins": ["*.hubspot.com", "*.hs-analytics.net", "*.hsforms.com", "*.hsforms.net"]
+  }
+}

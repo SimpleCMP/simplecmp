@@ -1,0 +1,74 @@
+{
+  "name": "simplecmp",
+  "version": "0.0.1",
+  "description": "An open-source consent manager with auto-detection mode and CMS-friendly integration",
+  "keywords": [
+    "consent",
+    "cmp",
+    "gdpr",
+    "dsgvo",
+    "cookie",
+    "privacy",
+    "consent-manager",
+    "tracking"
+  ],
+  "homepage": "https://simplecmp.dev",
+  "bugs": {
+    "url": "https://github.com/simplecmp/simplecmp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simplecmp/simplecmp.git"
+  },
+  "license": "BSD-3-Clause",
+  "author": "Sven Wappler",
+  "type": "module",
+  "module": "./dist/simplecmp.mjs",
+  "types": "./dist/simplecmp.d.ts",
+  "unpkg": "./dist/simplecmp.global.js",
+  "jsdelivr": "./dist/simplecmp.global.js",
+  "exports": {
+    ".": {
+      "types": "./dist/simplecmp.d.ts",
+      "import": "./dist/simplecmp.mjs"
+    },
+    "./styles/*": "./dist/styles/*",
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md", "LICENSE", "LICENSE-KLARO", "CHANGELOG.md"],
+  "scripts": {
+    "build": "pnpm build:js && pnpm build:themes",
+    "build:js": "tsup",
+    "build:themes": "node -e \"require('node:fs').cpSync('src/ui/styles', 'dist/styles', { recursive: true, filter: (p) => !p.endsWith('.ts') })\"",
+    "dev": "tsup --watch",
+    "demo": "pnpm build && node demos/serve.mjs",
+    "demo:serve": "node demos/serve.mjs",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "typecheck": "tsc --noEmit",
+    "ci": "pnpm typecheck && pnpm check && pnpm test:run && pnpm build",
+    "prepublishOnly": "pnpm ci"
+  },
+  "dependencies": {
+    "lit": "^3.2.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "esbuild": "^0.28.0",
+    "happy-dom": "^15.11.7",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "packageManager": "[email protected]",
+  "engines": {
+    "node": ">=18.18.0"
+  }
+}

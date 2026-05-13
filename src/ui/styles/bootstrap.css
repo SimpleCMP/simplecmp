@@ -1,0 +1,60 @@
+/**
+ * SimpleCMP — Bootstrap 5 theme adapter (REQ-14 / ADR-0007).
+ *
+ * Drop-in stylesheet that maps SimpleCMP's design tokens to Bootstrap's
+ * own custom properties (`--bs-*`). With Bootstrap loaded on the page,
+ * the consent UI inherits the host's color scheme, radius, and spacing
+ * automatically — no JS, no fork, no theming framework.
+ *
+ * Usage:
+ *
+ *     <link rel="stylesheet" href="path/to/bootstrap.css">
+ *     <link rel="stylesheet" href="path/to/simplecmp/styles/bootstrap.css">
+ *     <script type="module">
+ *       import { initLit } from 'simplecmp';
+ *       initLit({ ... });
+ *     </script>
+ *
+ * The `:where()` wrapper keeps specificity at zero so consumer overrides
+ * (`simplecmp-banner { --simplecmp-color-primary: ...; }`) still win.
+ *
+ * Custom-property inheritance crosses the Shadow DOM boundary, so this
+ * stylesheet doesn't need to be inside the component's shadow root —
+ * it can live in the host page's regular CSS chain.
+ */
+
+:where(
+    simplecmp-banner,
+    simplecmp-modal,
+    simplecmp-purpose-group,
+    simplecmp-service-toggle,
+    simplecmp-trigger,
+    simplecmp-policy-links,
+    simplecmp-contextual-notice
+  ) {
+  /* Colors */
+  --simplecmp-color-primary: var(--bs-primary, #0d6efd);
+  --simplecmp-color-primary-hover: var(--bs-primary-bg-subtle, #084298);
+  --simplecmp-color-secondary: var(--bs-secondary, #6c757d);
+  --simplecmp-color-danger: var(--bs-danger, #dc3545);
+  --simplecmp-color-bg: var(--bs-body-bg, #ffffff);
+  --simplecmp-color-bg-alt: var(--bs-tertiary-bg, #f8f9fa);
+  --simplecmp-color-border: var(--bs-border-color, #dee2e6);
+  --simplecmp-color-text: var(--bs-body-color, #212529);
+  --simplecmp-color-text-muted: var(--bs-secondary-color, #6c757d);
+
+  /* Geometry */
+  --simplecmp-radius: var(--bs-border-radius, 0.375rem);
+  --simplecmp-spacing: var(--bs-spacer, 1rem);
+  --simplecmp-spacing-sm: 0.5rem;
+  --simplecmp-spacing-lg: 1.5rem;
+
+  /* Typography */
+  --simplecmp-font-family: var(--bs-body-font-family, system-ui);
+  --simplecmp-font-size: var(--bs-body-font-size, 1rem);
+  --simplecmp-font-size-sm: 0.875rem;
+  --simplecmp-line-height: var(--bs-body-line-height, 1.5);
+
+  /* Effects */
+  --simplecmp-shadow: var(--bs-box-shadow, 0 0.5rem 1rem rgba(0, 0, 0, 0.15));
+}

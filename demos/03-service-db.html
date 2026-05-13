@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SimpleCMP Demo 3 — Full-Stack mit Service-DB</title>
+  <link rel="stylesheet" href="/dist/styles/default.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      line-height: 1.6;
+    }
+    h1 { font-size: 1.6rem; }
+    nav { margin-bottom: 1.5rem; }
+    nav a { color: #1a936f; text-decoration: none; font-size: 0.9rem; }
+    section { margin: 1.5rem 0; }
+    button { margin: 0.25rem; padding: 0.5rem 1rem; cursor: pointer; }
+    pre {
+      background: #f4f4f4;
+      padding: 1rem;
+      border-radius: 4px;
+      max-height: 400px;
+      overflow: auto;
+      font-size: 0.85rem;
+    }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+    th, td { border-bottom: 1px solid #ddd; padding: 0.4rem 0.5rem; text-align: left; vertical-align: top; }
+    th { background: #fafafa; }
+    .status-known { color: #1a936f; font-weight: bold; }
+    .status-unknown { color: #da2c43; }
+    .empty { color: #888; font-style: italic; padding: 0.5rem 0; }
+    .vendor { font-size: 0.8rem; color: #666; }
+    .health-ok { color: #1a936f; }
+    .health-fail { color: #da2c43; }
+    label { display: block; margin: 0.5rem 0; font-size: 0.9rem; }
+    input[type=text] {
+      width: 100%;
+      max-width: 480px;
+      padding: 0.4rem 0.6rem;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+    .note {
+      background: #fff8e0;
+      border-left: 3px solid #f5b700;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <nav><a href="/">← zurück zur Demo-Übersicht</a></nav>
+
+  <h1>Demo 3 — Full-Stack mit Service-DB</h1>
+
+  <p>
+    Identisch zu Demo 2 — aber mit aktivem Service-DB-Lookup gegen ein
+    PHP+SQLite-Backend. Detections, die der LocalClassifier nicht kennt,
+    werden im Hintergrund gegen <code>/v1/lookup</code> gefragt; bei Treffer
+    werden sie nachträglich angereichert (<code>matchedService</code>,
+    <code>matchedVendor</code>) und das Live-Panel updated sich.
+  </p>
+
+  <div class="note">
+    <strong>Voraussetzung:</strong> Reference-Backend laufend.
+    <br>Aus dem Repo-Root:
+    <code>cd reference-server && ddev start</code> oder
+    <code>cd reference-server && composer install && php -S 127.0.0.1:8080 -t public</code>.
+  </div>
+
+  <section>
+    <h3>Backend-URL</h3>
+    <label for="db-url">
+      Service-DB-URL (Default ddev — passt nur, wenn ddev läuft):
+    </label>
+    <input id="db-url" type="text" value="https://simplecmp-service-db.ddev.site">
+    <button id="btn-health" type="button">Health-Check</button>
+    <button id="btn-reload" type="button">Mit dieser URL neu starten</button>
+    <div id="health-result" style="margin-top:0.5rem;"></div>
+  </section>
+
+  <section>
+    <h3>Detections auslösen</h3>
+    <button id="btn-cookie-ga" type="button">Cookie <code>_ga</code> setzen</button>
+    <button id="btn-cookie-hj" type="button">Cookie <code>_hjid</code> setzen</button>
+    <button id="btn-cookie-unknown" type="button">Cookie <code>__random</code> setzen (unbekannt)</button>
+    <button id="btn-load-jsdelivr" type="button">Script von cdn.jsdelivr.net laden</button>
+    <button id="btn-load-recaptcha" type="button">Resource von www.gstatic.com laden</button>
+  </section>
+
+  <section>
+    <h3>Live Snapshot (mit DB-Anreicherung)</h3>
+    <table id="detections-table">
+      <thead>
+        <tr>
+          <th>Kind</th>
+          <th>Identifier</th>
+          <th>Service / Vendor</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="detections-body">
+        <tr><td colspan="4" class="empty">Noch keine Detections.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h3>exportConfig() — fertig zum Copy/Paste</h3>
+    <button id="btn-export" type="button">Aus aktuellen Detections generieren</button>
+    <pre id="export-pre" style="display:none;"></pre>
+  </section>
+
+  <script src="/dist/simplecmp.global.js"></script>
+  <script>
+    function getServiceDbUrl() {
+      const fromQuery = new URLSearchParams(location.search).get('serviceDbUrl');
+      if (fromQuery) return fromQuery;
+      const stored = localStorage.getItem('simplecmp-demo-3-url');
+      return stored || 'https://simplecmp-service-db.ddev.site';
+    }
+
+    document.getElementById('db-url').value = getServiceDbUrl();
+
+    document.getElementById('btn-reload').addEventListener('click', () => {
+      const url = document.getElementById('db-url').value.trim().replace(/\/+$/, '');
+      localStorage.setItem('simplecmp-demo-3-url', url);
+      location.reload();
+    });
+
+    // Health-Check über den ServiceDbClient (öffentlicher Re-Export)
+    document.getElementById('btn-health').addEventListener('click', async () => {
+      const url = document.getElementById('db-url').value.trim().replace(/\/+$/, '');
+      const out = document.getElementById('health-result');
+      out.textContent = 'Prüfe…';
+      const client = new SimpleCMP.ServiceDbClient({ url });
+      const h = await client.health();
+      if (!h) {
+        out.innerHTML = '<span class="health-fail">✗ Backend nicht erreichbar oder kein gültiges Health-Response</span>';
+      } else {
+        out.innerHTML = '<span class="health-ok">✓ Backend OK — Schema v' + h.schemaVersion +
+          ', ' + (h.count ?? '?') + ' Services in der DB</span>';
+      }
+    });
+
+    // Cookie-Trigger
+    document.getElementById('btn-cookie-ga').addEventListener('click', () => {
+      document.cookie = '_ga=GA1.1.demo; path=/';
+    });
+    document.getElementById('btn-cookie-hj').addEventListener('click', () => {
+      document.cookie = '_hjid=' + Math.random().toString(36).slice(2) + '; path=/';
+    });
+    document.getElementById('btn-cookie-unknown').addEventListener('click', () => {
+      document.cookie = '__random_' + Math.random().toString(36).slice(2, 6) + '=x; path=/';
+    });
+
+    // Cross-origin loaders — beide Origins sind in unseren Seeds
+    document.getElementById('btn-load-jsdelivr').addEventListener('click', () => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js';
+      s.async = true;
+      document.head.appendChild(s);
+    });
+    document.getElementById('btn-load-recaptcha').addEventListener('click', () => {
+      const i = new Image();
+      i.src = 'https://www.gstatic.com/images/branding/product/1x/translate_24dp.png?_=' + Date.now();
+      i.style.display = 'none';
+      document.body.appendChild(i);
+    });
+
+    // SimpleCMP.init mit serviceDbUrl
+    SimpleCMP.init({
+      storageName: 'simplecmp-demo-3',
+      services: [
+        // Lokal nur einen Custom-Service — alles andere kommt aus der DB
+        {
+          name: 'my-app',
+          purposes: ['functional'],
+          title: 'My App (lokaler Override)',
+          cookies: ['session_id'],
+        },
+      ],
+      privacyPolicy: 'https://example.de/datenschutz',
+      imprint: 'https://example.de/impressum',
+      floatingTrigger: { label: 'Cookie-Einstellungen' },
+      lang: 'de',
+      record: { summaryIntervalMs: 0 },
+      serviceDbUrl: getServiceDbUrl(),
+    });
+
+    const recorder = SimpleCMP.getRecorder();
+
+    function rerender() {
+      const tbody = document.getElementById('detections-body');
+      const snapshot = recorder.getSnapshot();
+      if (snapshot.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty">Noch keine Detections.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = '';
+      for (const d of snapshot) {
+        const tr = document.createElement('tr');
+        const serviceCell = d.matchedService
+          ? '<strong>' + d.matchedService + '</strong>' +
+            (d.matchedVendor ? '<br><span class="vendor">' + escapeHtml(d.matchedVendor) + '</span>' : '')
+          : '—';
+        tr.innerHTML = [
+          '<td>', d.kind, '</td>',
+          '<td><code>', escapeHtml(d.identifier), '</code>',
+          d.origin ? '<br><span class="vendor">' + d.origin + '</span>' : '',
+          '</td>',
+          '<td>', serviceCell, '</td>',
+          '<td class="status-' + d.status + '">', d.status, '</td>',
+        ].join('');
+        tbody.appendChild(tr);
+      }
+    }
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    recorder.on('detection', rerender);
+    setInterval(rerender, 1500);
+    rerender();
+
+    document.getElementById('btn-export').addEventListener('click', () => {
+      document.getElementById('export-pre').style.display = 'block';
+      document.getElementById('export-pre').textContent =
+        JSON.stringify(recorder.exportConfig(), null, 2);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "id": "google-ads",
+  "name": "Google Ads",
+  "vendor": "Google LLC",
+  "vendorCountry": "US",
+  "purposes": ["marketing", "advertising"],
+  "privacyPolicyUrl": "https://policies.google.com/privacy",
+  "description": "Conversion tracking and remarketing for Google Ads campaigns. Sets cookies that identify the visitor across the Google ad network.",
+  "i18n": {
+    "description": {
+      "de": "Conversion-Tracking und Remarketing für Google-Ads-Kampagnen. Setzt Cookies, die den Besucher netzwerkweit identifizieren."
+    }
+  },
+  "matches": {
+    "cookies": ["IDE", "/^_gcl_/", "DSID"],
+    "origins": ["*.doubleclick.net", "googleads.g.doubleclick.net", "www.googleadservices.com"]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "mailchimp",
+  "name": "Mailchimp",
+  "vendor": "Intuit Inc.",
+  "vendorCountry": "US",
+  "purposes": ["marketing", "functional"],
+  "privacyPolicyUrl": "https://www.intuit.com/privacy/statement/",
+  "description": "Email marketing platform. Embedded forms and subscriber tracking.",
+  "i18n": {
+    "description": {
+      "de": "Email-Marketing-Plattform. Eingebettete Formulare und Abonnenten-Tracking."
+    }
+  },
+  "matches": {
+    "cookies": ["_mcid", "ak_bmsc"],
+    "origins": ["*.mailchimp.com", "*.list-manage.com"]
+  }
+}

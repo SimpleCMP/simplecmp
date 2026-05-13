@@ -1,0 +1,18 @@
+{
+  "id": "linkedin-insight",
+  "name": "LinkedIn Insight Tag",
+  "vendor": "LinkedIn Ireland Unlimited Company",
+  "vendorCountry": "IE",
+  "purposes": ["marketing", "advertising", "analytics"],
+  "privacyPolicyUrl": "https://www.linkedin.com/legal/privacy-policy",
+  "description": "Conversion tracking and audience-targeting tag for LinkedIn ads.",
+  "i18n": {
+    "description": {
+      "de": "Conversion-Tracking und Zielgruppen-Targeting-Tag für LinkedIn-Werbeanzeigen."
+    }
+  },
+  "matches": {
+    "cookies": ["li_sugr", "lidc", "bcookie", "UserMatchHistory", "AnalyticsSyncHistory"],
+    "origins": ["*.linkedin.com", "*.licdn.com"]
+  }
+}

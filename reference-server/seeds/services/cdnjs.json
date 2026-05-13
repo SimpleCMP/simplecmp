@@ -1,0 +1,18 @@
+{
+  "id": "cdnjs",
+  "name": "cdnjs",
+  "vendor": "Cloudflare Inc.",
+  "vendorCountry": "US",
+  "purposes": ["functional"],
+  "privacyPolicyUrl": "https://www.cloudflare.com/privacypolicy/",
+  "description": "Cloudflare-operated CDN for open-source JS/CSS libraries. Transmits IP per request.",
+  "i18n": {
+    "description": {
+      "de": "Von Cloudflare betriebenes CDN für Open-Source-JS/CSS-Bibliotheken. Übermittelt die IP pro Anfrage."
+    }
+  },
+  "matches": {
+    "cookies": [],
+    "origins": ["cdnjs.cloudflare.com"]
+  }
+}
