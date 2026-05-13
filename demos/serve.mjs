@@ -1,18 +1,22 @@
 /**
  * Demo launcher for SimpleCMP.
  *
- * Pure Node, no external deps. Two responsibilities:
+ * Pure Node, no external deps. Three responsibilities:
  *
  *   1. Auto-start the ddev-managed Service-DB reference backend if ddev is
  *      installed and the backend isn't already running. Demo 3 then works
  *      out of the box.
  *
- *   2. Serve the `demos/` directory (and the sibling `dist/` folder) on a
+ *   2. Auto-start the CMS-bridge demo receiver (`cms-bridge-receiver.mjs`)
+ *      on port 8787 so Demo 7 can POST to it without manual setup.
+ *
+ *   3. Serve the `demos/` directory (and the sibling `dist/` folder) on a
  *      local port, so demo HTML can reference `/dist/...` paths.
  *
  *   node demos/serve.mjs                  # auto-detect ddev, port 5173
  *   node demos/serve.mjs --port 8080      # custom port
  *   node demos/serve.mjs --no-backend     # skip ddev autostart
+ *   node demos/serve.mjs --no-receiver    # skip CMS-bridge receiver autostart
  */
 
 import { spawn } from 'node:child_process';
@@ -24,11 +28,15 @@ import { argv, exit } from 'node:process';
 const ROOT = resolve(new URL('..', import.meta.url).pathname);
 const DEMOS = resolve(ROOT, 'demos');
 const REFERENCE_SERVER = resolve(ROOT, 'reference-server');
+const RECEIVER_SCRIPT = resolve(DEMOS, 'cms-bridge-receiver.mjs');
 
 const portArgIndex = argv.indexOf('--port');
 const PORT = portArgIndex >= 0 ? Number(argv[portArgIndex + 1]) : 5173;
 const SKIP_BACKEND = argv.includes('--no-backend');
+const SKIP_RECEIVER = argv.includes('--no-receiver');
 const BACKEND_HEALTH_URL = 'https://simplecmp-service-db.ddev.site/v1/health';
+const RECEIVER_PORT = 8787;
+const RECEIVER_HEALTH_URL = `http://127.0.0.1:${RECEIVER_PORT}/health`;
 
 // --- ddev launcher ----------------------------------------------------------
 
@@ -99,6 +107,87 @@ async function maybeStartBackend() {
     return;
   }
   await ddevStart();
+}
+
+// --- CMS-bridge receiver launcher ------------------------------------------
+
+/**
+ * Module-scoped handle to the spawned receiver so the parent can kill it on
+ * exit. Without this, the child outlives the parent on a crash (e.g.
+ * EADDRINUSE on the static port) and holds the receiver port hostage —
+ * the next `pnpm demo:serve` then runs against a stale receiver that the
+ * user doesn't know is there.
+ */
+let receiverChild = null;
+
+/** Probe the receiver's /health endpoint. */
+async function receiverIsHealthy() {
+  if (typeof fetch !== 'function') return false;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 500);
+    const res = await fetch(RECEIVER_HEALTH_URL, { signal: ctrl.signal });
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Spawn the receiver and forward its stdout/stderr. */
+function spawnReceiver() {
+  const child = spawn(process.execPath, [RECEIVER_SCRIPT], { stdio: ['ignore', 'pipe', 'pipe'] });
+  child.stdout.on('data', (chunk) => process.stdout.write(`[receiver] ${chunk}`));
+  child.stderr.on('data', (chunk) => process.stderr.write(`[receiver] ${chunk}`));
+  child.on('error', (err) => {
+    console.log(`  ⚠ Could not spawn CMS-bridge receiver: ${err.message}`);
+  });
+  receiverChild = child;
+  return child;
+}
+
+/** Best-effort SIGTERM to the receiver. Safe to call repeatedly. */
+function killReceiver() {
+  if (!receiverChild || receiverChild.killed) return;
+  try {
+    receiverChild.kill('SIGTERM');
+  } catch {
+    // Already dead, exited between the check and the call — fine.
+  }
+}
+
+async function maybeStartReceiver() {
+  if (SKIP_RECEIVER) {
+    console.log(`  ⓘ --no-receiver: skipping CMS-bridge receiver. Demo 7 needs one at`);
+    console.log(`     http://127.0.0.1:${RECEIVER_PORT} (run cms-bridge-receiver.mjs manually).`);
+    return;
+  }
+  if (await receiverIsHealthy()) {
+    console.log('  ✓ CMS-bridge receiver already running — Demo 7 ready');
+    return;
+  }
+  spawnReceiver();
+  // Give it a moment to bind the port before the static server announces.
+  for (let i = 0; i < 10; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    if (await receiverIsHealthy()) {
+      console.log(`  ✓ CMS-bridge receiver started on http://127.0.0.1:${RECEIVER_PORT}/`);
+      return;
+    }
+  }
+  console.log(`  ⚠ CMS-bridge receiver did not respond on port ${RECEIVER_PORT} — Demo 7 may not work`);
+}
+
+// Make sure the receiver doesn't outlive us. `exit` covers natural shutdown
+// and `process.exit(1)` on errors (e.g. static-server EADDRINUSE); SIGINT
+// covers Ctrl+C; SIGTERM covers `kill` / supervisor shutdowns. Each signal
+// handler also exits so we don't hang waiting for the child to terminate.
+process.on('exit', killReceiver);
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(sig, () => {
+    killReceiver();
+    process.exit(0);
+  });
 }
 
 // --- static file server -----------------------------------------------------
@@ -188,4 +277,5 @@ function startStaticServer() {
 
 console.log('SimpleCMP demos — preflight');
 await maybeStartBackend();
+await maybeStartReceiver();
 startStaticServer();

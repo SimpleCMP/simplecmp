@@ -41,9 +41,9 @@
 <body>
   <h1>SimpleCMP <small>— Live-Demos</small></h1>
   <p>
-    Drei Demos, die Phase&nbsp;1–3 in Aktion zeigen. Die Bundles werden
-    direkt aus <code>../dist/</code> geladen — wenn du gerade Code änderst,
-    läuft <code>pnpm build</code> davor.
+    Sieben Demos, die Phase&nbsp;1–4 und den Lit-UI-Rewrite in Aktion
+    zeigen. Die Bundles werden direkt aus <code>../dist/</code> geladen —
+    wenn du gerade Code änderst, läuft <code>pnpm build</code> davor.
   </p>
 
   <a class="demo-card" href="/01-basic.html">
@@ -102,6 +102,20 @@
       <code>simplecmp/styles/default.css</code> direkt — host-CSS schlägt
       durch, Custom Properties cascaden ungehindert (REQ-16, ADR-0007).
     </p>
+  </a>
+
+  <a class="demo-card" href="/07-cms-bridge.html">
+    <h3>7. CMS Bridge (Phase 4)</h3>
+    <p>
+      Wie #2, plus Webhook-Bridge. Unbekannte Detections lösen einen
+      <code>fetch</code>-POST an einen lokalen Receiver
+      (<code>cms-bridge-receiver.mjs</code>, Port 8787) aus — Live-Panel
+      zeigt das empfangene Payload, Dedup-TTL ist demo-friendly auf 30 s
+      gesetzt (REQ-9).
+    </p>
+    <div style="margin-top: 0.5rem; font-size: 0.85em; color: #888;">
+      ⓘ Receiver wird von <code>pnpm demo</code> automatisch mitgestartet.
+    </div>
   </a>
 
   <div class="note">

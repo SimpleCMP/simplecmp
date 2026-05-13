@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SimpleCMP Demo 7 — CMS Bridge</title>
+  <link rel="stylesheet" href="/dist/styles/default.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      line-height: 1.6;
+    }
+    h1 { font-size: 1.6rem; }
+    h3 { margin-top: 1.5rem; }
+    nav { margin-bottom: 1.5rem; }
+    nav a { color: #1a936f; text-decoration: none; font-size: 0.9rem; }
+    section { margin: 1.25rem 0; }
+    button { margin: 0.25rem; padding: 0.5rem 1rem; cursor: pointer; }
+    pre {
+      background: #f4f4f4;
+      padding: 1rem;
+      border-radius: 4px;
+      max-height: 320px;
+      overflow: auto;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .status-pill {
+      display: inline-block;
+      padding: 0.15em 0.6em;
+      border-radius: 999px;
+      font-size: 0.85em;
+      font-weight: 600;
+    }
+    .status-ok { background: #d6f5e8; color: #1a936f; }
+    .status-down { background: #fde0e3; color: #da2c43; }
+    .empty { color: #888; font-style: italic; padding: 0.5rem 0; }
+    .receiver-panel {
+      background: #fafafa;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+    }
+    .webhook-card {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 0.6rem 0.8rem;
+      margin: 0.4rem 0;
+      font-size: 0.85rem;
+    }
+    .webhook-card header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 0.3rem;
+      font-weight: 600;
+    }
+    .webhook-card header small { color: #888; font-weight: normal; }
+    .webhook-card code { background: #f4f4f4; padding: 0.05em 0.3em; border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <nav><a href="/">← zurück zur Demo-Übersicht</a></nav>
+
+  <h1>Demo 7 — CMS Bridge</h1>
+
+  <p>
+    Wenn der Recorder einen Tracker entdeckt, der lokal nicht zugeordnet werden
+    kann (<code>status: 'unknown'</code>), postet die CMS-Bridge einen JSON-Webhook
+    an die konfigurierte <code>cmsBridgeUrl</code>. In dieser Demo läuft ein
+    kleiner Receiver (<code>cms-bridge-receiver.mjs</code>) lokal auf Port 8787
+    und zeigt unten an, was ankommt.
+  </p>
+
+  <p>
+    Siehe <a href="https://github.com/SimpleCMP/simplecmp/blob/main/docs/cms-bridge-webhook.md"><code>docs/cms-bridge-webhook.md</code></a>
+    für das vollständige Payload-Schema, die Dedup-Regeln und die Auth-Optionen.
+  </p>
+
+  <section>
+    <h3>Receiver-Status</h3>
+    <p>
+      <span id="receiver-status" class="status-pill status-down">Prüfe...</span>
+      <code id="receiver-url">http://127.0.0.1:8787</code>
+      <button id="btn-recheck" type="button">Erneut prüfen</button>
+      <button id="btn-clear-buffer" type="button">Buffer leeren</button>
+    </p>
+  </section>
+
+  <section>
+    <h3>Detections auslösen</h3>
+    <p>
+      Erste Auslösung pro <code>${kind}:${identifier}</code> sendet einen
+      Webhook. Wiederholungen innerhalb der Dedup-TTL (hier 30 s, sonst per
+      Default 1 h) werden geschluckt — bewusst, damit dieselbe Detection
+      nicht auf jede Page-Navigation hin neu alarmiert.
+    </p>
+    <button id="btn-cookie" type="button">Unknown Cookie</button>
+    <button id="btn-script" type="button">Unknown Script</button>
+    <button id="btn-iframe" type="button">Unknown Iframe</button>
+    <button id="btn-image" type="button">Unknown Image</button>
+    <button id="btn-cookie-repeat" type="button">Same Cookie nochmal (sollte deduped werden)</button>
+  </section>
+
+  <section>
+    <h3>Empfangene Webhooks <span id="webhook-count">(0)</span></h3>
+    <div class="receiver-panel" id="webhook-list">
+      <div class="empty">Noch nichts empfangen — drück oben einen Button.</div>
+    </div>
+  </section>
+
+  <section>
+    <h3>Roh-Snapshot (recorder)</h3>
+    <pre id="recorder-snapshot">{}</pre>
+  </section>
+
+  <script src="/dist/simplecmp.global.js"></script>
+  <script>
+    const RECEIVER_BASE = 'http://127.0.0.1:8787';
+
+    // --- SimpleCMP init ---
+    SimpleCMP.init({
+      storageName: 'simplecmp-demo-7',
+      services: [],  // Nothing is known locally → every detection is 'unknown'
+      privacyPolicy: 'https://example.de/datenschutz',
+      imprint: 'https://example.de/impressum',
+      floatingTrigger: { label: 'Cookie-Einstellungen' },
+      lang: 'de',
+      record: { silenceProductionWarning: true, summaryIntervalMs: 0 },
+      cmsBridgeUrl: RECEIVER_BASE + '/webhook',
+      cmsBridge: { source: 'demo-7', dedupTtlMs: 30_000 },
+    });
+
+    const recorder = SimpleCMP.getRecorder();
+
+    // --- buttons ---
+    document.getElementById('btn-cookie').addEventListener('click', () => {
+      const name = '_demo7_cookie_' + Math.random().toString(36).slice(2, 8);
+      document.cookie = name + '=1; path=/';
+    });
+    document.getElementById('btn-cookie-repeat').addEventListener('click', () => {
+      // Always uses the same name so dedup kicks in after the first send.
+      document.cookie = '_demo7_repeat=1; path=/';
+    });
+    document.getElementById('btn-script').addEventListener('click', () => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js';
+      s.async = true;
+      document.head.appendChild(s);
+    });
+    document.getElementById('btn-iframe').addEventListener('click', () => {
+      const f = document.createElement('iframe');
+      f.src = 'https://www.example.com/';
+      f.width = '0'; f.height = '0'; f.style.border = '0';
+      document.body.appendChild(f);
+    });
+    document.getElementById('btn-image').addEventListener('click', () => {
+      const i = new Image();
+      i.src = 'https://placehold.co/1x1.png?_=' + Date.now();
+      i.style.display = 'none';
+      document.body.appendChild(i);
+    });
+
+    // --- receiver health + polling ---
+    const statusEl = document.getElementById('receiver-status');
+    const listEl = document.getElementById('webhook-list');
+    const countEl = document.getElementById('webhook-count');
+
+    async function pingReceiver() {
+      try {
+        const res = await fetch(RECEIVER_BASE + '/health');
+        if (!res.ok) throw new Error('not ok');
+        statusEl.textContent = 'erreichbar';
+        statusEl.classList.add('status-ok');
+        statusEl.classList.remove('status-down');
+        return true;
+      } catch {
+        statusEl.textContent = 'nicht erreichbar';
+        statusEl.classList.add('status-down');
+        statusEl.classList.remove('status-ok');
+        return false;
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    // Render-skip state: only rebuild the list when something actually
+    // changed. Comparing the top item's `receivedAt` is cheap and unique
+    // since the server-side ring buffer is newest-first.
+    let lastTopReceivedAt = null;
+    let pollInFlight = false;
+    const MAX_DISPLAYED_CARDS = 15;
+
+    async function pollReceived() {
+      if (pollInFlight) return;
+      pollInFlight = true;
+      try {
+        const res = await fetch(RECEIVER_BASE + '/received');
+        if (!res.ok) return;
+        const data = await res.json();
+        const items = data.items || [];
+        countEl.textContent = '(' + items.length + ')';
+        if (items.length === 0) {
+          if (lastTopReceivedAt !== null) {
+            listEl.innerHTML = '<div class="empty">Noch nichts empfangen — drück oben einen Button.</div>';
+            lastTopReceivedAt = null;
+          }
+          return;
+        }
+        const topTs = items[0].receivedAt;
+        if (topTs === lastTopReceivedAt) return; // nothing new — skip DOM work
+        lastTopReceivedAt = topTs;
+        // Limit displayed cards so the demo stays responsive even after
+        // dozens of clicks. The server-side buffer keeps up to 50.
+        const visible = items.slice(0, MAX_DISPLAYED_CARDS);
+        listEl.innerHTML = visible.map((it) => {
+          const p = it.payload || {};
+          const d = p.detection || {};
+          return [
+            '<div class="webhook-card">',
+            '  <header>',
+            '    <span>', escapeHtml(d.kind || '?'), ' / <code>', escapeHtml(d.identifier || '?'), '</code></span>',
+            '    <small>', escapeHtml(it.receivedAt), '</small>',
+            '  </header>',
+            '  <div>source: <code>', escapeHtml(p.source || '?'), '</code>',
+            '       · status: <code>', escapeHtml(d.status || '?'), '</code>',
+            '       · count: <code>', escapeHtml(String(d.count ?? '?')), '</code></div>',
+            '  <div>page: <code>', escapeHtml(p.page?.url || '?'), '</code></div>',
+            '</div>',
+          ].join('');
+        }).join('');
+      } catch {
+        // Receiver may have just come up or gone down — ignore one tick.
+      } finally {
+        pollInFlight = false;
+      }
+    }
+
+    document.getElementById('btn-recheck').addEventListener('click', pingReceiver);
+    document.getElementById('btn-clear-buffer').addEventListener('click', async () => {
+      try {
+        await fetch(RECEIVER_BASE + '/clear', { method: 'POST' });
+      } catch {}
+      lastTopReceivedAt = null; // force a re-render even if items[0] timestamp matches
+      pollReceived();
+    });
+
+    // --- recorder snapshot mirror ---
+    // Throttled: re-render at most every 600 ms regardless of how many
+    // detection events fire. Without this, a burst of buttons can trigger
+    // dozens of JSON.stringify + DOM writes per second.
+    const snapshotEl = document.getElementById('recorder-snapshot');
+    let snapshotPending = false;
+    function scheduleSnapshotRender() {
+      if (!recorder || snapshotPending) return;
+      snapshotPending = true;
+      setTimeout(() => {
+        snapshotEl.textContent = JSON.stringify(recorder.getSnapshot(), null, 2);
+        snapshotPending = false;
+      }, 600);
+    }
+    if (recorder) {
+      recorder.on('detection', scheduleSnapshotRender);
+      scheduleSnapshotRender();
+    }
+
+    // --- kick off ---
+    pingReceiver();
+    pollReceived();
+    setInterval(pingReceiver, 4000);
+    setInterval(pollReceived, 800);
+  </script>
+</body>
+</html>
