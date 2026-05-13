@@ -73,6 +73,25 @@ Or as a browser global:
 </script>
 ```
 
+### Localization
+
+SimpleCMP ships with 27 bundled language packs; the consent UI auto-detects
+the language from `<html lang="…">`. One string is **not** taken from the
+bundled packs and must be passed by integrators of non-English sites: the
+floating "cookie settings" button's accessible label. Override it via
+`floatingTrigger.label`:
+
+```ts
+init({
+  // ...
+  floatingTrigger: { label: 'Cookie-Einstellungen' },
+});
+```
+
+The label drives both the visible button text (when shown) and the
+`aria-label` exposed to screen readers, so localizing it is an
+accessibility concern, not just a cosmetic one.
+
 ## Development
 
 Requires Node.js ≥ 20 and pnpm.

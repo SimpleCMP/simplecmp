@@ -17,6 +17,16 @@
  *
  * REQ-1 separation: privacyPolicy and imprint render as distinct links
  * (Klaro upstream conflates them into the description placeholders).
+ *
+ * **A11y — no focus trap, no Esc handler (REQ-6).** The banner is a
+ * non-modal notice — it overlays the page but the user must still be
+ * able to read and use the underlying content. A focus trap would block
+ * legitimate site interaction, and Esc-to-decline would silently make a
+ * destructive decision the user didn't intend. The site-wide consent
+ * decision happens through the explicit Accept / Decline / Configure
+ * buttons inside the banner; nothing else is wired to keyboard
+ * shortcuts at the banner level. The modal (`<simplecmp-modal>`) is
+ * where the focus trap and Esc handling live, because it *is* a modal.
  */
 
 import { css, html, nothing } from 'lit';

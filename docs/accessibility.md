@@ -155,10 +155,16 @@ In a real browser, Tab through the consent UI in:
 - [ ] Color contrast: pick a darker green default (`green1` ≈ `#0f7458`) so
       the out-of-the-box theme passes AA without theming. Decide separately
       from REQ-6 — affects brand look.
-- [ ] Notice (`consent-notice.jsx`) currently doesn't trap focus. It's a
-      banner, not a modal, so a hard trap may not be appropriate. Decide
-      whether Esc on the notice should = decline-all (probably not — too
-      destructive) or just shift focus elsewhere.
-- [ ] Floating trigger (REQ-4): default label is English-only.
-      `aria-label` is honest about what it says, but localized projects
-      should pass `floatingTrigger.label` explicitly. Document in README.
+- [x] Notice (`src/ui/components/banner.ts`, formerly the Klaro
+      `consent-notice.jsx`) intentionally does not trap focus and has no
+      Esc handler. Reason: it's a non-modal overlay — a hard focus trap
+      would block legitimate site interaction, and Esc-to-decline would
+      silently make a destructive consent decision. The class-level
+      JSDoc on `SimpleCmpBanner` documents this. Decision closed
+      2026-05-13.
+- [x] Floating trigger (REQ-4): default label `"Cookie settings"` is
+      English-only. README quick-start now points integrators of
+      localized projects at `floatingTrigger.label` for explicit
+      translation. The JSDoc on the config field already covered this;
+      the README mention catches readers who don't drill into the type.
+      Closed 2026-05-13.
