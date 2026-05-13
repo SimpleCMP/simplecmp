@@ -1,12 +1,16 @@
 # SimpleCMP Demos
 
-Drei statische HTML-Demos, die Phase 1–3 in Aktion zeigen.
+Sechs statische HTML-Demos, die Phase 1–3 und den Lit-UI-Rewrite
+(REQ-14, REQ-16) in Aktion zeigen.
 
 | Demo | Zeigt |
 |---|---|
 | `01-basic.html` | Banner, Datenschutz/Impressum-Links, gleichberechtigte Decline/Accept-Buttons, Floating-Trigger, Modal-A11y |
-| `02-recorder.html` | Wie #1 plus Recorder mit Live-Panel, Buttons zum Triggern von Detections, exportConfig() / assertNoUnknown() |
+| `02-recorder.html` | Wie #1 plus Recorder mit Live-Panel, Buttons zum Triggern von Detections, `exportConfig()` / `assertNoUnknown()` |
 | `03-service-db.html` | Wie #2 plus Service-DB-Lookup gegen das PHP+SQLite-Reference-Backend |
+| `04-lit-ui.html` | Lit-Web-Components-Showcase (`<simplecmp-banner>`, `<simplecmp-modal>`, `<simplecmp-trigger>`) mit Shadow-DOM und nativem `<dialog>`-Element |
+| `05-lit-bootstrap.html` | Wie #4, aber mit dem Bootstrap-Adapter (`simplecmp/styles/bootstrap.css`) — Components erben Farben/Radius/Typo aus Bootstrap-Tokens |
+| `06-lit-light-dom.html` | Light-DOM-Modus statt Shadow-DOM (`domMode: 'light'`); Host-Stylesheet `simplecmp/styles/default.css` muss explizit geladen werden |
 
 ## Schneller Start
 
@@ -23,7 +27,7 @@ pnpm demo
    `https://simplecmp-service-db.ddev.site/v1/health`)
 3. Demo-Server auf `http://127.0.0.1:5173`
 
-Browser auf die URL, fertig — alle drei Demos einsatzbereit.
+Browser auf die URL, fertig — alle sechs Demos einsatzbereit.
 
 ### Wenn du nur den Server willst (Build ist aktuell)
 
@@ -74,11 +78,14 @@ node demos/serve.mjs --port 8081
 
 ```
 demos/
-├── serve.mjs           ← Pure-Node-Static-Server, ~80 LOC, kein externer Dep
-├── index.html          ← Landing
-├── 01-basic.html       ← Compliance-Basics
-├── 02-recorder.html    ← Recorder mit Live-Panel
-└── 03-service-db.html  ← Full-Stack
+├── serve.mjs               ← Pure-Node-Static-Server, ~80 LOC, kein externer Dep
+├── index.html              ← Landing
+├── 01-basic.html           ← Compliance-Basics
+├── 02-recorder.html        ← Recorder mit Live-Panel
+├── 03-service-db.html      ← Full-Stack mit Reference-Backend
+├── 04-lit-ui.html          ← Lit-Web-Components-Showcase
+├── 05-lit-bootstrap.html   ← Bootstrap-Adapter via CSS-Custom-Properties
+└── 06-lit-light-dom.html   ← Light-DOM-Modus statt Shadow-DOM
 ```
 
 Demo-HTMLs laden die Bundles aus `../dist/`. Wenn du den Code änderst,
