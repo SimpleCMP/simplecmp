@@ -75,7 +75,7 @@ Or as a browser global:
 
 ## Development
 
-Requires Node.js ≥ 18.18 and pnpm.
+Requires Node.js ≥ 20 and pnpm.
 
 ```bash
 pnpm install        # install dependencies

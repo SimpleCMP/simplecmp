@@ -11,7 +11,7 @@ import { defineConfig } from 'tsup';
  *   Exposes the global `SimpleCMP` namespace.
  *
  * No CJS — pre-1.0 SimpleCMP only supports ESM consumers. Bundlers and
- * modern Node (≥ 18.18) handle ESM natively. The IIFE bundle covers the
+ * modern Node (≥ 20) handle ESM natively. The IIFE bundle covers the
  * "no build step" use case (CDN drop-in).
  *
  * The build is deliberately minimal: no JSX, no SCSS, no YAML plugin.

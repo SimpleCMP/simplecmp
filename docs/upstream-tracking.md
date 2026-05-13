@@ -112,8 +112,8 @@ want to reuse parts of the IDE styling. Safe to delete later if unused.
 - [ ] Decide whether to keep `.jsx`/`.js` or migrate `src/core/` to TS+TSX.
       Migration eases typing but conflicts with ADR-0002's "don't reformat
       upstream wholesale" — probably staged, file-by-file.
-- [ ] CI matrix runs Node 18/20/22 but our local Node is 24; confirm pnpm
-      `packageManager` pin still resolves on those versions.
+- [x] CI matrix runs Node 20/22/24 (Node 18 dropped, EOL April 2025).
+      `engines.node` raised to `>=20.0.0`. Resolved 2026-05-13.
 - [ ] Vitest config and tsup config carry the same alias/loader/define triples.
       Once the surface stabilizes, factor them into a shared module so the two
       pipelines can't drift apart.

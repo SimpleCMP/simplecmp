@@ -38,7 +38,7 @@ Detailed ADRs live in `docs/adr/`. Short summary:
   `verbatimModuleSyntax`.
 - **Single-package repository** rather than monorepo. CMS integrations (WordPress, TYPO3,
   Contao plugins) live in separate repositories.
-- **Two build targets (ADR-0008)**: ESM (.mjs) for bundlers / Node ≥ 18, IIFE
+- **Two build targets (ADR-0008)**: ESM (.mjs) for bundlers / Node ≥ 20, IIFE
   (.global.js) for `<script>` drop-in. No CJS — modern only.
 - **Biome** for linting and formatting (single tool, faster than ESLint+Prettier).
 - **Vitest + happy-dom** for tests (browser-like environment without launching a real
