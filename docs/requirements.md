@@ -54,8 +54,15 @@ deutsche Site braucht beides nebeneinander.
   Description) wurde gewählt, weil die Description-Strings in den Übersetzungen
   meistens `{privacyPolicy}` nicht enthalten und ein Substitution-only-Ansatz
   unzuverlässig wäre.
-- CSS-Styling für `.cn-policy-links` und `.cm-policy-links` steht noch aus —
-  eigenes Issue, weil das in den Themes/SCSS verankert sein muss.
+- CSS-Styling der Policy-Link-Container ist erledigt (im Rahmen von REQ-14
+  / REQ-16): Banner-Shadow-DOM via `static styles` in
+  `src/ui/components/banner.ts` (`.cn-policy-links`), Modal-Shadow-DOM via
+  `static styles` in `src/ui/components/modal.ts` (`.policy-links` —
+  Klassenname leicht geändert beim Lit-Rewrite), Light-DOM-Konsumenten und
+  die Standalone-Component `<simplecmp-policy-links>` über
+  `src/ui/styles/default.css` und `bootstrap.css`. Alle Stellen nutzen
+  `--simplecmp-font-size-sm` und `--simplecmp-color-text-muted` aus den
+  Theme-Tokens. Audit am 2026-05-13.
 
 ---
 
