@@ -44,3 +44,4 @@ Thumbs.db
 # Optional
 .npm/
 .eslintcache
+.ddev
