@@ -10,6 +10,19 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Added
 
+- **Recorder: `ignoreCookies` option.** New
+  `RecorderOptions.ignoreCookies?: readonly string[]` short-circuits
+  ingestion for the listed cookie names before classification, so the
+  recorder no longer reports its own consent cookie as an unknown
+  tracker on every page load. `startRecorder()` auto-prepends the
+  resolved consent `storageName` to the list; integrators can still
+  extend it for other infra-owned cookie names.
+- **i18n: analytics, personalization, security purpose translations.**
+  Bundled EN/DE translation maps gain titles and descriptions for the
+  three remaining purpose keys; previously these fell back to the
+  English `asTitle(key)` form in both languages, leaving the banner's
+  `{purposes}` interpolation mixed-language ("Marketing, Werbung,
+  Analytics, Personalization & Security").
 - **Accessibility CI gate (REQ-6 follow-up).** Playwright-based
   axe-core suite (`tests/a11y/*.spec.ts`) runs on every CI build as a
   parallel job. Scans demos 1, 4, 5, 6 (skipping the demos that load
@@ -198,6 +211,14 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Changed
 
+- **Modal: decline + accept-all stay visible after consent.** Previously
+  the modal hid both bulk-toggle buttons (`hideDeclineAll`-gated decline
+  + `acceptAll`-gated accept) once `manager.confirmed` flipped. A
+  returning user who re-opened the modal from the floating trigger was
+  left with only "Save" and had to flip each switch manually. Drop the
+  `!manager.confirmed` gate from both — visibility now depends only on
+  the config flags. The Save button's label still flips between "Accept
+  selected" (pre-consent) and "Save" (post-consent) to convey intent.
 - `LICENSE-KLARO` now reproduces the upstream BSD-3 notice verbatim, including
   the "various authors" attribution line.
 - Upstream Klaro! URL corrected throughout the docs to
