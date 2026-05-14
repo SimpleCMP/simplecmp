@@ -152,7 +152,12 @@ pnpm ci             # full pipeline (typecheck + check + test + build)
 - ✅ **Phase 2** — Recorder: cookie / DOM / network detection (REQ-7)
 - ✅ **Phase 3** — Service DB: client + protocol + 23-service PHP+SQLite reference backend (REQ-8)
 - ✅ **Phase 4** — CMS Bridge: webhook for production alerts on unknown trackers (REQ-9)
-- ⬜ **Phase 5** — CMS plugins: WordPress, TYPO3, Contao (separate repos) (REQ-10)
+- 🚧 **Phase 5** — CMS plugins: WordPress, TYPO3, Contao (separate repos) (REQ-10)
+  - 🚧 [TYPO3 v14 plugin](https://github.com/WapplerSystems/simplecmp-typo3) —
+    iterations 1–4 shipped (FE bundle integration, service-DB endpoint,
+    CMS-bridge receiver, BE module for detection review + service curation).
+  - ⬜ WordPress plugin
+  - ⬜ Contao plugin
 
 The API surface is still pre-1.0 and may change. For granular feature status and
 acceptance criteria, see [docs/requirements.md](docs/requirements.md).
