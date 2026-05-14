@@ -29,6 +29,13 @@ operator's choice.
 
 All endpoints are prefixed `/v1/`.
 
+**Client `serviceDbUrl` configuration:** the JS `ServiceDbClient` appends
+`/<apiVersion>/<route>` to the configured base URL. Pass the URL *up to but
+excluding* the version prefix — e.g. `https://example.com/api/simplecmp`, not
+`https://example.com/api/simplecmp/v1`. The client then issues requests to
+`https://example.com/api/simplecmp/v1/lookup` etc. Including `/v1` in the
+base URL causes a doubled `/v1/v1/` path and 404s.
+
 ### `GET /v1/health`
 
 Probe whether the backend is alive and which schema version it speaks.

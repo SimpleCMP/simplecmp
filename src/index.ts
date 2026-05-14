@@ -152,6 +152,11 @@ export interface SimpleCMPConfig extends ConsentConfig {
    * DB after the local services list, enriching unknown detections with
    * vendor metadata.
    *
+   * **Do NOT include the `/v1` version segment.** The client appends
+   * `/<apiVersion>/lookup` (etc.) automatically. Pass the URL up to but
+   * excluding the version: e.g. `https://example.com/api/simplecmp`,
+   * not `https://example.com/api/simplecmp/v1`.
+   *
    * SimpleCMP-specific (REQ-8).
    */
   serviceDbUrl?: string;
