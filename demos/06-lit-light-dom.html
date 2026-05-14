@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SimpleCMP Demo 6 — Light-DOM-Modus mit default.css</title>
   <!-- Light-DOM-Modus: kein Shadow-Root → die default-CSS muss vom Host geladen werden -->
-  <link rel="stylesheet" href="/dist/styles/default.css">
+  <link rel="stylesheet" href="../dist/styles/default.css">
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -39,7 +39,7 @@
   </style>
 </head>
 <body>
-  <nav class="mb-4"><a href="/">← zurück zur Demo-Übersicht</a></nav>
+  <nav class="mb-4"><a href="index.html">← zurück zur Demo-Übersicht</a></nav>
 
   <h1>Demo 6 — Light-DOM-Modus <span class="badge">REQ-16</span></h1>
 
@@ -67,7 +67,7 @@
   <h3>Aktueller Manager-Status</h3>
   <pre id="status" style="background:#f4f4f4;padding:1rem;border-radius:4px;"></pre>
 
-  <script src="/dist/simplecmp.global.js"></script>
+  <script src="../dist/simplecmp.global.js"></script>
   <script>
     // domMode: 'light' setzt das Attribut auf jedem Component, BEVOR es
     // gemountet wird — das ist der einzige Zeitpunkt an dem die Component
