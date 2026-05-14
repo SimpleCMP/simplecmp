@@ -41,9 +41,10 @@
   },
   "files": ["dist", "README.md", "LICENSE", "LICENSE-KLARO", "CHANGELOG.md"],
   "scripts": {
-    "build": "pnpm build:js && pnpm build:themes",
+    "build": "pnpm build:js && pnpm build:themes && pnpm build:sync-typo3",
     "build:js": "tsup",
     "build:themes": "node -e \"require('node:fs').cpSync('src/ui/styles', 'dist/styles', { recursive: true, filter: (p) => !p.endsWith('.ts') })\"",
+    "build:sync-typo3": "node scripts/sync-typo3-bundle.mjs",
     "dev": "tsup --watch",
     "demo": "pnpm build && node demos/serve.mjs",
     "demo:serve": "node demos/serve.mjs",
