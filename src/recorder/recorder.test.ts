@@ -19,6 +19,7 @@ function makeRecorder(
     services?: ClassifierServiceConfig[];
     persistInDev?: boolean;
     storageName?: string;
+    ignoreCookies?: readonly string[];
   } = {}
 ) {
   const services: ClassifierServiceConfig[] = opts.services ?? [
@@ -29,6 +30,7 @@ function makeRecorder(
     options: {
       persistInDev: opts.persistInDev,
       storageName: opts.storageName,
+      ignoreCookies: opts.ignoreCookies,
       summaryIntervalMs: 0, // disable periodic summary in tests
     },
     classifier: new LocalClassifier(services),
@@ -66,6 +68,18 @@ describe('Recorder — ingestion + classification', () => {
   });
   afterEach(() => {
     sessionStorage.clear();
+  });
+
+  it('skips cookies listed in ignoreCookies', () => {
+    const { recorder, fake } = makeRecorder({ ignoreCookies: ['simplecmp-default'] });
+    recorder.start();
+
+    fake.sink({ kind: 'cookie', identifier: 'simplecmp-default' });
+    fake.sink({ kind: 'cookie', identifier: '_ga' });
+
+    const snapshot = recorder.getSnapshot();
+    expect(snapshot.length).toBe(1);
+    expect(snapshot[0]?.identifier).toBe('_ga');
   });
 
   it('classifies known cookies and adds them to the snapshot', () => {

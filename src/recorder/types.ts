@@ -71,6 +71,15 @@ export interface RecorderOptions {
    * Defaults to the consent storageName the recorder is bound to.
    */
   storageName?: string;
+  /**
+   * Cookie names to skip entirely — the watcher will not emit a detection
+   * when one of these is seen. Used to suppress the recorder's own consent
+   * cookie (which otherwise shows up as "unknown" on every page) and any
+   * other infra-owned cookies the developer knows are not trackers. The
+   * top-level `init({ record })` wiring auto-prepends the consent
+   * `storageName` so callers don't have to remember.
+   */
+  ignoreCookies?: readonly string[];
 }
 
 /**

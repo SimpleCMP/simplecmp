@@ -255,9 +255,19 @@ function startRecorder(config: SimpleCMPConfig): void {
     activeRecorder = null;
   }
   const options: RecorderOptions =
-    typeof config.record === 'object' && config.record !== null ? config.record : {};
+    typeof config.record === 'object' && config.record !== null ? { ...config.record } : {};
   if (!options.storageName && typeof config.storageName === 'string') {
     options.storageName = config.storageName;
+  }
+  // The recorder would otherwise detect its own consent cookie as an unknown
+  // tracker on every page. Pre-populate `ignoreCookies` with whatever the
+  // consent storageName resolves to (cookie + sessionStorage entry share the
+  // name). Caller-supplied entries are preserved.
+  if (options.storageName) {
+    const userIgnored = options.ignoreCookies ?? [];
+    options.ignoreCookies = userIgnored.includes(options.storageName)
+      ? userIgnored
+      : [options.storageName, ...userIgnored];
   }
   const services = (config.services as ClassifierServiceConfig[] | undefined) ?? [];
   // REQ-8 / ADR-0005: when serviceDbUrl is configured, the recorder uses a

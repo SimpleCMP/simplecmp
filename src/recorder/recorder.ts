@@ -202,6 +202,9 @@ export class Recorder {
   }
 
   private _ingest(raw: RawDetection): void {
+    if (raw.kind === 'cookie' && this.options.ignoreCookies?.includes(raw.identifier)) {
+      return;
+    }
     const key = `${raw.kind}:${raw.identifier}`;
     const now = Date.now();
     const existing = this.detections.get(key);
