@@ -46,6 +46,10 @@
       "description": "Diese Dienste verarbeiten persönliche Informationen, um Ihnen personalisierte oder interessenbezogene Werbung zu zeigen.",
       "title": "Werbung"
     },
+    "analytics": {
+      "description": "Diese Dienste erfassen, wie Besucher diese Seite nutzen, damit wir ihre Funktion messen und verbessern können.",
+      "title": "Statistik"
+    },
     "functional": {
       "description": "Diese Dienste sind für die korrekte Funktion dieser Website unerlässlich. Sie können sie hier nicht deaktivieren, da der Dienst sonst nicht richtig funktionieren würde.\n",
       "title": "Dienstbereitstellung"
@@ -57,6 +61,14 @@
     "performance": {
       "description": "Diese Dienste verarbeiten personenbezogene Daten, um den von dieser Website angebotenen Service zu optimieren.\n",
       "title": "Optimierung der Leistung"
+    },
+    "personalization": {
+      "description": "Diese Dienste passen die Inhalte dieser Seite an Ihre Vorlieben und Ihr bisheriges Verhalten an.",
+      "title": "Personalisierung"
+    },
+    "security": {
+      "description": "Diese Dienste schützen diese Website vor Missbrauch — zum Beispiel durch Erkennung verdächtigen Datenverkehrs oder Abwehr automatisierter Angriffe.",
+      "title": "Sicherheit"
     }
   },
   "save": "Speichern",

@@ -39,6 +39,10 @@
       "description": "These services process personal information to show you personalized or interest-based advertisements.",
       "title": "Advertising"
     },
+    "analytics": {
+      "description": "These services collect data about how visitors use this site so we can measure and improve its performance.",
+      "title": "Analytics"
+    },
     "functional": {
       "description": "These services are essential for the correct functioning of this website. You cannot disable them here as the service would not work correctly otherwise.\n",
       "title": "Service Provision"
@@ -50,6 +54,14 @@
     "performance": {
       "description": "These services process personal information to optimize the service that this website offers.\n",
       "title": "Performance Optimization"
+    },
+    "personalization": {
+      "description": "These services tailor what you see on this site to your preferences and prior interactions.",
+      "title": "Personalization"
+    },
+    "security": {
+      "description": "These services protect this site against abuse — for example, by detecting suspicious traffic or blocking automated attacks.",
+      "title": "Security"
     }
   },
   "save": "Save",
