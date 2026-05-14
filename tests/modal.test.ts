@@ -145,6 +145,16 @@ describe('<simplecmp-modal>', () => {
     expect(manager.consents.ads).toBe(false);
   });
 
+  it('keeps decline + accept-all visible after confirmation (re-opened via trigger)', async () => {
+    const { el, manager } = await mountModal();
+    getButton(el, 'button.accept-all').click();
+    expect(manager.confirmed).toBe(true);
+    await el.updateComplete;
+    expect(el.shadowRoot?.querySelector('button.decline')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('button.accept-all')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('button.save')).not.toBeNull();
+  });
+
   it('hides the close button when mustConsent=true', async () => {
     const { el } = await mountModal({ mustConsent: true });
     expect(el.shadowRoot?.querySelector('button.close')).toBeNull();

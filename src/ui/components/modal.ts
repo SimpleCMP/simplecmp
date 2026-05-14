@@ -331,8 +331,13 @@ export class SimpleCmpModal extends SimpleCmpElement {
     config: NonNullable<typeof this.config>,
     manager: NonNullable<typeof this.manager>
   ): TemplateResult {
-    const showDecline = config.hideDeclineAll !== true && !manager.confirmed;
-    const showAcceptAll = config.acceptAll === true && !manager.confirmed;
+    // Show decline + accept-all in both states (pre- and post-consent).
+    // Returning users opening the modal from the floating trigger expect the
+    // same bulk-toggle paths as first-visit users; the alternative left them
+    // stranded with only "Save" — they'd have to flip switches manually to
+    // approximate "decline all".
+    const showDecline = config.hideDeclineAll !== true;
+    const showAcceptAll = config.acceptAll === true;
     const saveLabel = manager.confirmed ? this._t(['save']) : this._t(['acceptSelected']);
 
     return html`
