@@ -613,6 +613,41 @@ Tracking-Requests akzeptiert. Schließt eine häufige Audit-Lücke.
 `'unsafe-inline'` vermeiden. Wir haben das fast geschenkt durch separate CSS;
 inline-styles in den JSX-Komponenten müssten geprüft und ersetzt werden.
 
+### REQ-N7 — CMS Bridge: wait for Service-DB before firing webhook
+
+**Status:** ⬜ offen — entdeckt 2026-05-14 beim TYPO3-Integrationstest
+([WapplerSystems/simplecmp-typo3](https://github.com/WapplerSystems/simplecmp-typo3)).
+
+Wenn `serviceDbUrl` UND `cmsBridgeUrl` gleichzeitig konfiguriert sind,
+feuert die Bridge sofort beim ersten `status: 'unknown'`-Announcement
+— bevor der asynchrone DB-Lookup eine Chance hat, das Item als `known`
+zu klassifizieren. Folge: bekannte Tracker (`_ga`, `_fbp` etc.) tauchen
+sowohl im Service-DB-Hit als auch in der Webhook-Tabelle des CMS auf.
+Per `docs/cms-bridge-webhook.md` aktuell als "Known limitation"
+dokumentiert.
+
+Vorschlag für die Behebung:
+
+- `cmsBridge.gracePeriodMs?: number` (Default `0` = aktuelles Verhalten);
+  bei positivem Wert verzögert die Bridge das Posten um diese Spanne
+  und checked erneut den Status der Detection vor dem Senden.
+- ODER: ein neues Recorder-Event `detectionSettled` (feuert nach
+  beendetem DB-Lookup), an dem die Bridge statt am `detection`-Event
+  hängt. Architektonisch sauberer aber größere Änderung.
+
+**Abhängigkeit:** sinnvoll erst zu fixen, wenn ein realer Admin die
+`tx_simplecmptypo3_detection`-Tabelle ansieht — das passiert mit
+Iteration 4 der TYPO3-Extension (BE-Modul für Service-Pflege +
+Detection-Review). Bis dahin kein Druck.
+
+**Acceptance Criteria (skizziert):**
+
+- [ ] Neuer Config-Schlüssel oder Event, dokumentiert.
+- [ ] Unit-Test: Detection mit DB-Hit → kein Webhook nach Grace-Period.
+- [ ] Unit-Test: Detection ohne DB-Hit → Webhook nach Grace-Period.
+- [ ] Doku in `docs/cms-bridge-webhook.md` aktualisiert; "Known
+      limitation"-Block entfernt.
+
 ---
 
 ## Bewusst nicht in v1.0

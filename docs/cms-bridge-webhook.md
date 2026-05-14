@@ -143,6 +143,37 @@ by 1000 visitors with the same unknown tracker still produces up to 1000
 webhooks. If you need cross-visitor rate limiting, do it on the receiving
 side.
 
+## Known limitation: race with the Service DB
+
+If both `serviceDbUrl` and `cmsBridgeUrl` are configured, the bridge
+fires for *every* detection that's `status: 'unknown'` at first
+announcement — including ones that the Service-DB lookup later resolves
+to known.
+
+The order of events: the recorder's synchronous `LocalClassifier` runs
+first, misses (no local service matches), the detection is emitted as
+`unknown`, **the bridge fires immediately**, and only then the
+`LayeredClassifier`'s async DB lookup runs and (if it hits) re-announces
+the detection with `status: 'known'`. The status filter blocks the
+re-emit so no second webhook is sent, but the first webhook for an
+ultimately-known item is already gone.
+
+In practice this means a CMS reviewing the webhook stream will see
+transient false positives — well-known trackers (`_ga`, `_fbp`, etc.)
+that *are* in the Service DB but were webhook'd before the lookup
+settled. Treat the webhook table as a raw event stream; the canonical
+"is this tracker known?" answer lives in the Service DB.
+
+**Mitigation in v0:** none in the JS library. Receivers can deduplicate
+or filter on their side by cross-referencing each webhook against their
+service registry before alerting admins.
+
+A future SimpleCMP release will add an opt-in grace delay (or a
+"final-classification" event) so the bridge can wait for the DB lookup
+to settle before firing. Tracked alongside the TYPO3 backend module
+(WapplerSystems/simplecmp-typo3 iteration 4) — the first time anyone
+will actually look at the detection table is when that BE module ships.
+
 ## Response handling
 
 The bridge does not consume the response body; only the status code
