@@ -11,10 +11,11 @@ build/
 coverage/
 .nyc_output/
 
-# Playwright (a11y suite)
+# Playwright (a11y suite + MCP scratch)
 test-results/
 playwright-report/
 .playwright/
+.playwright-mcp/
 
 # Environment
 .env
