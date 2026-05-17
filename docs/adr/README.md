@@ -27,6 +27,7 @@ We use [Michael Nygard's template](https://github.com/joelparkerhenderson/archit
 | 0007 | [UI architecture — Lit + Web Components](0007-ui-architecture-lit.md) | accepted |
 | 0008 | [Build outputs — ESM-only engine](0008-build-targets-esm-only-engine.md) | accepted |
 | 0009 | [Recorder `detectionSettled` event](0009-detection-settled-event.md) | accepted |
+| 0010 | [Host-qualified cookie matchers](0010-host-qualified-cookie-matchers.md) | proposed |
 
 ## Adding a new ADR
 
