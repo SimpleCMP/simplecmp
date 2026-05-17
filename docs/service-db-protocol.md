@@ -174,9 +174,32 @@ fixed set keeps frontend filtering predictable.
 
 ### `matches.cookies` patterns
 
-- Plain string → exact name match.
-- `/pattern/` (string starting and ending with `/`) → regex source,
+Each entry in the array is one of:
+
+- **Plain string** → exact name match against the cookie name.
+- **`/pattern/`** (string starting and ending with `/`) → regex source,
   matched against the cookie name.
+- **Host-qualified object** (ADR-0010):
+
+  ```jsonc
+  { "name": "<cookie name or /regex/>", "requireOrigin": "<host>" }
+  ```
+
+  Fires only when (a) the cookie name matches `name` (same syntax as
+  the string forms above — plain literal or slash-bounded regex) and
+  (b) the recorder has observed an origin in this session that
+  `requireOrigin` accepts. The `requireOrigin` field uses the same
+  syntax as `matches.origins` items (plain host, `*.suffix`,
+  `/regex/`), described in the next section.
+
+  Used for generic / short cookie names (Bing's `MR`, Stripe's `m`,
+  GTM's `td`) where name-only matching would false-classify
+  unrelated sites that happen to use the same cookie name.
+
+Consumers ignoring an unrecognised matcher shape (e.g. an older
+client predating the object form) treat it as non-matching — the
+cookie stays `unknown` from that client's POV, which is the same
+behaviour as today's worst case. No protocol-version bump.
 
 ### `matches.origins` patterns
 

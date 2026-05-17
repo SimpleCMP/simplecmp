@@ -10,6 +10,25 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Added
 
+- **Host-qualified cookie matchers (ADR-0010).** Extends
+  `matches.cookies` to accept an object form
+  `{ name, requireOrigin }` so generic cookie names (Stripe's `m`,
+  GTM's `td`, Bing's MR/MC0/CC, …) can be classified safely: the
+  matcher fires only when the recorder has *also* observed the
+  qualifying origin in the current session. Sites that happen to set
+  a cookie called `m` without ever loading anything from
+  `m.stripe.com` keep it `unknown` instead of false-classifying as
+  Stripe. `LocalClassifier` becomes mildly stateful — tracks observed
+  origins via non-cookie detections — and re-classifies previously
+  `unknown` cookies through the existing `enrichDetection` pathway
+  when a qualifying origin arrives late. `LayeredClassifier`
+  re-validates Service-DB lookup responses against the
+  host-qualifier (the DB middleware only checks the name part).
+  Backwards-compatible — older consumers ignore object entries.
+  No protocol-version bump. `docs/service-db-protocol.md` updated
+  with the new shape; `docs/adr/0010-host-qualified-cookie-matchers.md`
+  for the design.
+
 - **Recorder: `'detectionSettled'` event.** New event that fires once
   per detection *after* classification is final. For detections that
   don't trigger an async lookup it follows `'detection'` in the same
