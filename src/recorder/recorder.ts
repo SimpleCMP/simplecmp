@@ -244,6 +244,16 @@ export class Recorder {
     this._announce(detection);
     this._writeToStorage();
 
+    // ADR-0010: if this is a non-cookie detection with an origin, any
+    // host-qualified cookie matchers that referenced this origin become
+    // active. Re-classify previously-emitted cookies that are still
+    // `unknown` — the classifier sees the freshly-observed origin so a
+    // host-qualified rule can now fire. Late-arriving enrichments
+    // dispatch via the existing `enrichDetection` pathway (ADR-0009).
+    if (raw.kind !== 'cookie' && raw.origin) {
+      this._reclassifyUnknownCookiesOnNewOrigin();
+    }
+
     // REQ-N7: `'detectionSettled'` fires once per detection, after any async
     // classification finishes. The recorder reads back the final stored
     // detection from the map at settle time — `enrichDetection()` may have
@@ -274,6 +284,46 @@ export class Recorder {
         this.onDetectionForLibEvent(d);
       } catch {
         // ignore — lib event bus is best-effort
+      }
+    }
+  }
+
+  /**
+   * Walk stored cookie detections still marked `unknown` and re-classify
+   * each one. A host-qualified matcher whose `requireOrigin` was just
+   * observed will now fire; re-classified hits get dispatched through
+   * `enrichDetection()` so the recorder's normal late-arrival mechanism
+   * (ADR-0009) carries them to subscribers. (ADR-0010.)
+   *
+   * Idempotent. Cheap when no host-qualified matchers exist —
+   * `classifier.classify` is just a synchronous walk of the services
+   * list.
+   */
+  private _reclassifyUnknownCookiesOnNewOrigin(): void {
+    for (const detection of this.detections.values()) {
+      if (detection.kind !== 'cookie' || detection.status !== 'unknown') continue;
+      const reClassified = this.classifier.classify({
+        kind: detection.kind,
+        identifier: detection.identifier,
+        origin: detection.origin,
+        firstSeenOn: detection.firstSeenOn,
+      });
+      if (reClassified.status === 'known' && reClassified.matchedService) {
+        const enrichment: {
+          status: 'known';
+          matchedService: string;
+          matchedVendor?: string;
+        } = {
+          status: 'known',
+          matchedService: reClassified.matchedService,
+        };
+        if (reClassified.matchedVendor !== undefined) {
+          enrichment.matchedVendor = reClassified.matchedVendor;
+        }
+        this.enrichDetection(
+          { kind: detection.kind, identifier: detection.identifier },
+          enrichment
+        );
       }
     }
   }

@@ -87,8 +87,22 @@ export interface RecorderOptions {
  * already understands (string for exact match, RegExp, or
  * `[regexSourceString, ...]` tuple) — so a Klaro service config carries
  * over without modification.
+ *
+ * The object form (`{name, requireOrigin}`) — ADR-0010 — adds a host-
+ * qualifier so generic cookie names (Stripe's `m`, GTM's `td`, Bing's
+ * 2-letter cookies) only fire when the recorder has observed the
+ * setting host. The `name` field uses the same syntax as the string
+ * form (plain literal or slash-bounded regex source); `requireOrigin`
+ * uses the same syntax as `OriginMatcher`.
  */
-export type CookieMatcher = string | RegExp | [string, ...unknown[]];
+export interface HostQualifiedCookieMatcher {
+  /** Cookie name, plain literal or slash-bounded regex source. */
+  name: string;
+  /** Origin that must be observed in the session for this matcher to fire. */
+  requireOrigin: OriginMatcher;
+}
+
+export type CookieMatcher = string | RegExp | [string, ...unknown[]] | HostQualifiedCookieMatcher;
 
 /**
  * Origin matcher entries on a service. SimpleCMP-specific extension.

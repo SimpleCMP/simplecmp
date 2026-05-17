@@ -227,6 +227,119 @@ describe('Recorder — ingestion + classification', () => {
   });
 });
 
+describe('Recorder — host-qualified cookie matchers (ADR-0010)', () => {
+  beforeEach(() => sessionStorage.clear());
+  afterEach(() => sessionStorage.clear());
+
+  // A `payments` service whose `m` cookie only counts when `m.payments.test`
+  // is also observed (the OCD-import use case).
+  const services: ClassifierServiceConfig[] = [
+    {
+      name: 'payments',
+      cookies: [{ name: 'm', requireOrigin: 'm.payments.test' }],
+      origins: ['*.payments.test'],
+    },
+  ];
+
+  it('classifies the cookie as unknown when its qualifying origin has not been observed', () => {
+    const { recorder, fake } = makeRecorder({ services });
+    recorder.start();
+    fake.sink({ kind: 'cookie', identifier: 'm' });
+    const [d] = recorder.getSnapshot();
+    expect(d?.status).toBe('unknown');
+    recorder.stop();
+  });
+
+  it('classifies the cookie as known when its qualifying origin was observed first', () => {
+    const { recorder, fake } = makeRecorder({ services });
+    recorder.start();
+    fake.sink({
+      kind: 'request',
+      identifier: 'https://m.payments.test/x',
+      origin: 'm.payments.test',
+    });
+    fake.sink({ kind: 'cookie', identifier: 'm' });
+    const cookie = recorder.getSnapshot().find((d) => d.kind === 'cookie');
+    expect(cookie?.status).toBe('known');
+    expect(cookie?.matchedService).toBe('payments');
+    recorder.stop();
+  });
+
+  it('re-classifies a previously-unknown cookie when its qualifying origin arrives later', () => {
+    const { recorder, fake } = makeRecorder({ services });
+    const detectionListener = vi.fn();
+    recorder.on('detection', detectionListener);
+    recorder.start();
+    // Cookie first — classifies as unknown.
+    fake.sink({ kind: 'cookie', identifier: 'm' });
+    expect(detectionListener.mock.calls[0]?.[0]?.status).toBe('unknown');
+    // Qualifying origin arrives.
+    fake.sink({
+      kind: 'request',
+      identifier: 'https://m.payments.test/x',
+      origin: 'm.payments.test',
+    });
+    // The recorder re-classifies the cookie via enrichDetection, which
+    // re-fires the 'detection' listener with the upgraded status.
+    const cookie = recorder.getSnapshot().find((d) => d.kind === 'cookie');
+    expect(cookie?.status).toBe('known');
+    expect(cookie?.matchedService).toBe('payments');
+    const lastCookieCall = detectionListener.mock.calls
+      .filter((c) => c[0]?.kind === 'cookie')
+      .at(-1);
+    expect(lastCookieCall?.[0]?.status).toBe('known');
+    recorder.stop();
+  });
+
+  it('does not re-classify cookies whose qualifying origin is still unobserved', () => {
+    const { recorder, fake } = makeRecorder({ services });
+    recorder.start();
+    fake.sink({ kind: 'cookie', identifier: 'm' });
+    // Unrelated origin — does not enable the matcher.
+    fake.sink({ kind: 'request', identifier: 'https://example.com/x', origin: 'example.com' });
+    const cookie = recorder.getSnapshot().find((d) => d.kind === 'cookie');
+    expect(cookie?.status).toBe('unknown');
+    recorder.stop();
+  });
+
+  it('honors `*.suffix` and slash-bounded regex `requireOrigin` syntax', () => {
+    const wildcardServices: ClassifierServiceConfig[] = [
+      {
+        name: 'wildcard-payments',
+        cookies: [{ name: 'm', requireOrigin: '*.payments.test' }],
+      },
+    ];
+    const { recorder, fake } = makeRecorder({ services: wildcardServices });
+    recorder.start();
+    fake.sink({
+      kind: 'request',
+      identifier: 'https://js.payments.test/x',
+      origin: 'js.payments.test',
+    });
+    fake.sink({ kind: 'cookie', identifier: 'm' });
+    const cookie = recorder.getSnapshot().find((d) => d.kind === 'cookie');
+    expect(cookie?.status).toBe('known');
+    recorder.stop();
+  });
+
+  it('matches a regex `name` field in the host-qualified form', () => {
+    const regexServices: ClassifierServiceConfig[] = [
+      {
+        name: 'regex-payments',
+        cookies: [{ name: '/^pmt_/', requireOrigin: 'pmt.test' }],
+      },
+    ];
+    const { recorder, fake } = makeRecorder({ services: regexServices });
+    recorder.start();
+    fake.sink({ kind: 'request', identifier: 'https://pmt.test/x', origin: 'pmt.test' });
+    fake.sink({ kind: 'cookie', identifier: 'pmt_session' });
+    const cookie = recorder.getSnapshot().find((d) => d.kind === 'cookie');
+    expect(cookie?.status).toBe('known');
+    expect(cookie?.matchedService).toBe('regex-payments');
+    recorder.stop();
+  });
+});
+
 describe('Recorder — exportConfig', () => {
   it('reproduces known services verbatim', () => {
     const services: ClassifierServiceConfig[] = [
