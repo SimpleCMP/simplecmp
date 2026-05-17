@@ -86,7 +86,8 @@ export class SimpleCmpModal extends SimpleCmpElement {
 
       h1 {
         margin: 0 0 var(--simplecmp-spacing) 0;
-        font-size: 1.25rem;
+        font-family: var(--simplecmp-font-family-heading);
+        font-size: var(--simplecmp-font-size-heading);
       }
 
       .description {

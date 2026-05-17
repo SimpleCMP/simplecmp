@@ -81,7 +81,8 @@ export class SimpleCmpBanner extends SimpleCmpElement {
 
       h2 {
         margin: 0 0 var(--simplecmp-spacing) 0;
-        font-size: 1.1rem;
+        font-family: var(--simplecmp-font-family-heading);
+        font-size: var(--simplecmp-font-size-heading);
       }
 
       p {
