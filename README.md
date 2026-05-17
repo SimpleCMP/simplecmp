@@ -154,8 +154,10 @@ pnpm ci             # full pipeline (typecheck + check + test + build)
 - ✅ **Phase 4** — CMS Bridge: webhook for production alerts on unknown trackers (REQ-9)
 - 🚧 **Phase 5** — CMS plugins: WordPress, TYPO3, Contao (separate repos) (REQ-10)
   - 🚧 [TYPO3 v14 plugin](https://github.com/WapplerSystems/simplecmp-typo3) —
-    iterations 1–4 shipped (FE bundle integration, service-DB endpoint,
-    CMS-bridge receiver, BE module for detection review + service curation).
+    iterations 1–6 shipped (FE bundle integration, service-DB endpoint,
+    CMS-bridge receiver, BE module for detection review + service
+    curation, three-state model with library-aware approve flow, Banner
+    Design module with live preview).
   - ⬜ WordPress plugin
   - ⬜ Contao plugin
 

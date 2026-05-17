@@ -10,6 +10,14 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Added
 
+- **Heading typography tokens.** Two new design tokens for sites that
+  want different fonts or sizes for headings vs body text:
+  `--simplecmp-font-family-heading` (defaults to inherit
+  `--simplecmp-font-family`, so existing installs are visually
+  unchanged) and `--simplecmp-font-size-heading` (default `20px`).
+  Heading rules in `banner.ts` (h2) and `modal.ts` (h1) read the new
+  tokens; mirrored in `default.css` for the light-DOM fallback path.
+  Enables per-surface heading control without affecting body styling.
 - **Recorder: `ignoreCookies` option.** New
   `RecorderOptions.ignoreCookies?: readonly string[]` short-circuits
   ingestion for the listed cookie names before classification, so the
