@@ -10,6 +10,16 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Added
 
+- **Recorder: `'detectionSettled'` event.** New event that fires once
+  per detection *after* classification is final. For detections that
+  don't trigger an async lookup it follows `'detection'` in the same
+  tick; for detections where the classifier kicked off a Service-DB
+  lookup it fires after the lookup resolves (or errors out). The
+  optional `pending?: Promise<void>` field on the `Classifier`
+  interface lets `LayeredClassifier` signal "async work in flight";
+  `LocalClassifier` omits it. Existing `'detection'` consumers are
+  unchanged. (REQ-N7.)
+
 - **Heading typography tokens.** Two new design tokens for sites that
   want different fonts or sizes for headings vs body text:
   `--simplecmp-font-family-heading` (defaults to inherit
@@ -219,6 +229,14 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Changed
 
+- **CMS bridge wires onto `'detectionSettled'` instead of `'detection'`.**
+  Fixes the race where the bridge POSTed before the Service-DB lookup
+  could upgrade a detection to `known`. Sites that configure both
+  `serviceDbUrl` and `cmsBridgeUrl` no longer see well-known trackers
+  (`_ga`, `_fbp`, …) in their webhook stream. Documented in
+  `docs/cms-bridge-webhook.md` — the "Known limitation: race with the
+  Service DB" block is replaced by a "Coordination with the Service DB"
+  section describing the settled-event behaviour. (REQ-N7.)
 - **Modal: decline + accept-all stay visible after consent.** Previously
   the modal hid both bulk-toggle buttons (`hideDeclineAll`-gated decline
   + `acceptAll`-gated accept) once `manager.confirmed` flipped. A

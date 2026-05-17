@@ -415,15 +415,14 @@ describe('SimpleCMP public API', () => {
     });
   });
 
-  // REQ-9: end-to-end. Make sure the bridge POSTs once with the documented
-  // schema and does NOT double-fire when the Service-DB later upgrades an
-  // unknown detection to known (the "enrichment re-announce" gotcha).
-  describe('REQ-9 — CMS bridge end-to-end', () => {
-    it('POSTs once per unknown detection and does not fire again when enrichment upgrades it to known', async () => {
-      // First request the bridge sees is its own POST. We capture it and
-      // mock the Service-DB POST that follows to return a hit so the
-      // recorder calls enrichDetection() — the bridge must ignore that
-      // re-announcement because status is now 'known'.
+  // REQ-9 + REQ-N7: end-to-end. The bridge wires onto the recorder's
+  // `'detectionSettled'` event, not `'detection'` — so when both
+  // `serviceDbUrl` and `cmsBridgeUrl` are configured, the bridge waits
+  // for the async classifier to finish before deciding whether to POST.
+  describe('REQ-9 / REQ-N7 — CMS bridge end-to-end', () => {
+    it('does not POST when the Service-DB lookup upgrades a detection to known (REQ-N7)', async () => {
+      // Mock the Service-DB to return a hit for the cookie. The bridge
+      // must NOT fire because by settle-time the detection is `known`.
       const bridgePosts: Array<{ url: string; body: unknown }> = [];
       const fetchMock = vi.fn().mockImplementation(async (url: string, init: RequestInit) => {
         if (url.startsWith('https://example.test/bridge')) {
@@ -431,7 +430,6 @@ describe('SimpleCMP public API', () => {
           return new Response('', { status: 200 });
         }
         if (url.includes('/v1/lookup')) {
-          // Service-DB returns a hit for the cookie '_unknown_to_known'.
           return new Response(
             JSON.stringify({
               items: [
@@ -450,37 +448,69 @@ describe('SimpleCMP public API', () => {
       globalThis.fetch = fetchMock as typeof fetch;
       try {
         init({
-          storageName: 'simplecmp-test-req9-e2e',
+          storageName: 'simplecmp-test-req-n7-known',
           services: [],
           record: { silenceProductionWarning: true },
           serviceDbUrl: 'https://example.test/db',
           cmsBridgeUrl: 'https://example.test/bridge',
         });
-        const recorder = getRecorder();
-        expect(recorder).toBeDefined();
-        // Inject a cookie that classifies locally as unknown. The bridge
-        // fires synchronously; the Service-DB lookup runs in the
-        // background and (per our mock) returns a match → enrichDetection
-        // re-announces with status 'known' → bridge must ignore.
         document.cookie = '_unknown_to_known=1';
-        // Tick the cookie watcher a few times to make sure it sees the value.
+        // Tick the cookie watcher.
         await new Promise((r) => setTimeout(r, 1100));
-        // Give the layered classifier's background lookup time to settle.
+        // Settle the layered classifier's lookup + the recorder's
+        // `'detectionSettled'` dispatch on the same microtask tail.
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(bridgePosts.length).toBe(0);
+      } finally {
+        globalThis.fetch = originalFetch;
+        document.cookie = '_unknown_to_known=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      }
+    });
+
+    it('POSTs once after settle when the Service-DB lookup confirms unknown', async () => {
+      // Service-DB returns an empty match → status stays `unknown` →
+      // bridge POSTs once after settle.
+      const bridgePosts: Array<{ url: string; body: unknown }> = [];
+      const fetchMock = vi.fn().mockImplementation(async (url: string, init: RequestInit) => {
+        if (url.startsWith('https://example.test/bridge')) {
+          bridgePosts.push({ url, body: JSON.parse(init.body as string) });
+          return new Response('', { status: 200 });
+        }
+        if (url.includes('/v1/lookup')) {
+          return new Response(JSON.stringify({ items: [] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response('', { status: 404 });
+      });
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = fetchMock as typeof fetch;
+      try {
+        init({
+          storageName: 'simplecmp-test-req-n7-unknown',
+          services: [],
+          record: { silenceProductionWarning: true },
+          serviceDbUrl: 'https://example.test/db',
+          cmsBridgeUrl: 'https://example.test/bridge',
+        });
+        document.cookie = '_genuinely_unknown=1';
+        await new Promise((r) => setTimeout(r, 1100));
         await new Promise((r) => setTimeout(r, 50));
 
         expect(bridgePosts.length).toBe(1);
-        expect(bridgePosts[0]?.url).toBe('https://example.test/bridge');
         const payload = bridgePosts[0]?.body as {
           schemaVersion: number;
           detection: { kind: string; identifier: string; status: string };
         };
         expect(payload.schemaVersion).toBe(1);
         expect(payload.detection.kind).toBe('cookie');
-        expect(payload.detection.identifier).toBe('_unknown_to_known');
+        expect(payload.detection.identifier).toBe('_genuinely_unknown');
         expect(payload.detection.status).toBe('unknown');
       } finally {
         globalThis.fetch = originalFetch;
-        document.cookie = '_unknown_to_known=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = '_genuinely_unknown=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
       }
     });
   });

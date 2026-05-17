@@ -128,6 +128,99 @@ describe('Recorder — ingestion + classification', () => {
     recorder.off('detection', handler);
     recorder.stop();
   });
+
+  it("fires 'detectionSettled' immediately when the classifier returns no pending promise (REQ-N7)", async () => {
+    const { recorder, fake } = makeRecorder();
+    const settled = vi.fn();
+    recorder.on('detectionSettled', settled);
+    recorder.start();
+    fake.sink({ kind: 'cookie', identifier: '_ga' });
+    // LocalClassifier is synchronous → settled fires in the same tick.
+    expect(settled).toHaveBeenCalledTimes(1);
+    expect(settled.mock.calls[0]?.[0]?.identifier).toBe('_ga');
+    expect(settled.mock.calls[0]?.[0]?.status).toBe('known');
+    recorder.stop();
+  });
+
+  it("defers 'detectionSettled' until the classifier's pending promise resolves and reflects enrichment (REQ-N7)", async () => {
+    // Stub a classifier that returns `unknown` synchronously but exposes a
+    // pending promise — and calls `enrichDetection` mid-flight to upgrade
+    // the stored detection to `known`. The settled event must fire AFTER
+    // the promise resolves and read back the enriched state.
+    let resolvePending!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      resolvePending = resolve;
+    });
+    const fake = new FakeWatcher();
+    let recorderRef: Recorder | undefined;
+    const stubClassifier = {
+      classify() {
+        return {
+          status: 'unknown' as const,
+          pending: pending.then(() => {
+            recorderRef?.enrichDetection(
+              { kind: 'cookie', identifier: '_late' },
+              { matchedService: 'late-svc', status: 'known' as const }
+            );
+          }),
+        };
+      },
+    };
+    const recorder = new Recorder({
+      options: { summaryIntervalMs: 0 },
+      classifier: stubClassifier,
+      services: [],
+      watcherFactories: [
+        (sink) => {
+          fake.sink = sink;
+          return fake;
+        },
+      ],
+    });
+    recorderRef = recorder;
+    const settled = vi.fn();
+    recorder.on('detectionSettled', settled);
+    recorder.start();
+    fake.sink({ kind: 'cookie', identifier: '_late' });
+    expect(settled).not.toHaveBeenCalled();
+    resolvePending();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(settled).toHaveBeenCalledTimes(1);
+    expect(settled.mock.calls[0]?.[0]?.status).toBe('known');
+    expect(settled.mock.calls[0]?.[0]?.matchedService).toBe('late-svc');
+    recorder.stop();
+  });
+
+  it("still fires 'detectionSettled' when the classifier's pending promise rejects (REQ-N7)", async () => {
+    const fake = new FakeWatcher();
+    const stubClassifier = {
+      classify() {
+        return {
+          status: 'unknown' as const,
+          pending: Promise.reject(new Error('db unavailable')).catch(() => undefined),
+        };
+      },
+    };
+    const recorder = new Recorder({
+      options: { summaryIntervalMs: 0 },
+      classifier: stubClassifier,
+      services: [],
+      watcherFactories: [
+        (sink) => {
+          fake.sink = sink;
+          return fake;
+        },
+      ],
+    });
+    const settled = vi.fn();
+    recorder.on('detectionSettled', settled);
+    recorder.start();
+    fake.sink({ kind: 'cookie', identifier: '_err' });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(settled).toHaveBeenCalledTimes(1);
+    expect(settled.mock.calls[0]?.[0]?.status).toBe('unknown');
+    recorder.stop();
+  });
 });
 
 describe('Recorder — exportConfig', () => {

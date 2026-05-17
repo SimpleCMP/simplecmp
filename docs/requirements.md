@@ -615,7 +615,15 @@ inline-styles in den JSX-Komponenten müssten geprüft und ersetzt werden.
 
 ### REQ-N7 — CMS Bridge: wait for Service-DB before firing webhook
 
-**Status:** ⬜ offen — entdeckt 2026-05-14 beim TYPO3-Integrationstest
+**Status:** ✅ erledigt 2026-05-17 — via neuem `'detectionSettled'`
+Recorder-Event. Bridge hängt jetzt an diesem Event statt an
+`'detection'`; das Settled-Event feuert erst, nachdem das asynchrone
+`LayeredClassifier`-Lookup abgeschlossen ist. Detections, die das
+Service-DB-Lookup als `known` klassifiziert, erzeugen kein Webhook.
+Doku-Block "Known limitation" in `cms-bridge-webhook.md` entfernt;
+durch einen "Coordination with the Service DB"-Abschnitt ersetzt.
+
+**Ursprünglicher Bericht:** entdeckt 2026-05-14 beim TYPO3-Integrationstest
 ([WapplerSystems/simplecmp-typo3](https://github.com/WapplerSystems/simplecmp-typo3)).
 
 Wenn `serviceDbUrl` UND `cmsBridgeUrl` gleichzeitig konfiguriert sind,

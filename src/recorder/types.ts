@@ -113,12 +113,24 @@ export interface ClassifierServiceConfig {
  * The classifier's only job: take a raw detection plus a service list and
  * return an enriched detection. Stable across phases — Phase 3 swaps the
  * implementation but not the interface.
+ *
+ * The optional `pending` promise is the recorder's signal that
+ * classification is *preliminary* — an asynchronous lookup is in flight
+ * that may upgrade the status before the detection should be treated as
+ * final. The Recorder defers its `detectionSettled` event until the
+ * promise resolves, so consumers that act on settled state (the CMS
+ * bridge, primarily) don't race the lookup. `LocalClassifier` never
+ * returns a `pending` because its work is synchronous;
+ * `LayeredClassifier` returns one whenever it kicks off a Service-DB
+ * lookup. The promise resolves on success, error, or no-match — its
+ * resolved value is unused, only the *signal* matters. (REQ-N7.)
  */
 export interface Classifier {
   classify(raw: RawDetection): {
     matchedService?: string;
     matchedVendor?: string;
     status: DetectionStatus;
+    pending?: Promise<void>;
   };
 }
 

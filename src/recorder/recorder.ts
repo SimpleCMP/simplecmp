@@ -15,7 +15,21 @@ import type {
   Watcher,
 } from './types.js';
 
-export type RecorderEventName = 'detection';
+/**
+ * Recorder event names.
+ *
+ * - `'detection'` fires immediately when a new detection is first observed
+ *   (or re-fires when an enrichment patches a previously-recorded one).
+ *   Carries the *current* status — which may still be `'unknown'` because
+ *   an async Service-DB lookup is in flight.
+ * - `'detectionSettled'` fires *after* classification is final. For
+ *   detections that don't trigger an async lookup it follows the
+ *   `'detection'` event in the same microtask; for detections where the
+ *   classifier kicked off a DB lookup it fires after that lookup resolves
+ *   (or errors out). Consumers that should not race the lookup — the CMS
+ *   bridge in particular — subscribe here. (REQ-N7.)
+ */
+export type RecorderEventName = 'detection' | 'detectionSettled';
 export type DetectionListener = (d: Detection) => void;
 
 const STORAGE_PREFIX = 'simplecmp.recorder.';
@@ -60,6 +74,7 @@ export class Recorder {
   private readonly services: readonly ClassifierServiceConfig[];
   private readonly watchers: Watcher[];
   private readonly listeners = new Set<DetectionListener>();
+  private readonly settledListeners = new Set<DetectionListener>();
   private readonly detections = new Map<string, Detection>();
   private summaryTimer?: ReturnType<typeof setInterval>;
   private active = false;
@@ -118,13 +133,13 @@ export class Recorder {
   }
 
   on(event: RecorderEventName, handler: DetectionListener): void {
-    if (event !== 'detection') return;
-    this.listeners.add(handler);
+    if (event === 'detection') this.listeners.add(handler);
+    else if (event === 'detectionSettled') this.settledListeners.add(handler);
   }
 
   off(event: RecorderEventName, handler: DetectionListener): void {
-    if (event !== 'detection') return;
-    this.listeners.delete(handler);
+    if (event === 'detection') this.listeners.delete(handler);
+    else if (event === 'detectionSettled') this.settledListeners.delete(handler);
   }
 
   /**
@@ -214,6 +229,7 @@ export class Recorder {
       return;
     }
     const enriched = this.classifier.classify(raw);
+    const { pending, ...stored } = enriched;
     const detection: Detection = {
       kind: raw.kind,
       identifier: raw.identifier,
@@ -222,11 +238,22 @@ export class Recorder {
       lastSeen: now,
       firstSeenOn: raw.firstSeenOn,
       count: 1,
-      ...enriched,
+      ...stored,
     };
     this.detections.set(key, detection);
     this._announce(detection);
     this._writeToStorage();
+
+    // REQ-N7: `'detectionSettled'` fires once per detection, after any async
+    // classification finishes. The recorder reads back the final stored
+    // detection from the map at settle time — `enrichDetection()` may have
+    // patched it via the classifier's enrichment listener between the
+    // initial announce and this point.
+    if (pending) {
+      pending.finally(() => this._announceSettled(key));
+    } else {
+      this._announceSettled(key);
+    }
   }
 
   private _announce(d: Detection): void {
@@ -247,6 +274,24 @@ export class Recorder {
         this.onDetectionForLibEvent(d);
       } catch {
         // ignore — lib event bus is best-effort
+      }
+    }
+  }
+
+  /**
+   * Fire the `'detectionSettled'` listeners with the current state of the
+   * stored detection. Read fresh from the map so enrichment that happened
+   * between initial announce and now is reflected. No-op if the entry
+   * has been cleared in the meantime. (REQ-N7.)
+   */
+  private _announceSettled(key: string): void {
+    const d = this.detections.get(key);
+    if (!d) return;
+    for (const listener of this.settledListeners) {
+      try {
+        listener(d);
+      } catch (err) {
+        console.warn('SimpleCMP recorder: settled listener threw:', err);
       }
     }
   }

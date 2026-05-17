@@ -303,6 +303,13 @@ function startRecorder(config: SimpleCMPConfig): void {
   // REQ-9: when cmsBridgeUrl is configured, subscribe the bridge to the
   // recorder's detection stream. The bridge filters for status: 'unknown'
   // and dedupes by `${kind}:${identifier}` with a TTL window.
+  //
+  // REQ-N7: subscribe to `'detectionSettled'` rather than `'detection'`.
+  // The first emission of a detection is always `status: 'unknown'` even
+  // when the Service-DB lookup would have classified it as known — the
+  // bridge would race the lookup and POST before enrichment finalises
+  // the status. The settled event fires once per detection, after any
+  // async classification finishes, with the final status.
   if (config.cmsBridgeUrl) {
     const bridge = new CmsBridge({
       url: config.cmsBridgeUrl,
@@ -311,7 +318,7 @@ function startRecorder(config: SimpleCMPConfig): void {
       dedupTtlMs: config.cmsBridge?.dedupTtlMs,
       timeoutMs: config.cmsBridge?.timeoutMs,
     });
-    recorder.on('detection', (d) => bridge.onDetection(d));
+    recorder.on('detectionSettled', (d) => bridge.onDetection(d));
   }
   activeRecorder = recorder;
   activeRecorder.start();

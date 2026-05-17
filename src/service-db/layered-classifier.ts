@@ -49,6 +49,7 @@ export class LayeredClassifier implements Classifier {
     matchedService?: string;
     matchedVendor?: string;
     status: DetectionStatus;
+    pending?: Promise<void>;
   } {
     const local = this.local.classify(raw);
     if (local.status === 'known') {
@@ -65,16 +66,20 @@ export class LayeredClassifier implements Classifier {
           : null;
     if (!query) return local;
 
-    // Fire-and-forget DB lookup. Errors are already swallowed inside the
-    // client (warns once, returns null).
-    this.dbClient
+    // Async DB lookup. Errors are already swallowed inside the client
+    // (warns once, returns null). The returned `pending` promise resolves
+    // *after* dispatch so the recorder's `detectionSettled` listener sees
+    // the enriched detection rather than the bare `unknown` first hit.
+    // Always resolves (never rejects) — consumers only care about the
+    // signal, not the outcome. (REQ-N7.)
+    const pending = this.dbClient
       .lookup(query)
       .then((match) => {
         if (match) this._dispatch(raw, this._toEnrichment(match));
       })
       .catch(() => undefined);
 
-    return local;
+    return { ...local, pending };
   }
 
   /** Subscribe to enrichments — typically called from the Recorder wiring. */
