@@ -152,13 +152,17 @@ describe('Recorder — ingestion + classification', () => {
       resolvePending = resolve;
     });
     const fake = new FakeWatcher();
-    let recorderRef: Recorder | undefined;
+    // Forward-reference holder so the stub classifier can reach the
+    // recorder. The recorder is constructed *after* the stub, so we
+    // can't capture it directly; the ref object lets us mutate
+    // `.current` while keeping the binding `const` (biome useConst).
+    const recorderRef: { current: Recorder | undefined } = { current: undefined };
     const stubClassifier = {
       classify() {
         return {
           status: 'unknown' as const,
           pending: pending.then(() => {
-            recorderRef?.enrichDetection(
+            recorderRef.current?.enrichDetection(
               { kind: 'cookie', identifier: '_late' },
               { matchedService: 'late-svc', status: 'known' as const }
             );
@@ -177,7 +181,7 @@ describe('Recorder — ingestion + classification', () => {
         },
       ],
     });
-    recorderRef = recorder;
+    recorderRef.current = recorder;
     const settled = vi.fn();
     recorder.on('detectionSettled', settled);
     recorder.start();
