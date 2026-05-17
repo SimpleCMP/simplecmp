@@ -43,6 +43,7 @@ export class SimpleCmpServiceToggle extends SimpleCmpElement {
       input[type='checkbox'] {
         margin-top: 0.25rem;
         flex-shrink: 0;
+        accent-color: var(--simplecmp-color-primary);
       }
 
       .meta {

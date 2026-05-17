@@ -53,6 +53,7 @@ export class SimpleCmpPurposeGroup extends SimpleCmpElement {
 
       input[type='checkbox'] {
         margin-top: 0.25rem;
+        accent-color: var(--simplecmp-color-primary);
       }
 
       .title {
