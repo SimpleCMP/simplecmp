@@ -24,8 +24,12 @@ import type {
  * Klaro compatibility shim. The object form (`{name, requireOrigin}` —
  * ADR-0010) matches only when the required origin has been observed in
  * the session.
+ *
+ * Exported so `LayeredClassifier` can re-validate Service-DB lookup
+ * responses against the host-qualifier (the DB only sees the matcher
+ * list, not the recorder's observed origins).
  */
-function cookieMatches(
+export function cookieMatches(
   name: string,
   matcher: CookieMatcher,
   observedOrigins: ReadonlySet<string>
@@ -130,15 +134,22 @@ export class LocalClassifier implements Classifier {
   }
 
   /**
-   * Whether the given origin was newly added by the most recent
-   * classify() call. The recorder uses this to decide whether to
-   * re-classify previously-emitted cookies on this origin observation.
-   *
-   * Note: callers wanting the "is this host observed?" check use
-   * `hasObservedOrigin()` instead.
+   * Whether the given origin has been observed via a non-cookie
+   * detection in this session.
    */
   hasObservedOrigin(host: string): boolean {
     return this.observedOrigins.has(host);
+  }
+
+  /**
+   * Read-only view of currently observed origins. The
+   * `LayeredClassifier` uses this to re-validate Service-DB lookup
+   * responses against host-qualified matchers — without this, the DB
+   * would surface candidates whose qualifier the recorder hasn't
+   * observed and the enrichment would mis-classify.
+   */
+  get observedOriginsView(): ReadonlySet<string> {
+    return this.observedOrigins;
   }
 
   private _findService(raw: RawDetection): string | undefined {

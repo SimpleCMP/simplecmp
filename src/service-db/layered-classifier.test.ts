@@ -115,6 +115,89 @@ describe('LayeredClassifier', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  // ADR-0010: when the DB returns a match whose cookie matchers include
+  // host-qualified entries (`{name, requireOrigin}`), the LayeredClassifier
+  // re-validates locally against the recorder's observed origins. The DB
+  // middleware can only check the name part; the recorder is the only
+  // place that knows which origins have been seen this session.
+  it('skips a DB match whose cookie host-qualifier has not been observed', async () => {
+    const hostQualifiedMatch: ServiceMatch = {
+      id: 'qualified-svc',
+      name: 'Qualified Service',
+      purposes: ['analytics'],
+      matches: {
+        cookies: [{ name: 'm', requireOrigin: 'm.qualified.test' }],
+        origins: [],
+      },
+    } as unknown as ServiceMatch;
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(lookupOk([hostQualifiedMatch])));
+    const client = new ServiceDbClient({ url: URL, fetch: fetchMock });
+    const classifier = new LayeredClassifier(client, localServices);
+
+    const enrichments: string[] = [];
+    classifier.onEnrichment((_raw, e) => enrichments.push(e.matchedService));
+
+    // No origin has been observed yet — host-qualifier should not pass.
+    const result = classifier.classify({ kind: 'cookie', identifier: 'm' });
+    await result.pending;
+    expect(enrichments).toEqual([]);
+  });
+
+  it('dispatches enrichment when the host-qualifier passes after origin observation', async () => {
+    const hostQualifiedMatch: ServiceMatch = {
+      id: 'qualified-svc',
+      name: 'Qualified Service',
+      purposes: ['analytics'],
+      matches: {
+        cookies: [{ name: 'm', requireOrigin: 'm.qualified.test' }],
+        origins: [],
+      },
+    } as unknown as ServiceMatch;
+    // Mock returns the host-qualified match for cookie queries; empty
+    // for origin queries (so the origin-observation classify doesn't
+    // also dispatch).
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as {
+        items: Array<{ cookie?: string; origin?: string }>;
+      };
+      const first = body.items[0];
+      if (first?.cookie) {
+        return jsonResponse(lookupOk([hostQualifiedMatch]));
+      }
+      return jsonResponse({ items: [{ query: first, matches: [] }] });
+    });
+    const client = new ServiceDbClient({ url: URL, fetch: fetchMock });
+    const classifier = new LayeredClassifier(client, localServices);
+
+    const enrichments: string[] = [];
+    classifier.onEnrichment((_raw, e) => enrichments.push(e.matchedService));
+
+    // Observe the qualifying origin first (via a request detection).
+    classifier.classify({
+      kind: 'request',
+      identifier: 'https://m.qualified.test/x',
+      origin: 'm.qualified.test',
+    });
+    // Now the cookie classifies against the observed origin.
+    const result = classifier.classify({ kind: 'cookie', identifier: 'm' });
+    await result.pending;
+    expect(enrichments).toEqual(['qualified-svc']);
+  });
+
+  it('dispatches enrichment for plain-string DB matches regardless of observed origins', async () => {
+    // No host-qualifier in the match — string matcher, fires by name only.
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(lookupOk([remoteMatch])));
+    const client = new ServiceDbClient({ url: URL, fetch: fetchMock });
+    const classifier = new LayeredClassifier(client, localServices);
+
+    const enrichments: string[] = [];
+    classifier.onEnrichment((_raw, e) => enrichments.push(e.matchedService));
+
+    const result = classifier.classify({ kind: 'cookie', identifier: '_ga' });
+    await result.pending;
+    expect(enrichments).toEqual([remoteMatch.id]);
+  });
+
   it('removes listeners via offEnrichment', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(lookupOk([remoteMatch])));
     const client = new ServiceDbClient({ url: URL, fetch: fetchMock });

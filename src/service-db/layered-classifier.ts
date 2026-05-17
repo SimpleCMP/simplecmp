@@ -15,10 +15,11 @@
  * the async enrichment is opt-in via the listener API.
  */
 
-import { LocalClassifier } from '../recorder/classifier.js';
+import { LocalClassifier, cookieMatches } from '../recorder/classifier.js';
 import type {
   Classifier,
   ClassifierServiceConfig,
+  CookieMatcher,
   DetectionStatus,
   RawDetection,
 } from '../recorder/types.js';
@@ -75,11 +76,43 @@ export class LayeredClassifier implements Classifier {
     const pending = this.dbClient
       .lookup(query)
       .then((match) => {
-        if (match) this._dispatch(raw, this._toEnrichment(match));
+        if (!match) return;
+        // ADR-0010: re-validate the match's cookie matchers locally.
+        // The DB middleware surfaces a service whose name part matches
+        // the queried cookie, but it doesn't know which origins the
+        // recorder has actually observed. Without this check, a
+        // host-qualified matcher in the DB-returned service would
+        // misfire when its qualifier hasn't been observed.
+        if (raw.kind === 'cookie' && !this._hostQualifierPasses(match, raw.identifier)) {
+          return;
+        }
+        this._dispatch(raw, this._toEnrichment(match));
       })
       .catch(() => undefined);
 
     return { ...local, pending };
+  }
+
+  /**
+   * Whether the cookie matchers on a Service-DB match include at least
+   * one entry that fires against `cookieName` given the recorder's
+   * currently-observed origins. Strings and Klaro tuples always fire
+   * by name only; the ADR-0010 object form fires only when its
+   * `requireOrigin` is observed.
+   */
+  private _hostQualifierPasses(match: ServiceMatch, cookieName: string): boolean {
+    const matchers = (match.matches?.cookies ?? []) as CookieMatcher[];
+    if (matchers.length === 0) {
+      // No cookie matchers in the DB row but the DB still returned
+      // this service for a cookie query — assume the match is via an
+      // origin path or other channel; let it through.
+      return true;
+    }
+    const observedOrigins = this.local.observedOriginsView;
+    for (const matcher of matchers) {
+      if (cookieMatches(cookieName, matcher, observedOrigins)) return true;
+    }
+    return false;
   }
 
   /** Subscribe to enrichments — typically called from the Recorder wiring. */
