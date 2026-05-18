@@ -256,6 +256,18 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Fixed
 
+- **Modal focus trap (hand-rolled) + `aria-labelledby`.** Native
+  `<dialog>.showModal()` is supposed to trap Tab navigation, but the
+  trap fails when the `<dialog>` is rendered inside Shadow DOM — Tab
+  from the last focusable walked past the host to the page underneath.
+  `<simplecmp-modal>` now ships a Tab/Shift+Tab keydown handler that
+  walks the dialog subtree (including nested shadow roots so
+  `<simplecmp-purpose-group>` children participate) and wraps focus at
+  the boundaries. The `<dialog>` also carries an explicit
+  `aria-labelledby="simplecmp-modal-title"` pointing at the existing
+  `<h1>` — native `<dialog>` has implicit `role=dialog` +
+  `aria-modal=true` in showModal state but no accessible name unless
+  the markup wires one up.
 - **Default primary token darkened to pass WCAG AA contrast.** The
   previous `--simplecmp-color-primary` (`#1a936f`) on white scored
   3.85:1 — below WCAG 2.1 AA's 4.5:1 threshold for normal text.

@@ -93,6 +93,45 @@ describe('<simplecmp-modal>', () => {
     expect(el.shadowRoot?.querySelector('.footer')).not.toBeNull();
   });
 
+  it('dialog carries aria-labelledby pointing to the title heading', async () => {
+    const { el } = await mountModal();
+    const dialog = el.shadowRoot?.querySelector('dialog');
+    const title = el.shadowRoot?.querySelector('h1');
+    expect(dialog?.getAttribute('aria-labelledby')).toBe('simplecmp-modal-title');
+    expect(title?.id).toBe('simplecmp-modal-title');
+  });
+
+  it('Tab on the last focusable wraps focus back to the first (focus trap)', async () => {
+    const { el } = await mountModal();
+    const dialog = el.shadowRoot?.querySelector('dialog');
+    if (dialog === null || dialog === undefined) throw new Error('Expected dialog');
+    const close = getButton(el, 'button.close');
+    const acceptAll = getButton(el, 'button.accept-all');
+    acceptAll.focus();
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    dialog.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(el.shadowRoot?.activeElement).toBe(close);
+  });
+
+  it('Shift+Tab on the first focusable wraps focus to the last', async () => {
+    const { el } = await mountModal();
+    const dialog = el.shadowRoot?.querySelector('dialog');
+    if (dialog === null || dialog === undefined) throw new Error('Expected dialog');
+    const close = getButton(el, 'button.close');
+    const acceptAll = getButton(el, 'button.accept-all');
+    close.focus();
+    const shiftTab = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    dialog.dispatchEvent(shiftTab);
+    expect(shiftTab.defaultPrevented).toBe(true);
+    expect(el.shadowRoot?.activeElement).toBe(acceptAll);
+  });
+
   it('groups services by purpose when groupByPurpose=true', async () => {
     const { el } = await mountModal();
     const groups = el.shadowRoot?.querySelectorAll('simplecmp-purpose-group') ?? [];

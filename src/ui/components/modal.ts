@@ -1,14 +1,17 @@
 /**
  * <simplecmp-modal> — preference center modal (REQ-6).
  *
- * Built on the native HTML `<dialog>` element (ADR-0007) which gives us
- * for free:
- *   - focus trap
+ * Built on the native HTML `<dialog>` element (ADR-0007) which gives us:
  *   - Escape to close (via the `cancel` event, preventable)
  *   - backdrop / `:modal` styling state
- *   - correct ARIA dialog semantics
+ *   - implicit `role=dialog` + `aria-modal=true` in showModal state
  *
- * Klaro hand-rolled all of this. We don't.
+ * Focus trap is hand-rolled (see `_onKeydown` + `_collectFocusable`):
+ * native `<dialog>.showModal()` is supposed to trap Tab navigation, but
+ * the trap doesn't work when the dialog is inside a Shadow DOM — focus
+ * walks past the host element to the page beneath. Verified on
+ * Chromium 130+. The hand-rolled trap walks nested shadow roots so it
+ * still respects the focus order inside `<simplecmp-purpose-group>` etc.
  *
  * The host (`init()` in D.5) sets `open=true` to show the modal; the
  * component handles the rest. On close we emit `simplecmp:modal-close`
@@ -175,6 +178,23 @@ export class SimpleCmpModal extends SimpleCmpElement {
 
   // --- handlers ---------------------------------------------------------
 
+  private _onKeydown = (event: KeyboardEvent): void => {
+    if (event.key !== 'Tab') return;
+    const focusables = this._collectFocusable();
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (first === undefined || last === undefined) return;
+    const active = this._deepActiveElement();
+    if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    } else if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    }
+  };
+
   private _onCancel = (event: Event): void => {
     // mustConsent → suppress Escape close; user must click an action.
     if (this.config?.mustConsent === true) {
@@ -235,9 +255,11 @@ export class SimpleCmpModal extends SimpleCmpElement {
 
     return html`
       <dialog
+        aria-labelledby="simplecmp-modal-title"
         @cancel=${this._onCancel}
         @close=${this._onClose}
         @click=${this._onBackdropClick}
+        @keydown=${this._onKeydown}
       >
         ${this._renderHeader(config)}
         <div class="body">${this._renderBody(config)}</div>
@@ -394,6 +416,40 @@ export class SimpleCmpModal extends SimpleCmpElement {
 
   private _activeLang(): string {
     return this.config?.lang ?? document.documentElement.lang ?? 'en';
+  }
+
+  private _collectFocusable(): HTMLElement[] {
+    const dialog = this._dialog;
+    if (dialog === undefined) return [];
+    const focusables: HTMLElement[] = [];
+    const selector =
+      'button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const walk = (node: Element): void => {
+      if (node.matches(selector) && this._isVisible(node)) {
+        focusables.push(node as HTMLElement);
+      }
+      if (node.shadowRoot !== null) {
+        for (const child of node.shadowRoot.children) walk(child);
+      }
+      for (const child of node.children) walk(child);
+    };
+    for (const child of dialog.children) walk(child);
+    return focusables;
+  }
+
+  private _deepActiveElement(): Element | null {
+    let active: Element | null = document.activeElement;
+    while (active?.shadowRoot?.activeElement !== undefined && active.shadowRoot.activeElement !== null) {
+      active = active.shadowRoot.activeElement;
+    }
+    return active;
+  }
+
+  private _isVisible(el: Element): boolean {
+    // Newer browsers expose `checkVisibility()`; fall back to layout-based test.
+    const withCheck = el as Element & { checkVisibility?: () => boolean };
+    if (typeof withCheck.checkVisibility === 'function') return withCheck.checkVisibility();
+    return (el as HTMLElement).offsetParent !== null;
   }
 
   private _collectPurposes(): Map<string, Service[]> {
