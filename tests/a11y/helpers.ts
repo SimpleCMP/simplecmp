@@ -36,12 +36,6 @@ export async function scanA11y(page: Page, options: ScanOptions = {}): Promise<v
     builder = builder.include(options.include);
   }
 
-  // Brand decision (docs/accessibility.md): the success-state button green
-  // (#1a936f, "green1") sits at 3.5:1 contrast — passes UI-component 3:1
-  // but fails normal-text 4.5:1. We surface this as a documented
-  // exception rather than re-tinting the brand color.
-  builder = builder.disableRules(['color-contrast']);
-
   const results = await builder.analyze();
 
   const blocking = results.violations.filter((v) => {

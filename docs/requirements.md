@@ -269,8 +269,8 @@ für alle. Klaro ist nicht audited.
       Text-Content oder `aria-label`. Auditiert in `docs/accessibility.md`.
 - [x] Color-Contrast in Audit dokumentiert: `dark1`/`dark2` mit `#fff` bestens
       (12.6:1 / 10.4:1 = AAA). `red1` (#da2c43) → 4.6:1 ✓ AA. `green1`
-      (#1a936f) → 3.5:1 ⚠️ — passes UI 3:1, **fails normal text 4.5:1**.
-      Bewusst nicht geändert (Brand-Farbe), Themer-Empfehlung in Audit-Doc.
+      (#15775a) → 5.3:1 ✓ AA (2026-05-18: von `#1a936f`/3.5:1 auf `#15775a`
+      gedunkelt, um WCAG AA für normalen Text zu erfüllen).
 - [x] `prefers-reduced-motion: reduce` Block in `klaro.scss` drückt
       transition/animation-duration auf 0.001ms, deckt Klaros Switch-Toggles,
       Modal-Animationen und Control-Transitions ab.

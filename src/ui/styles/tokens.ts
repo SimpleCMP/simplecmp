@@ -14,8 +14,8 @@ import { css } from 'lit';
 
 export const tokens = css`
   :host {
-    --simplecmp-color-primary: #1a936f;
-    --simplecmp-color-primary-hover: #15775a;
+    --simplecmp-color-primary: #15775a;
+    --simplecmp-color-primary-hover: #0f5d44;
     --simplecmp-color-secondary: #6c757d;
     --simplecmp-color-danger: #da2c43;
     --simplecmp-color-bg: #ffffff;

@@ -44,7 +44,7 @@ violations are logged but don't fail CI.
 | `:focus-visible` ring | ❌ relies on browser default — invisible against dark theme |
 | `prefers-reduced-motion` | ❌ ignored (Klaro has switch + control transitions) |
 | Color contrast — text on `dark1` (#333) | ✅ ≈ 12.6:1 (AAA) |
-| Color contrast — white on `green1` (#1a936f) | ⚠️ ≈ 3.5:1 (UI passes 3:1, normal text fails 4.5:1) |
+| Color contrast — white on `green1` (#15775a) | ✅ ≈ 5.3:1 (passes 4.5:1) |
 | Color contrast — white on `red1` (#da2c43) | ✅ ≈ 4.6:1 (just passes 4.5:1) |
 
 ## What SimpleCMP changed (REQ-6)
@@ -118,11 +118,13 @@ The default Klaro theme:
 | --- | --- | --- | --- |
 | `#fff` | `#333` (`dark1`) | 12.63:1 | ✅ AAA |
 | `#fff` | `#404040` (`dark2`) | 10.37:1 | ✅ AAA |
-| `#fff` | `#1a936f` (`green1`) | 3.51:1 | ⚠️ UI 3:1 only — **fails normal text 4.5:1** |
+| `#fff` | `#15775a` (`green1`) | 5.30:1 | ✅ passes 4.5:1 |
 | `#fff` | `#da2c43` (`red1`) | 4.61:1 | ✅ passes 4.5:1 |
 
-Themers who care about strict AA on the success button: override
-`--green1` to a darker shade.
+All foreground/background pairs in the default theme now pass WCAG AA
+for normal text. The previous `green1` value (`#1a936f`, 3.51:1) was
+darkened to `#15775a` to clear the 4.5:1 threshold; themers overriding
+`--simplecmp-color-primary` need to verify their own contrast.
 
 ### Screen reader walkthrough
 
