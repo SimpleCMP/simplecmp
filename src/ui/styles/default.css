@@ -41,8 +41,8 @@
   --simplecmp-color-secondary: #6c757d;
   --simplecmp-color-danger: #da2c43;
   --simplecmp-color-bg: #ffffff;
-  /*--simplecmp-color-bg-alt: #f5f7f9;*/
-  /*--simplecmp-color-border: #dde2e7;*/
+  --simplecmp-color-bg-alt: #f5f7f9;
+  --simplecmp-color-border: #dde2e7;
   --simplecmp-color-text: #1a232c;
   --simplecmp-color-text-muted: #5f6b78;
 
