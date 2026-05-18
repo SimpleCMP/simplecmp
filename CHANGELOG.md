@@ -75,10 +75,8 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
   parallel job. Scans demos 1, 4, 5, 6 (skipping the demos that load
   external resources, which would make CI flaky) against WCAG 2.1 AA;
   blocks PRs on `serious` or `critical` violations, surfaces lower
-  severities as non-blocking log entries. The `color-contrast` rule is
-  disabled with a documented brand exception for the `green1` button
-  color (3.5:1) — see `docs/accessibility.md`. Browser binaries cached
-  by lockfile hash so cold-install only happens on dep bumps.
+  severities as non-blocking log entries. Browser binaries cached by
+  lockfile hash so cold-install only happens on dep bumps.
 - **Phase 4 — CMS Bridge (REQ-9).** Webhook-based alerting for unknown
   trackers in production. When the Recorder produces a detection with
   `status: 'unknown'` (no local-services match, no Service-DB hit), the
@@ -255,6 +253,19 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
   Stores/ConsentManager → Lib-Funktionen → Lit-UI → Translations →
   Themes → Cleanup. REQ-N2 (Headless-Modus) wird durch REQ-11–13
   erledigt.
+
+### Fixed
+
+- **Default primary token darkened to pass WCAG AA contrast.** The
+  previous `--simplecmp-color-primary` (`#1a936f`) on white scored
+  3.85:1 — below WCAG 2.1 AA's 4.5:1 threshold for normal text.
+  Darkened to `#15775a` (5.30:1); hover token shifts from `#15775a`
+  to `#0f5d44`. The axe-core `color-contrast` rule is no longer
+  disabled in the a11y CI gate — the documented brand exception is
+  gone. Sites overriding `--simplecmp-color-primary` are unaffected;
+  sites running default colors see a slightly darker green on the
+  Accept button. Demos, `default.css`, and `docs/accessibility.md`
+  updated to match.
 
 ### Changed
 
