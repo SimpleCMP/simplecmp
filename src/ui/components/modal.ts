@@ -439,7 +439,7 @@ export class SimpleCmpModal extends SimpleCmpElement {
 
   private _deepActiveElement(): Element | null {
     let active: Element | null = document.activeElement;
-    while (active?.shadowRoot?.activeElement !== undefined && active.shadowRoot.activeElement !== null) {
+    while (active?.shadowRoot?.activeElement) {
       active = active.shadowRoot.activeElement;
     }
     return active;

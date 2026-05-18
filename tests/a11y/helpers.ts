@@ -5,9 +5,6 @@
  * - WCAG 2.1 AA ruleset
  * - Fail on `serious` / `critical`; surface `moderate` / `minor` as
  *   non-blocking warnings.
- * - Document brand-decision exception for the `green1` button color
- *   (3.5:1 contrast — passes UI 3:1, fails text 4.5:1). Tracked in
- *   `docs/accessibility.md`.
  */
 import { AxeBuilder } from '@axe-core/playwright';
 import { type Page, expect } from '@playwright/test';
@@ -21,19 +18,24 @@ export interface ScanOptions {
    * lower-severity false positives.
    */
   strict?: boolean;
+  /**
+   * Axe rule IDs to skip for this specific scan. Use sparingly and
+   * document the reason at the call site — typically only justified
+   * when the rule applies to host-supplied content (e.g. theme tokens
+   * mapped from a third-party design system).
+   */
+  disableRules?: readonly string[];
 }
 
-/**
- * Run axe against the given page and assert no blocking violations.
- *
- * Note: rule disables here are documented brand decisions, not bugs.
- * Adding to this list requires a paper trail in `docs/accessibility.md`.
- */
 export async function scanA11y(page: Page, options: ScanOptions = {}): Promise<void> {
   let builder = new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']);
 
   if (options.include) {
     builder = builder.include(options.include);
+  }
+
+  if (options.disableRules && options.disableRules.length > 0) {
+    builder = builder.disableRules([...options.disableRules]);
   }
 
   const results = await builder.analyze();
