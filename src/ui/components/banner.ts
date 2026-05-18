@@ -32,6 +32,7 @@
 import { css, html, nothing } from 'lit';
 import type { TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { ifDefined } from 'lit/directives/if-defined.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { getPurposes } from '../../engine/utils/config.js';
 import { asTitle } from '../../engine/utils/strings.js';
@@ -216,11 +217,16 @@ export class SimpleCmpBanner extends SimpleCmpElement {
       learnMoreLink: learnMoreInline,
     });
 
+    // a11y: aria-labelledby only references `#cn-title` when the
+    // heading is actually rendered. Sites that hide the heading
+    // (`showTitle: false`) fall back to `aria-label` so the dialog
+    // still has an accessible name (WCAG aria-dialog-name).
     return html`
       <div
         class="cn-body"
         role="dialog"
-        aria-labelledby="cn-title"
+        aria-labelledby=${ifDefined(showTitle ? 'cn-title' : undefined)}
+        aria-label=${ifDefined(showTitle ? undefined : titleText)}
         aria-describedby="cn-description"
         tabindex="0"
       >
