@@ -10,6 +10,16 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Added
 
+- **Cross-classifier parity test fixture**
+  (`tests/classifier-parity-fixture.json` + matching
+  `tests/classifier-parity.test.ts`). Shared with the PHP side in
+  `simplecmp-typo3/Tests/Unit/Classifier/`. 10 cases covering
+  literal / regex / host-qualified matchers — every change to the
+  matching logic must produce the same `(cookie, matcher,
+  observedOrigins) → boolean` mapping on both sides. Caught a
+  PHP-side regression during ADR-0010 rollout (`DetectionListPresenter`
+  forgot to handle the object form).
+
 - **Host-qualified cookie matchers (ADR-0010).** Extends
   `matches.cookies` to accept an object form
   `{ name, requireOrigin }` so generic cookie names (Stripe's `m`,
