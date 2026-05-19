@@ -191,7 +191,17 @@ export interface SimpleCMPConfig extends ConsentConfig {
    * this off and rely on `cmsBridgeUrl` + `cmsBridgeAuth` alone. SimpleCMP-
    * specific (REQ-9).
    */
-  cmsBridge?: Pick<CmsBridgeOptions, 'source' | 'dedupTtlMs' | 'timeoutMs'>;
+  cmsBridge?: Pick<
+    CmsBridgeOptions,
+    | 'source'
+    | 'dedupTtlMs'
+    | 'crossSessionDedupMs'
+    | 'flushDebounceMs'
+    | 'maxBatchSize'
+    | 'sampleRate'
+    | 'respectDoNotTrack'
+    | 'timeoutMs'
+  >;
 }
 
 /**
@@ -316,6 +326,11 @@ function startRecorder(config: SimpleCMPConfig): void {
       auth: config.cmsBridgeAuth,
       source: config.cmsBridge?.source ?? options.storageName ?? 'default',
       dedupTtlMs: config.cmsBridge?.dedupTtlMs,
+      crossSessionDedupMs: config.cmsBridge?.crossSessionDedupMs,
+      flushDebounceMs: config.cmsBridge?.flushDebounceMs,
+      maxBatchSize: config.cmsBridge?.maxBatchSize,
+      sampleRate: config.cmsBridge?.sampleRate,
+      respectDoNotTrack: config.cmsBridge?.respectDoNotTrack,
       timeoutMs: config.cmsBridge?.timeoutMs,
     });
     recorder.on('detectionSettled', (d) => bridge.onDetection(d));
