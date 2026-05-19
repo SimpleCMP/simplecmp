@@ -1,9 +1,13 @@
 # 0010. Host-qualified cookie matchers in the service-DB protocol
 
-- **Status:** proposed
+- **Status:** accepted (shipped 2026-05-18 — `LocalClassifier`
+  observed-origins state + `enrichDetection`-on-late-host-arrival
+  pathway, `LayeredClassifier` re-validation against Service-DB
+  responses, `DetectionListPresenter::cookieMatches` BE-side parity,
+  cross-classifier parity fixture covering literal / regex / object
+  matcher forms)
 - **Date:** 2026-05-17
 - **Deciders:** Ilja Melnicenko
-- **Closes:** (none yet — sketched during OCD-import planning)
 - **Related:** ADR-0004 (recorder architecture), ADR-0005 (service-DB
   protocol), ADR-0009 (`detectionSettled` event)
 

@@ -8,6 +8,34 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Bandwidth-control options now reach the bridge from the public
+  `init()` config.** The schema-v2 work added `crossSessionDedupMs`,
+  `flushDebounceMs`, `maxBatchSize`, `sampleRate`, and
+  `respectDoNotTrack` to the `CmsBridge` constructor but
+  `SimpleCMPConfig.cmsBridge` was still only forwarding
+  `source / dedupTtlMs / timeoutMs`, so consumers couldn't actually
+  tune the new knobs from the surface API. The `Pick<>` is widened
+  and each option threads into the constructor call.
+
+### Added — testing
+
+- **Playwright wire-contract suite for the CMS bridge**
+  (`tests/bridge/`, 11 specs against a real browser). Locks in the
+  schema-v2 contract: payload shape (envelope + batched
+  `detections[]`, `status:'known'` rows carry `matchedService`),
+  in-debounce coalescing, `maxBatchSize` force-flush, `pagehide` →
+  `sendBeacon` flush via in-page event dispatch (real navigation
+  tears down the page context before Playwright captures the
+  beacon), `localStorage` cross-session dedup with the TTL=0
+  override, `navigator.doNotTrack` respect + override, feedback-loop
+  suppression of the bridge's own host. Caught the
+  bandwidth-control-options-not-forwarded bug above. New fixture
+  page `demos/_test-bridge.html` loads the bundle without
+  auto-initing so specs drive `SimpleCMP.init({...})` directly with
+  per-test config.
+
 ### Changed (breaking)
 
 - **CMS bridge schema bumped to v2 — batched detections.** The bridge

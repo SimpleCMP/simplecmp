@@ -442,14 +442,18 @@ Webhook-Notifications für unbekannte Tracker in Production.
       `${kind}:${identifier}` mit konfigurierbarer TTL (Default 1 h). Map
       lebt im Speicher; reset bei `init()`-Re-Call oder Hard-Navigation.
 - [x] Schema des Webhook-Payloads dokumentiert in
-      `docs/cms-bridge-webhook.md` (schemaVersion 1, page-Context,
-      library-Identity, detection-Echo). `page.url` und
-      `detection.firstSeenOn` werden um Query-Strings/Fragmente gekürzt
-      (Privacy-Default — Session-Tokens / Magic-Link-Params).
-- [x] Test: 12 Unit-Tests in `src/cms-bridge/bridge.test.ts` (Payload,
-      Dedup, Auth, Failure-Modes inkl. 4xx-keep / 5xx-clear / Network-clear,
-      Timeout/Abort) plus ein End-to-End-Test in `tests/index.test.ts`,
-      der das "Double-Fire bei Enrichment"-Problem absichert. 138/138 Tests grün.
+      `docs/cms-bridge-webhook.md` — aktuell **schemaVersion 2**
+      (batched `detections[]`, jede Detection mit
+      `status: 'known' | 'unknown'` und optionalem
+      `matchedService`). `page.url` und `detection.firstSeenOn`
+      werden um Query-Strings/Fragmente gekürzt (Privacy-Default —
+      Session-Tokens / Magic-Link-Params).
+- [x] Test: 23 Unit-Tests in `src/cms-bridge/bridge.test.ts` plus
+      11 Playwright wire-contract Specs in `tests/bridge/` gegen
+      einen echten Browser (Payload-Shape, Batching, Cross-Session-
+      Dedup, DNT, `pagehide`/`sendBeacon`, Feedback-Loop-
+      Suppression). Plus End-to-End-Tests in `tests/index.test.ts`,
+      die das "Double-Fire bei Enrichment"-Problem absichern.
 
 **Hinweise:**
 

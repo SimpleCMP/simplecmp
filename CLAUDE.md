@@ -149,14 +149,17 @@ Scope examples: `core`, `recorder`, `service-db`, `themes`, `build`, `deps`.
 
 ## Roadmap
 
-The current phase is **Phase 1: Core**. Subsequent phases are gated by completing the
-previous one.
+Phases 1–4 of the upstream library are shipped. Phase 5 is in progress
+on the TYPO3 plugin side; WordPress + Contao not started.
 
-- **Phase 1 — Core:** import Klaro! source, set up build pipeline, default theme
-- **Phase 2 — Recorder:** cookie watcher, MutationObserver, PerformanceObserver
-- **Phase 3 — Service DB:** client + initial registry of well-known services
-- **Phase 4 — CMS Bridge:** configurable webhook for production alerts
-- **Phase 5 — CMS plugins:** WordPress, TYPO3, Contao (separate repos)
+- ✅ **Phase 1 — Core:** TypeScript engine, Lit-based UI, build pipeline, default + Bootstrap themes
+- ✅ **Phase 2 — Recorder:** cookie watcher, MutationObserver, PerformanceObserver
+- ✅ **Phase 3 — Service DB:** protocol + client + PHP+SQLite reference backend
+- ✅ **Phase 4 — CMS Bridge:** webhook receiver + HMAC-nonce auth + schema v2 (batched detections, status:'known' surfaced, bandwidth controls)
+- 🚧 **Phase 5 — CMS plugins:**
+  - 🚧 TYPO3 v14 ([`WapplerSystems/simplecmp-typo3`](https://github.com/WapplerSystems/simplecmp-typo3)) — 10 iterations shipped including 3-table architecture, four-state detection model with durable Verworfen dismissal, full *Dienste* registry tab with library-orphan handling
+  - ⬜ WordPress plugin
+  - ⬜ Contao plugin
 
 ## Useful resources
 
