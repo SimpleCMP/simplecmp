@@ -1,20 +1,23 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Playwright configuration — used ONLY by the a11y suite (REQ-6).
+ * Playwright configuration — used by:
+ * - `tests/a11y/` (REQ-6) — axe-core scans against the demo pages.
+ * - `tests/bridge/` — bridge wire-contract tests (schema v2, batching,
+ *   localStorage dedup, DNT, pagehide → sendBeacon) running in a real
+ *   browser. Receiver-side is mocked via `page.route()`.
  *
- * Vitest (with happy-dom) remains the runner for the regular test suite;
- * Playwright exists because axe-core needs a real browser to evaluate
- * computed styles, focus order, and ARIA attribute resolution — none of
- * which happy-dom provides faithfully.
+ * Vitest (with happy-dom) remains the runner for the regular test
+ * suite. Playwright runs the cases that need a real browser: axe-core
+ * (computed styles + focus order), the bridge's lifecycle hooks
+ * (`pagehide`, `navigator.sendBeacon`), and localStorage persistence
+ * across navigations.
  *
- * Chromium only. axe-core's ruleset is browser-consistent for the things
- * we care about; running across three browsers would triple CI time for
- * essentially no signal.
+ * Chromium only — same rationale as the a11y suite.
  */
 export default defineConfig({
-  testDir: './tests/a11y',
-  testMatch: '**/*.spec.ts',
+  testDir: './tests',
+  testMatch: ['a11y/**/*.spec.ts', 'bridge/**/*.spec.ts'],
   timeout: 30_000,
   fullyParallel: true,
   retries: 0,

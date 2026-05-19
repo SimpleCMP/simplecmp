@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SimpleCMP — bridge test fixture</title>
+  <script src="/dist/simplecmp.global.js"></script>
+</head>
+<body>
+  <!--
+    Bridge test fixture for the Playwright suite.
+
+    Loaded with NO auto-init so each test can call
+    `SimpleCMP.init({...})` with its own bridge URL, sample rate, DNT
+    handling, etc. Keeps the test page minimal — no UI, no Lit
+    components, just the bundle on window.
+  -->
+  <h1>bridge test fixture</h1>
+  <p>This page exists for Playwright tests under <code>tests/bridge/</code>.</p>
+</body>
+</html>
