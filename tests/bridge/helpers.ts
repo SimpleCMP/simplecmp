@@ -27,7 +27,7 @@ export interface CapturedPost {
  */
 export async function captureBridgePosts(
   page: Page,
-  options: { respond?: (route: Route) => Promise<void> } = {},
+  options: { respond?: (route: Route) => Promise<void> } = {}
 ): Promise<CapturedPost[]> {
   const posts: CapturedPost[] = [];
   await page.route(BRIDGE_URL, async (route) => {
@@ -81,11 +81,14 @@ interface TestInitOptions {
  */
 export async function initBridge(page: Page, opts: TestInitOptions): Promise<void> {
   await page.goto(FIXTURE_PATH);
-  await page.evaluate((options) => {
-    type GlobalShape = { SimpleCMP: { init(o: unknown): void } };
-    const g = window as unknown as GlobalShape;
-    g.SimpleCMP.init(options);
-  }, opts as unknown as Record<string, unknown>);
+  await page.evaluate(
+    (options) => {
+      type GlobalShape = { SimpleCMP: { init(o: unknown): void } };
+      const g = window as unknown as GlobalShape;
+      g.SimpleCMP.init(options);
+    },
+    opts as unknown as Record<string, unknown>
+  );
 }
 
 /** Plant a cookie via document.cookie. Returns once the assignment landed. */
@@ -94,7 +97,7 @@ export async function plantCookie(page: Page, name: string, value = '1'): Promis
     ([n, v]) => {
       document.cookie = `${n}=${v}; path=/`;
     },
-    [name, value] as const,
+    [name, value] as const
   );
 }
 

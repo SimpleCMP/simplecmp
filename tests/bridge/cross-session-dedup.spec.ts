@@ -8,7 +8,13 @@
  * marker is fresh.
  */
 import { expect, test } from '@playwright/test';
-import { BRIDGE_URL, captureBridgePosts, initBridge, plantCookie, waitForFlush } from './helpers.js';
+import {
+  BRIDGE_URL,
+  captureBridgePosts,
+  initBridge,
+  plantCookie,
+  waitForFlush,
+} from './helpers.js';
 
 test('first POST writes the marker, reload skips re-POST', async ({ page }) => {
   const posts = await captureBridgePosts(page);
@@ -24,7 +30,7 @@ test('first POST writes the marker, reload skips re-POST', async ({ page }) => {
 
   expect(posts.length).toBe(1);
   const marker = await page.evaluate(() =>
-    localStorage.getItem('simplecmp-reported:xsession:cookie:_xsession_cookie'),
+    localStorage.getItem('simplecmp-reported:xsession:cookie:_xsession_cookie')
   );
   expect(marker).not.toBeNull();
 
@@ -63,7 +69,7 @@ test('crossSessionDedupMs=0 disables the marker; reload re-POSTs', async ({ page
 
   expect(posts.length).toBe(1);
   const marker = await page.evaluate(() =>
-    localStorage.getItem('simplecmp-reported:xsession-off:cookie:_xsession_off'),
+    localStorage.getItem('simplecmp-reported:xsession-off:cookie:_xsession_off')
   );
   // crossSessionDedupMs=0 means marker is never written.
   expect(marker).toBeNull();

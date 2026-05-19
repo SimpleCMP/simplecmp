@@ -10,7 +10,13 @@
  * and short-circuits any detection whose `origin` matches.
  */
 import { expect, test } from '@playwright/test';
-import { BRIDGE_URL, captureBridgePosts, initBridge, plantCookie, waitForFlush } from './helpers.js';
+import {
+  BRIDGE_URL,
+  captureBridgePosts,
+  initBridge,
+  plantCookie,
+  waitForFlush,
+} from './helpers.js';
 
 test('detection for the bridge URL itself is suppressed', async ({ page }) => {
   const posts = await captureBridgePosts(page);

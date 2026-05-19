@@ -6,7 +6,13 @@
  * `matchedService` is present on known detections.
  */
 import { expect, test } from '@playwright/test';
-import { BRIDGE_URL, captureBridgePosts, initBridge, plantCookie, waitForFlush } from './helpers.js';
+import {
+  BRIDGE_URL,
+  captureBridgePosts,
+  initBridge,
+  plantCookie,
+  waitForFlush,
+} from './helpers.js';
 
 test('POSTs schema v2 with detections[] array on flush', async ({ page }) => {
   const posts = await captureBridgePosts(page);

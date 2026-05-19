@@ -7,7 +7,13 @@
  * keepalive-fetch fallback when sendBeacon isn't available).
  */
 import { expect, test } from '@playwright/test';
-import { BRIDGE_URL, captureBridgePosts, initBridge, plantCookie, waitForFlush } from './helpers.js';
+import {
+  BRIDGE_URL,
+  captureBridgePosts,
+  initBridge,
+  plantCookie,
+  waitForFlush,
+} from './helpers.js';
 
 test('multiple detections within the debounce window collapse to one POST', async ({ page }) => {
   const posts = await captureBridgePosts(page);
