@@ -12,16 +12,27 @@ stable surface.
 
 ## Trigger
 
-The bridge fires when the Recorder produces a `Detection` with
-`status: 'unknown'` — meaning:
+The bridge POSTs detections the Recorder produces — **both**
+`status: 'known'` (matched the local `services` list or the
+Service-DB middleware) **and** `status: 'unknown'` (no match in either
+source). The receiver disambiguates at storage time so library-
+recognized detections can be surfaced for admin curation (e.g. as
+"Erkannt" in the TYPO3 BE) without forcing admins to wait for a true
+unknown.
 
-- the item doesn't match any service in the local `services` config, and
-- if a Service-DB is configured (`serviceDbUrl`), the DB also returned no
-  match (or the DB lookup failed).
+Detections are **batched** — one POST per page typically, with a
+debounced trickle for long-running pages and a `navigator.sendBeacon`
+flush on `pagehide`. Receivers MUST iterate `detections[]` and apply
+their own dedup logic per item.
 
-If a Service-DB lookup arrives **after** the initial detection and
-resolves it to `known`, the bridge does **not** fire again. The webhook
-is for items that remain unknown.
+Bandwidth-saving layers the bridge applies before POSTing:
+
+- `navigator.doNotTrack === '1'` → skip all POSTs.
+- `sampleRate < 1` → session decides once at construction; sampled-out
+  sessions never POST.
+- In-memory dedup per `${source}:${kind}:${identifier}`, default 1h TTL.
+- Cross-session dedup via `localStorage`
+  (`simplecmp-reported:${source}:${kind}:${identifier}`), default 7d TTL.
 
 ## Request
 
@@ -35,13 +46,13 @@ If `cmsBridgeAuth.header` / `cmsBridgeAuth.scheme` are set, the header
 name and value prefix change accordingly. Setting `scheme: ''` sends the
 raw token without any prefix.
 
-## Payload schema (v1)
+## Payload schema (v2)
 
 ```ts
 interface CmsBridgePayload {
-  schemaVersion: 1;
+  schemaVersion: 2;
   source: string;            // identifies the SimpleCMP installation
-  sentAt: string;            // ISO-8601 UTC
+  sentAt: string;            // ISO-8601 UTC, when the batch was flushed
   page: {
     url: string;             // location.href, query and fragment stripped
     referrer?: string;       // document.referrer (omitted if empty)
@@ -51,16 +62,19 @@ interface CmsBridgePayload {
     name: 'simplecmp';
     version: string;
   };
-  detection: {
-    kind: 'cookie' | 'script' | 'iframe' | 'image' | 'link' | 'request';
-    identifier: string;      // cookie name, or URL for resource kinds
-    origin?: string;         // host derived from URL (non-cookie kinds)
-    firstSeen: number;       // epoch ms
-    lastSeen: number;        // epoch ms
-    count: number;           // observation count this session
-    firstSeenOn?: string;    // page path at first sighting (query stripped)
-    status: 'unknown';
-  };
+  detections: BridgeDetection[];
+}
+
+interface BridgeDetection {
+  kind: 'cookie' | 'script' | 'iframe' | 'image' | 'link' | 'request';
+  identifier: string;        // cookie name, or URL for resource kinds
+  origin?: string;           // host derived from URL (non-cookie kinds)
+  firstSeen: number;         // epoch ms
+  lastSeen: number;          // epoch ms
+  count: number;             // observation count this session
+  firstSeenOn?: string;      // page path at first sighting (query stripped)
+  status: 'known' | 'unknown';
+  matchedService?: string;   // service id (when status='known')
 }
 ```
 
@@ -68,9 +82,9 @@ interface CmsBridgePayload {
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "source": "production-de",
-  "sentAt": "2026-05-13T14:22:11.412Z",
+  "sentAt": "2026-05-19T10:04:44.215Z",
   "page": {
     "url": "https://www.example.de/produkte/foo",
     "referrer": "https://www.google.com/",
@@ -80,15 +94,27 @@ interface CmsBridgePayload {
     "name": "simplecmp",
     "version": "0.0.1"
   },
-  "detection": {
-    "kind": "cookie",
-    "identifier": "_new_unknown_tracker",
-    "firstSeen": 1715591051000,
-    "lastSeen": 1715591051000,
-    "count": 1,
-    "firstSeenOn": "/produkte/foo",
-    "status": "unknown"
-  }
+  "detections": [
+    {
+      "kind": "cookie",
+      "identifier": "__stripe_mid",
+      "firstSeen": 1715591051000,
+      "lastSeen": 1715591051000,
+      "count": 1,
+      "firstSeenOn": "/produkte/foo",
+      "status": "known",
+      "matchedService": "stripe"
+    },
+    {
+      "kind": "cookie",
+      "identifier": "_new_unknown_tracker",
+      "firstSeen": 1715591051200,
+      "lastSeen": 1715591051200,
+      "count": 1,
+      "firstSeenOn": "/produkte/foo",
+      "status": "unknown"
+    }
+  ]
 }
 ```
 

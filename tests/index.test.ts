@@ -418,11 +418,14 @@ describe('SimpleCMP public API', () => {
   // REQ-9 + REQ-N7: end-to-end. The bridge wires onto the recorder's
   // `'detectionSettled'` event, not `'detection'` — so when both
   // `serviceDbUrl` and `cmsBridgeUrl` are configured, the bridge waits
-  // for the async classifier to finish before deciding whether to POST.
+  // for the async classifier to finish and POSTs once with the final
+  // status. The 3-table refactor (Phase 3) added: bridge POSTs BOTH
+  // `known` and `unknown` so the BE can render library-recognized
+  // detections in the *Erkannt* state.
   describe('REQ-9 / REQ-N7 — CMS bridge end-to-end', () => {
-    it('does not POST when the Service-DB lookup upgrades a detection to known (REQ-N7)', async () => {
+    it('POSTs the detection as known when the Service-DB lookup upgrades it (REQ-N7)', async () => {
       // Mock the Service-DB to return a hit for the cookie. The bridge
-      // must NOT fire because by settle-time the detection is `known`.
+      // POSTs once with status:'known' so the BE can show it as Erkannt.
       const bridgePosts: Array<{ url: string; body: unknown }> = [];
       const fetchMock = vi.fn().mockImplementation(async (url: string, init: RequestInit) => {
         if (url.startsWith('https://example.test/bridge')) {
@@ -453,15 +456,22 @@ describe('SimpleCMP public API', () => {
           record: { silenceProductionWarning: true },
           serviceDbUrl: 'https://example.test/db',
           cmsBridgeUrl: 'https://example.test/bridge',
+          cmsBridge: { source: 'test-known' },
         });
         document.cookie = '_unknown_to_known=1';
-        // Tick the cookie watcher.
         await new Promise((r) => setTimeout(r, 1100));
-        // Settle the layered classifier's lookup + the recorder's
-        // `'detectionSettled'` dispatch on the same microtask tail.
-        await new Promise((r) => setTimeout(r, 50));
+        await new Promise((r) => setTimeout(r, 1600)); // > flush debounce (1.5s)
 
-        expect(bridgePosts.length).toBe(0);
+        expect(bridgePosts.length).toBe(1);
+        const payload = bridgePosts[0]?.body as {
+          schemaVersion: number;
+          detections: Array<{ status: string; matchedService?: string; identifier: string }>;
+        };
+        expect(payload.schemaVersion).toBe(2);
+        expect(payload.detections).toHaveLength(1);
+        expect(payload.detections[0]?.identifier).toBe('_unknown_to_known');
+        expect(payload.detections[0]?.status).toBe('known');
+        expect(payload.detections[0]?.matchedService).toBe('late-known');
       } finally {
         globalThis.fetch = originalFetch;
         document.cookie = '_unknown_to_known=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
@@ -494,20 +504,22 @@ describe('SimpleCMP public API', () => {
           record: { silenceProductionWarning: true },
           serviceDbUrl: 'https://example.test/db',
           cmsBridgeUrl: 'https://example.test/bridge',
+          cmsBridge: { source: 'test-unknown' },
         });
         document.cookie = '_genuinely_unknown=1';
         await new Promise((r) => setTimeout(r, 1100));
-        await new Promise((r) => setTimeout(r, 50));
+        await new Promise((r) => setTimeout(r, 1600)); // > flush debounce
 
         expect(bridgePosts.length).toBe(1);
         const payload = bridgePosts[0]?.body as {
           schemaVersion: number;
-          detection: { kind: string; identifier: string; status: string };
+          detections: Array<{ kind: string; identifier: string; status: string }>;
         };
-        expect(payload.schemaVersion).toBe(1);
-        expect(payload.detection.kind).toBe('cookie');
-        expect(payload.detection.identifier).toBe('_genuinely_unknown');
-        expect(payload.detection.status).toBe('unknown');
+        expect(payload.schemaVersion).toBe(2);
+        expect(payload.detections).toHaveLength(1);
+        expect(payload.detections[0]?.kind).toBe('cookie');
+        expect(payload.detections[0]?.identifier).toBe('_genuinely_unknown');
+        expect(payload.detections[0]?.status).toBe('unknown');
       } finally {
         globalThis.fetch = originalFetch;
         document.cookie = '_genuinely_unknown=; expires=Thu, 01 Jan 1970 00:00:00 GMT';

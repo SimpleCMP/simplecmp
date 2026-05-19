@@ -8,6 +8,28 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+### Changed (breaking)
+
+- **CMS bridge schema bumped to v2 — batched detections.** The bridge
+  now POSTs `{ detections: [...] }` instead of a single `detection`
+  object. Receivers must iterate the array. Schema v1 is no longer
+  emitted; receivers that hard-code v1 will reject the v2 payloads with
+  a 400 until they're updated.
+- **Bridge POSTs `status:'known'` detections too**, not just unknowns.
+  Library-recognized cookies now reach the receiver so backends can
+  surface them for admin curation (e.g. as "Erkannt" in the TYPO3 BE).
+  The `'detectionSettled'` subscription pattern still applies — the
+  bridge sees the final classification, not the initial in-flight state.
+- **Batching + bandwidth controls.** Detections queue in memory and
+  flush via a 1.5s debounce or `navigator.sendBeacon` on `pagehide`.
+  Cross-session dedup via `localStorage`
+  (`simplecmp-reported:${source}:${kind}:${identifier}`, default 7d TTL)
+  keeps return-visitor traffic near zero.
+  `navigator.doNotTrack === '1'` skips all POSTs.
+  New options: `crossSessionDedupMs`, `flushDebounceMs`, `maxBatchSize`,
+  `sampleRate`, `respectDoNotTrack`. See `docs/cms-bridge-webhook.md`
+  for the full v2 contract.
+
 ### Added
 
 - **Cross-classifier parity test fixture**

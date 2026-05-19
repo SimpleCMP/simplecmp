@@ -1,30 +1,48 @@
 /**
  * CMS Bridge — REQ-9.
  *
- * Listens for unknown trackers from the Recorder and POSTs a JSON webhook
- * per item to the configured `cmsBridgeUrl`. Production-oriented telemetry
- * so CMS admins are alerted to new trackers before compliance issues
- * compound.
+ * Listens to recorder detection events and POSTs them as batches to the
+ * configured `cmsBridgeUrl`. Both `status:'known'` and `status:'unknown'`
+ * reach the receiver — the BE side decides what to do (e.g. render
+ * library matches as "Erkannt" so the admin can adopt them; render
+ * truly-unknown as "Unbekannt").
  *
- * Dedup is per `${kind}:${identifier}` with a TTL window (default 1h) so
- * the same item doesn't spam the webhook on every page navigation. The
- * dedup map lives in memory only — survives SPA route changes within a
- * tab, resets on hard navigation or `init()` re-call.
+ * Bandwidth controls, layered:
  *
- * Auth header, AbortController-timeout, and warn-once patterns lifted from
- * `ServiceDbClient` (REQ-8) — same shape so a CMS plugin can use one
- * Bearer token for both endpoints.
+ * 1. **`navigator.doNotTrack === '1'`** — skip all POSTs.
+ * 2. **`sampleRate < 1`** — decided once per session; sampled-out
+ *    sessions never POST.
+ * 3. **In-memory dedup** — per `${source}:${kind}:${identifier}`, 1h
+ *    TTL default. Survives SPA route changes within a tab.
+ * 4. **Cross-session dedup** via `localStorage` — 7d TTL default.
+ *    Returning visitors with stable trackers don't re-POST.
+ * 5. **Batching** — detections queue in memory and flush either after
+ *    a 1.5s debounce or via `navigator.sendBeacon` on `pagehide`.
+ *    A typical page sends one POST regardless of detection count.
+ *
+ * Auth header, AbortController-timeout, and warn-once patterns lifted
+ * from `ServiceDbClient` (REQ-8) — same shape so one Bearer token
+ * works for both endpoints.
  */
 
 import type { Detection } from '../recorder/types.js';
-import type { CmsBridgeAuth, CmsBridgeOptions, CmsBridgePayload } from './types.js';
+import type {
+  BridgeDetection,
+  CmsBridgeAuth,
+  CmsBridgeOptions,
+  CmsBridgePayload,
+} from './types.js';
 
 // VERSION is replaced at build time via esbuild's `define`. Same mechanism
 // as `src/engine/index.ts`; vitest.config.ts provides the test-time value.
 declare const VERSION: string;
 
 const DEFAULT_DEDUP_TTL_MS = 60 * 60 * 1000;
+const DEFAULT_CROSS_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_FLUSH_DEBOUNCE_MS = 1500;
+const DEFAULT_MAX_BATCH_SIZE = 25;
 const DEFAULT_TIMEOUT_MS = 5000;
+const CROSS_SESSION_PREFIX = 'simplecmp-reported:';
 
 /** Strip query string and fragment from a URL-like string. */
 function stripQuery(url: string): string {
@@ -49,13 +67,31 @@ export class CmsBridge {
   private readonly auth?: CmsBridgeAuth;
   private readonly source: string;
   private readonly dedupTtlMs: number;
+  private readonly crossSessionDedupMs: number;
+  private readonly flushDebounceMs: number;
+  private readonly maxBatchSize: number;
   private readonly timeoutMs: number;
+  private readonly respectDoNotTrack: boolean;
+  private readonly sessionInScope: boolean;
   private readonly fetchFn: typeof fetch;
   private readonly now: () => number;
+  private readonly storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | null;
+  private readonly nav: CmsBridgeOptions['navigator'];
   /** `${kind}:${identifier}` → epoch ms of last successful (or queued) send. */
   private readonly lastSent = new Map<string, number>();
   /** Per-error-category warning gate so we don't spam the console. */
   private readonly warned = new Set<string>();
+
+  private pending: BridgeDetection[] = [];
+  /**
+   * Detection keys queued in the current pending batch. Used to clear
+   * the in-memory `lastSent` entries on transient failure so they
+   * remain eligible for retry on a later event.
+   */
+  private pendingKeys: string[] = [];
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  /** True once a `pagehide`/`visibilitychange` listener is attached. */
+  private lifecycleHooked = false;
 
   constructor(options: CmsBridgeOptions) {
     this.url = options.url;
@@ -69,40 +105,217 @@ export class CmsBridge {
     this.auth = options.auth;
     this.source = options.source ?? 'default';
     this.dedupTtlMs = options.dedupTtlMs ?? DEFAULT_DEDUP_TTL_MS;
+    this.crossSessionDedupMs = options.crossSessionDedupMs ?? DEFAULT_CROSS_SESSION_TTL_MS;
+    this.flushDebounceMs = options.flushDebounceMs ?? DEFAULT_FLUSH_DEBOUNCE_MS;
+    this.maxBatchSize = Math.max(1, options.maxBatchSize ?? DEFAULT_MAX_BATCH_SIZE);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.respectDoNotTrack = options.respectDoNotTrack ?? true;
     this.fetchFn =
       options.fetch ??
       (typeof fetch !== 'undefined' ? fetch.bind(globalThis) : (undefined as never));
     this.now = options.now ?? (() => Date.now());
+    if (options.storage !== undefined) {
+      this.storage = options.storage;
+    } else if (typeof localStorage !== 'undefined') {
+      this.storage = localStorage;
+    } else {
+      this.storage = null;
+    }
+    this.nav = options.navigator ?? (typeof navigator !== 'undefined' ? navigator : undefined);
+
+    // Session sampling decided once at construction so a given visitor
+    // is either in-scope or not for the whole session — avoids partial
+    // signals where some detections POST and others don't.
+    const sampleRate = options.sampleRate ?? 1;
+    this.sessionInScope = sampleRate >= 1 || Math.random() < sampleRate;
   }
 
   /**
-   * Subscribe target for `recorder.on('detection', ...)`. Filters out
-   * everything except `status: 'unknown'`, dedupes by detection key with
-   * the configured TTL window, and fires a fetch in the background. Never
-   * throws — failures degrade to `console.warn` (once per error category).
+   * Subscribe target for `recorder.on('detection', ...)`. Accepts both
+   * `known` and `unknown` detections — the BE state-derives at view
+   * time from the registry + bundled library.
    */
   onDetection(d: Detection): void {
-    if (d.status !== 'unknown') return;
-    // Feedback suppression: don't fire for detections of the bridge's own
-    // HTTP traffic. Every POST + any neighboring requests on the same host
-    // (e.g. health checks, batched receivers) would otherwise generate
-    // synthetic "unknown tracker" alerts about the bridge itself.
+    if (!this.sessionInScope) return;
+    if (this.respectDoNotTrack && this.nav?.doNotTrack === '1') return;
     if (this.host && d.origin === this.host) return;
+
     const key = `${d.kind}:${d.identifier}`;
+    if (this._dedupHit(key)) return;
+
+    // Mark sent BEFORE enqueue so re-entrant events from the same tick
+    // don't double-enqueue. On transient failure we'll clear these entries
+    // so a future event retries.
     const now = this.now();
-    const last = this.lastSent.get(key);
-    if (last !== undefined && now - last < this.dedupTtlMs) return;
-    // Mark as sent BEFORE the fetch so re-entrant events don't double-send.
-    // On 5xx / network error we'll clear the entry so a future event retries.
     this.lastSent.set(key, now);
-    void this._post(this._buildPayload(d)).catch((err) => {
-      if (this._shouldClearOnError(err)) this.lastSent.delete(key);
-      this._warnOnce('post', err);
-    });
+    this.pendingKeys.push(key);
+    this.pending.push(this._toBridgeDetection(d));
+
+    if (this.pending.length >= this.maxBatchSize) {
+      this._flush();
+      return;
+    }
+    this._scheduleFlush();
+    this._hookLifecycle();
   }
 
-  private _buildPayload(d: Detection): CmsBridgePayload {
+  /**
+   * Force-flush any queued detections. Called automatically on the
+   * debounce timer and on `pagehide`, but exposed for tests + manual
+   * shutdown.
+   */
+  flushNow(): Promise<void> {
+    return this._flush();
+  }
+
+  // --- dedup ----------------------------------------------------------
+
+  private _dedupHit(key: string): boolean {
+    const now = this.now();
+    const last = this.lastSent.get(key);
+    if (last !== undefined && now - last < this.dedupTtlMs) return true;
+    return this._crossSessionHit(key, now);
+  }
+
+  private _crossSessionHit(key: string, now: number): boolean {
+    if (this.storage === null || this.crossSessionDedupMs <= 0) return false;
+    const storageKey = `${CROSS_SESSION_PREFIX}${this.source}:${key}`;
+    let raw: string | null = null;
+    try {
+      raw = this.storage.getItem(storageKey);
+    } catch {
+      // localStorage can throw (private browsing, quota) — treat as miss.
+      return false;
+    }
+    if (raw === null) return false;
+    const ts = Number(raw);
+    if (!Number.isFinite(ts)) return false;
+    if (now - ts < this.crossSessionDedupMs) return true;
+    // Expired — clear to keep storage tidy.
+    try {
+      this.storage.removeItem(storageKey);
+    } catch {
+      // ignore
+    }
+    return false;
+  }
+
+  private _markCrossSession(key: string, now: number): void {
+    if (this.storage === null || this.crossSessionDedupMs <= 0) return;
+    const storageKey = `${CROSS_SESSION_PREFIX}${this.source}:${key}`;
+    try {
+      this.storage.setItem(storageKey, String(now));
+    } catch {
+      // ignore — local cap behaviour is fine
+    }
+  }
+
+  // --- flush + lifecycle ----------------------------------------------
+
+  private _scheduleFlush(): void {
+    if (this.flushTimer !== null || typeof setTimeout === 'undefined') return;
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null;
+      void this._flush();
+    }, this.flushDebounceMs);
+  }
+
+  private _hookLifecycle(): void {
+    if (this.lifecycleHooked) return;
+    if (typeof addEventListener === 'undefined') return;
+    this.lifecycleHooked = true;
+    const onUnload = (): void => {
+      this._flushBeacon();
+    };
+    addEventListener('pagehide', onUnload, { capture: true });
+    // visibilitychange catches the common mobile case where pagehide
+    // fires unreliably (Safari bfcache, app-switch on iOS).
+    if (typeof document !== 'undefined') {
+      document.addEventListener(
+        'visibilitychange',
+        () => {
+          if (document.visibilityState === 'hidden') onUnload();
+        },
+        { capture: true }
+      );
+    }
+  }
+
+  private _flushBeacon(): void {
+    if (this.pending.length === 0) return;
+    if (typeof this.nav?.sendBeacon !== 'function') {
+      // No beacon support — best effort fire-and-forget fetch with
+      // keepalive: true. Returns a promise we don't await; the runtime
+      // does its best to complete the request after navigation.
+      void this._flush({ keepalive: true });
+      return;
+    }
+    const payload = this._buildPayload(this.pending);
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+    let sent = false;
+    try {
+      sent = this.nav.sendBeacon(this.url, blob);
+    } catch {
+      sent = false;
+    }
+    if (sent) {
+      this._markBatchSent();
+      this.pending = [];
+      this.pendingKeys = [];
+    } else {
+      // Beacon failed (queue full, payload too large) — try a regular flush
+      // synchronously with keepalive so the runtime keeps the request alive.
+      void this._flush({ keepalive: true });
+    }
+  }
+
+  private async _flush(options: { keepalive?: boolean } = {}): Promise<void> {
+    if (this.flushTimer !== null) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+    if (this.pending.length === 0) return;
+    const batch = this.pending;
+    const keys = this.pendingKeys;
+    this.pending = [];
+    this.pendingKeys = [];
+    try {
+      await this._post(this._buildPayload(batch), options);
+      const now = this.now();
+      for (const key of keys) this._markCrossSession(key, now);
+    } catch (err) {
+      if (this._shouldClearOnError(err)) {
+        // Transient — let future events retry these.
+        for (const key of keys) this.lastSent.delete(key);
+      }
+      this._warnOnce('post', err);
+    }
+  }
+
+  /** Mark every key in the current pending batch as cross-session-sent. */
+  private _markBatchSent(): void {
+    const now = this.now();
+    for (const key of this.pendingKeys) this._markCrossSession(key, now);
+  }
+
+  // --- payload + POST -------------------------------------------------
+
+  private _toBridgeDetection(d: Detection): BridgeDetection {
+    const out: BridgeDetection = {
+      kind: d.kind,
+      identifier: d.identifier,
+      firstSeen: d.firstSeen,
+      lastSeen: d.lastSeen,
+      count: d.count,
+      status: d.status === 'known' ? 'known' : 'unknown',
+    };
+    if (d.origin !== undefined) out.origin = d.origin;
+    if (d.firstSeenOn !== undefined) out.firstSeenOn = stripQuery(d.firstSeenOn);
+    if (d.matchedService !== undefined) out.matchedService = d.matchedService;
+    return out;
+  }
+
+  private _buildPayload(detections: BridgeDetection[]): CmsBridgePayload {
     const loc = typeof location !== 'undefined' ? location : undefined;
     const doc = typeof document !== 'undefined' ? document : undefined;
     const nav = typeof navigator !== 'undefined' ? navigator : undefined;
@@ -113,27 +326,17 @@ export class CmsBridge {
     if (referrer) page.referrer = referrer;
     const userAgent = nav?.userAgent;
     if (userAgent) page.userAgent = userAgent;
-    const detection: CmsBridgePayload['detection'] = {
-      kind: d.kind,
-      identifier: d.identifier,
-      firstSeen: d.firstSeen,
-      lastSeen: d.lastSeen,
-      count: d.count,
-      status: 'unknown',
-    };
-    if (d.origin !== undefined) detection.origin = d.origin;
-    if (d.firstSeenOn !== undefined) detection.firstSeenOn = stripQuery(d.firstSeenOn);
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       source: this.source,
       sentAt: new Date(this.now()).toISOString(),
       page,
       library: { name: 'simplecmp', version: typeof VERSION === 'string' ? VERSION : '0.0.0' },
-      detection,
+      detections,
     };
   }
 
-  private async _post(payload: CmsBridgePayload): Promise<void> {
+  private async _post(payload: CmsBridgePayload, options: { keepalive?: boolean }): Promise<void> {
     if (!this.fetchFn) throw new Error('fetch is unavailable');
     const headers = new Headers({ 'Content-Type': 'application/json' });
     if (this.auth) {
@@ -147,12 +350,14 @@ export class CmsBridge {
         ? setTimeout(() => controller.abort(), this.timeoutMs)
         : undefined;
     try {
-      const res = await this.fetchFn(this.url, {
+      const init: RequestInit = {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
         signal: controller?.signal,
-      });
+      };
+      if (options.keepalive === true) init.keepalive = true;
+      const res = await this.fetchFn(this.url, init);
       if (!res.ok) throw new Error(`CMS bridge POST responded ${res.status}`);
     } finally {
       if (timer !== undefined) clearTimeout(timer);
@@ -175,7 +380,7 @@ export class CmsBridge {
     this.warned.add(category);
     const message = err instanceof Error ? err.message : String(err);
     console.warn(
-      `SimpleCMP cms-bridge: ${category} failed (${message}). The bridge will keep trying on subsequent unknown detections; this warning fires once per error category per session.`
+      `SimpleCMP cms-bridge: ${category} failed (${message}). The bridge will keep trying on subsequent detection events; this warning fires once per error category per session.`
     );
   }
 }
