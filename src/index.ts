@@ -190,6 +190,13 @@ export interface SimpleCMPConfig extends ConsentConfig {
    * Advanced overrides for the CMS bridge. Most consumers should leave
    * this off and rely on `cmsBridgeUrl` + `cmsBridgeAuth` alone. SimpleCMP-
    * specific (REQ-9).
+   *
+   * **Discover-mode override:** when the page URL carries
+   * `?simplecmp_discover=1`, the bridge ignores `crossSessionDedupMs`,
+   * `sampleRate`, and `respectDoNotTrack` for that page load — they're
+   * forced to `0`, `1`, and `false` respectively. Intended for BE-driven
+   * sitemap sweeps where every page load needs to POST regardless of
+   * the bandwidth controls that normally suppress repeat visits.
    */
   cmsBridge?: Pick<
     CmsBridgeOptions,
@@ -321,16 +328,20 @@ function startRecorder(config: SimpleCMPConfig): void {
   // the status. The settled event fires once per detection, after any
   // async classification finishes, with the final status.
   if (config.cmsBridgeUrl) {
+    const discover = isDiscoverMode();
     const bridge = new CmsBridge({
       url: config.cmsBridgeUrl,
       auth: config.cmsBridgeAuth,
       source: config.cmsBridge?.source ?? options.storageName ?? 'default',
+      // Discover mode (?simplecmp_discover=1) is an admin-driven sitemap
+      // sweep run from the BE: every page load should POST regardless of
+      // the bandwidth controls that normally suppress repeat visits.
       dedupTtlMs: config.cmsBridge?.dedupTtlMs,
-      crossSessionDedupMs: config.cmsBridge?.crossSessionDedupMs,
+      crossSessionDedupMs: discover ? 0 : config.cmsBridge?.crossSessionDedupMs,
       flushDebounceMs: config.cmsBridge?.flushDebounceMs,
       maxBatchSize: config.cmsBridge?.maxBatchSize,
-      sampleRate: config.cmsBridge?.sampleRate,
-      respectDoNotTrack: config.cmsBridge?.respectDoNotTrack,
+      sampleRate: discover ? 1 : config.cmsBridge?.sampleRate,
+      respectDoNotTrack: discover ? false : config.cmsBridge?.respectDoNotTrack,
       timeoutMs: config.cmsBridge?.timeoutMs,
     });
     recorder.on('detectionSettled', (d) => bridge.onDetection(d));
@@ -358,6 +369,30 @@ export const getManager = engineGetManager;
 
 /** Update a config object in place. */
 export const updateConfig = engineUpdateConfig;
+
+/**
+ * Detect the BE-driven discovery sweep marker (`?simplecmp_discover=1`).
+ *
+ * The TYPO3 (or any CMS) backend can run a discovery pass by loading each
+ * sitemap URL in a hidden iframe with this query parameter appended. The
+ * recorder and bridge then behave as for a real visitor *except* that the
+ * bandwidth controls designed to suppress repeat visits are turned off —
+ * cross-session localStorage markers, sample rate, and Do-Not-Track all
+ * skip — so the sweep populates the receiver's detection table reliably.
+ *
+ * Treat the param as opt-in for the *current page load only*. It does
+ * not persist anywhere, doesn't affect future visits, and never reaches
+ * the bridge payload — it's a runtime hint to the local recorder.
+ */
+function isDiscoverMode(): boolean {
+  if (typeof window === 'undefined' || typeof URLSearchParams === 'undefined') return false;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('simplecmp_discover') === '1';
+  } catch {
+    return false;
+  }
+}
 
 function warnOnUnimplementedFeatures(_config: SimpleCMPConfig): void {
   // Reserved for future Phase 5 features. Currently no-op — REQ-8 and

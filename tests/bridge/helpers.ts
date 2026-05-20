@@ -78,9 +78,13 @@ interface TestInitOptions {
 /**
  * Mount the fixture and call `SimpleCMP.init({...})`. Returns once the
  * recorder is running so subsequent `document.cookie` writes are seen.
+ *
+ * `search` lets a test load the fixture with an additional query string
+ * (e.g. `?simplecmp_discover=1`) so per-request behaviour gated on
+ * `window.location.search` can be exercised.
  */
-export async function initBridge(page: Page, opts: TestInitOptions): Promise<void> {
-  await page.goto(FIXTURE_PATH);
+export async function initBridge(page: Page, opts: TestInitOptions, search = ''): Promise<void> {
+  await page.goto(`${FIXTURE_PATH}${search}`);
   await page.evaluate(
     (options) => {
       type GlobalShape = { SimpleCMP: { init(o: unknown): void } };

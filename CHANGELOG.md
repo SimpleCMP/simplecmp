@@ -8,6 +8,21 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+### Added
+
+- **`?simplecmp_discover=1` discover-mode override.** When the page URL
+  carries this query parameter, the CMS bridge ignores the bandwidth
+  controls that normally suppress repeat visits for that page load:
+  `crossSessionDedupMs` is forced to `0` (no localStorage marker
+  written or read), `sampleRate` is forced to `1` (always in scope),
+  and `respectDoNotTrack` is forced to `false`. Intended for
+  admin-driven sitemap sweeps run from a CMS backend (e.g. the TYPO3
+  ext's *Discover trackers* page) where every page load needs to
+  POST regardless of the visitor-side dedup state. The visitor-facing
+  default — no param, no flags — is unchanged. Three Playwright specs
+  in `tests/bridge/discover-mode.spec.ts` cover the override and the
+  control case.
+
 ### Fixed
 
 - **Bandwidth-control options now reach the bridge from the public
