@@ -130,6 +130,50 @@ The label drives both the visible button text (when shown) and the
 `aria-label` exposed to screen readers, so localizing it is an
 accessibility concern, not just a cosmetic one.
 
+### Click-to-enable on blocked embeds
+
+Mark a third-party embed with `data-name="<service>" data-src="..."`
+(and `src=""` so the browser doesn't preload it) and SimpleCMP will
+automatically insert a `<simplecmp-contextual-notice>` placeholder
+next to the blocked element. Visitors see a small, themed card with
+*Show once*, *Always show* (after a banner decision exists), and
+*Open settings* — granting consent inline for that one service
+without going back to the full modal.
+
+```html
+<iframe
+  data-name="youtube"
+  data-src="https://www.youtube-nocookie.com/embed/<id>"
+  src=""
+  allowfullscreen></iframe>
+```
+
+The notice text comes from three places, in order of precedence:
+
+1. **`service.placeholderTitle` / `service.placeholderDescription`** —
+   explicit per-service override on the JS init config (or, for CMS
+   integrators, on the registry / library entry).
+2. **The translated `<name>.title?` + `contextualConsent.description`
+   template** for the active language.
+3. **`asTitle(service.name)` + default i18n template** as the
+   ultimate fallback.
+
+Three opt-outs are available when the auto-insert is unwanted:
+
+- Per-element: add `data-no-placeholder` to the blocked element.
+  Useful when the integrator authors their own placeholder UI for
+  that one embed.
+- Per-service: set `service.noAutoPlaceholder: true` in the config.
+- Globally: set `autoContextualPlaceholder: false` at the config
+  top level.
+
+For the integrator-authored path, place a
+`<simplecmp-contextual-notice service-name="<name>"></...>` next
+to the blocked element and add `data-no-placeholder` to the
+element itself. The component reads the same translation chain as
+the auto-inserted version, so you get the per-service copy plus
+full control over placement and surrounding markup.
+
 ## Development
 
 Requires Node.js ≥ 20 and pnpm.
