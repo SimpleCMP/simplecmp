@@ -28,6 +28,7 @@ We use [Michael Nygard's template](https://github.com/joelparkerhenderson/archit
 | 0008 | [Build outputs — ESM-only engine](0008-build-targets-esm-only-engine.md) | accepted |
 | 0009 | [Recorder `detectionSettled` event](0009-detection-settled-event.md) | accepted |
 | 0010 | [Host-qualified cookie matchers](0010-host-qualified-cookie-matchers.md) | accepted |
+| 0011 | [Browser-based consent signals — GPC primary, ConStand deferred](0011-browser-consent-signals.md) | accepted |
 
 ## Adding a new ADR
 
