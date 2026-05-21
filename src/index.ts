@@ -26,6 +26,9 @@ import type { ClassifierServiceConfig, Detection, RecorderOptions } from './reco
 import { CookieWatcher } from './recorder/watchers/cookie-watcher.js';
 import { DomWatcher } from './recorder/watchers/dom-watcher.js';
 import { NetworkWatcher } from './recorder/watchers/network-watcher.js';
+import { installRuntimePatches } from './runtime-patches/index.js';
+import type { BlockInfo } from './runtime-patches/index.js';
+import { buildHostMatcher } from './runtime-patches/matcher.js';
 import { ServiceDbClient } from './service-db/client.js';
 import { LayeredClassifier } from './service-db/layered-classifier.js';
 import type { ServiceDbAuth } from './service-db/types.js';
@@ -41,6 +44,7 @@ export type {
 } from './recorder/types.js';
 export type { LookupQuery, ServiceDbAuth, ServiceMatch } from './service-db/types.js';
 export type { CmsBridgeAuth, CmsBridgeOptions, CmsBridgePayload } from './cms-bridge/index.js';
+export type { BlockInfo } from './runtime-patches/index.js';
 export { ServiceDbClient } from './service-db/client.js';
 export { LayeredClassifier } from './service-db/layered-classifier.js';
 export { CmsBridge } from './cms-bridge/index.js';
@@ -209,6 +213,55 @@ export interface SimpleCMPConfig extends ConsentConfig {
     | 'respectDoNotTrack'
     | 'timeoutMs'
   >;
+
+  /**
+   * Universal pre-consent blocking — JS-injected calls (ADR-0013
+   * Phase 2). When set, SimpleCMP installs prototype-level patches on
+   * `HTMLScriptElement.prototype.src`,
+   * `HTMLIFrameElement.prototype.src`,
+   * `HTMLImageElement.prototype.src`, `window.fetch`,
+   * `XMLHttpRequest.prototype.open`+`send`, and
+   * `navigator.sendBeacon`. A request is gated when its host matches
+   * an origin pattern in `config.services[].origins` AND consent for
+   * that service has not been granted. Same-origin requests, hosts
+   * with no matching service, and consented services all pass
+   * through unchanged.
+   *
+   * Off by default — opt in per integrator. Pairs naturally with the
+   * server-side TYPO3 rewriter (which catches declarative tags); the
+   * runtime patches close the gap for code that injects scripts /
+   * iframes / pixels at runtime.
+   *
+   * Pass `true` for defaults or an object to configure same-origin
+   * hosts (your CDN, your own infrastructure) and an observability
+   * `onBlock` hook.
+   *
+   * **First-script ordering matters.** Patches only catch calls that
+   * execute AFTER `init()` runs. Load the SimpleCMP bundle
+   * synchronously in `<head>` before any third-party loader.
+   */
+  interceptRuntime?: boolean | InterceptRuntimeOptions;
+}
+
+/**
+ * Optional configuration for `interceptRuntime`. All fields optional —
+ * sensible defaults keep simple opt-in (`interceptRuntime: true`)
+ * usable.
+ */
+export interface InterceptRuntimeOptions {
+  /**
+   * Hosts the site owns. Always pass through, never matched against
+   * any service. Defaults to `[window.location.host]`. Pass your CDN
+   * and vendor-own hostnames here so first-party traffic isn't gated.
+   */
+  sameOriginHosts?: readonly string[];
+
+  /**
+   * Observability hook fired whenever a JS-injected call is blocked.
+   * Useful for dev-mode logging or surfacing blocked traffic in a
+   * debug panel.
+   */
+  onBlock?: (info: BlockInfo) => void;
 }
 
 /**
@@ -217,6 +270,13 @@ export interface SimpleCMPConfig extends ConsentConfig {
  * so re-initing doesn't leak DOM elements or watcher subscriptions.
  */
 let activeHandle: LitInitHandle | null = null;
+
+/**
+ * Uninstaller for the runtime patches installed by the most recent
+ * `init({ interceptRuntime: ... })` call. Re-init / destroy chains
+ * through this so prototype patches don't stack.
+ */
+let activeRuntimePatchUninstaller: (() => void) | null = null;
 
 /**
  * Initialize SimpleCMP and mount the consent UI.
@@ -234,15 +294,56 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
   warnOnConfigInconsistencies(config);
   warnOnComplianceRisks(config);
 
-  // Replace any prior handle cleanly — re-init shouldn't leak DOM.
+  // Replace any prior handle cleanly — re-init shouldn't leak DOM or
+  // leave prototype patches stacked.
   if (activeHandle !== null) {
     activeHandle.destroy();
     activeHandle = null;
   }
+  if (activeRuntimePatchUninstaller !== null) {
+    activeRuntimePatchUninstaller();
+    activeRuntimePatchUninstaller = null;
+  }
 
-  activeHandle = mountUI(config);
+  const handle = mountUI(config);
   if (config.record) startRecorder(config);
+  if (config.interceptRuntime) {
+    activeRuntimePatchUninstaller = installRuntimePatchesForConfig(config, handle);
+  }
+  // Wrap destroy() so it also tears the runtime patches down. The
+  // returned handle still satisfies the LitInitHandle interface; the
+  // wrapping is invisible to callers.
+  activeHandle = {
+    show: handle.show.bind(handle),
+    hide: handle.hide.bind(handle),
+    manager: handle.manager,
+    destroy: () => {
+      if (activeRuntimePatchUninstaller !== null) {
+        activeRuntimePatchUninstaller();
+        activeRuntimePatchUninstaller = null;
+      }
+      handle.destroy();
+    },
+  };
   return activeHandle;
+}
+
+function installRuntimePatchesForConfig(
+  config: SimpleCMPConfig,
+  handle: LitInitHandle
+): () => void {
+  const opts: InterceptRuntimeOptions =
+    typeof config.interceptRuntime === 'object' && config.interceptRuntime !== null
+      ? config.interceptRuntime
+      : {};
+  const matcher = buildHostMatcher(config.services);
+  const manager = handle.manager;
+  return installRuntimePatches({
+    matcher,
+    consentChecker: (serviceId: string) => manager.getConsent(serviceId),
+    sameOriginHosts: opts.sameOriginHosts,
+    onBlock: opts.onBlock,
+  });
 }
 
 /**

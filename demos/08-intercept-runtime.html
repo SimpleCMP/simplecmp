@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SimpleCMP Demo 8 — Universal blocking (interceptRuntime)</title>
+  <link rel="stylesheet" href="../dist/styles/default.css">
+  <script src="../dist/simplecmp.global.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1.5rem; line-height: 1.5; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.05rem; margin-top: 1.5rem; }
+    nav a { color: #15775a; text-decoration: none; font-size: 0.9rem; }
+    .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin: 0.5rem 0; }
+    button { font: inherit; padding: 0.35rem 0.85rem; border: 1px solid #888; background: #f5f5f5; cursor: pointer; border-radius: 3px; }
+    button:hover { background: #e8e8e8; }
+    code { background: #f4f4f4; padding: 0.1em 0.3em; border-radius: 2px; font-family: ui-monospace, SFMono-Regular, monospace; }
+    .log {
+      margin-top: 1rem;
+      padding: 0.5rem;
+      max-height: 350px;
+      overflow: auto;
+      background: #fafafa;
+      border: 1px solid #ddd;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+    }
+    .log .blocked { color: #b80000; }
+    .log .allowed { color: #1a6700; }
+    .log .info { color: #555; }
+    .state { display: inline-block; padding: 0.1em 0.5em; border-radius: 3px; font-size: 0.85rem; }
+    .state-on { background: #cfe9d5; }
+    .state-off { background: #f8d6d6; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <nav><a href="index.html">← Demo index</a></nav>
+
+  <h1>Demo 8 — Universal blocking via <code>interceptRuntime</code></h1>
+
+  <p>
+    Exercises the productionised runtime patches (ADR-0013 Phase 2). One
+    real <code>SimpleCMP.init({ interceptRuntime: true })</code> call wires
+    the patches into the engine: when consent for a configured service
+    isn't granted, JS-injected calls to its origins are blocked. Toggle
+    consent via the banner / floating trigger and re-run the buttons —
+    blocked calls flip to allowed without re-init.
+  </p>
+
+  <p>
+    Configured services in this demo:
+    <code>analytics</code> (origins: <code>tracker.example.test</code>,
+    <code>*.tracker.example.test</code>) and
+    <code>videos</code> (origins: <code>*.video.example.test</code>).
+    Hosts outside those patterns fall through as unknown (= pass through).
+  </p>
+
+  <h2>Consent state</h2>
+  <div class="row">
+    <span>analytics: <span id="state-analytics" class="state state-off">denied</span></span>
+    <span>videos: <span id="state-videos" class="state state-off">denied</span></span>
+    <button id="open-modal">Open consent modal</button>
+    <button id="clear-consent">Clear &amp; reload</button>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h2>1. <code>HTMLScriptElement.src</code></h2>
+      <div class="row">
+        <button data-test="script-tracker">script → analytics host</button>
+        <button data-test="script-unknown">script → unknown host</button>
+      </div>
+
+      <h2>2. <code>HTMLIFrameElement.src</code></h2>
+      <div class="row">
+        <button data-test="iframe-tracker">iframe → analytics host</button>
+        <button data-test="iframe-video">iframe → video host</button>
+      </div>
+
+      <h2>3. <code>HTMLImageElement.src</code> (<code>new Image()</code>)</h2>
+      <div class="row">
+        <button data-test="image-tracker">image pixel → analytics host</button>
+        <button data-test="image-same-origin">image → same-origin</button>
+      </div>
+    </div>
+
+    <div>
+      <h2>4. <code>window.fetch</code></h2>
+      <div class="row">
+        <button data-test="fetch-tracker">fetch → analytics host</button>
+      </div>
+
+      <h2>5. <code>XMLHttpRequest</code></h2>
+      <div class="row">
+        <button data-test="xhr-tracker">XHR → analytics host</button>
+      </div>
+
+      <h2>6. <code>navigator.sendBeacon</code></h2>
+      <div class="row">
+        <button data-test="beacon-tracker">beacon → analytics host</button>
+      </div>
+
+      <h2>Bulk test (all six at once)</h2>
+      <div class="row">
+        <button data-test="all">run all six</button>
+      </div>
+    </div>
+  </div>
+
+  <h2>Event log</h2>
+  <div class="log" id="log"></div>
+
+  <script>
+    // Initialise SimpleCMP with the productionised interceptRuntime
+    // flag. The patches are installed inside init() — no extra plumbing.
+    const handle = SimpleCMP.init({
+      storageName: 'simplecmp-demo-8',
+      services: [
+        {
+          name: 'analytics',
+          purposes: ['analytics'],
+          title: 'Analytics (Demo)',
+          description: 'Demo-only — analytics tracker.',
+          origins: ['tracker.example.test', '*.tracker.example.test'],
+        },
+        {
+          name: 'videos',
+          purposes: ['embeds'],
+          title: 'Videos (Demo)',
+          description: 'Demo-only — video embeds.',
+          origins: ['*.video.example.test'],
+        },
+      ],
+      privacyPolicy: 'https://example.test/datenschutz',
+      imprint: 'https://example.test/impressum',
+      lang: 'en',
+      // The flag under test.
+      interceptRuntime: {
+        // window.location.host is always implicit. Add nothing extra
+        // here — the demo's "same-origin" button uses the page's own
+        // host to prove the default does the right thing.
+        onBlock(info) {
+          log('blocked', `${info.mechanism} → ${info.url} (service=${info.service})`);
+        },
+      },
+    });
+
+    const logEl = document.getElementById('log');
+    function log(level, msg) {
+      const line = document.createElement('div');
+      line.className = level;
+      const t = new Date().toISOString().slice(11, 23);
+      line.textContent = `[${t}] ${msg}`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function refreshState() {
+      const a = handle.manager.getConsent('analytics');
+      const v = handle.manager.getConsent('videos');
+      const stateA = document.getElementById('state-analytics');
+      const stateV = document.getElementById('state-videos');
+      stateA.textContent = a ? 'granted' : 'denied';
+      stateA.className = `state ${a ? 'state-on' : 'state-off'}`;
+      stateV.textContent = v ? 'granted' : 'denied';
+      stateV.className = `state ${v ? 'state-on' : 'state-off'}`;
+    }
+    refreshState();
+    SimpleCMP.addEventListener('saveConsents', refreshState);
+
+    document.getElementById('open-modal').addEventListener('click', () => SimpleCMP.show());
+    document.getElementById('clear-consent').addEventListener('click', () => {
+      document.cookie = 'simplecmp-demo-8=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+      localStorage.removeItem('simplecmp-demo-8');
+      location.reload();
+    });
+
+    const handlers = {
+      'script-tracker': () => {
+        const s = document.createElement('script');
+        s.src = 'https://tracker.example.test/ga.js';
+        document.head.appendChild(s);
+        log('info', `script.src after assignment: "${s.src}"`);
+      },
+      'script-unknown': () => {
+        const s = document.createElement('script');
+        s.src = 'https://unrelated.example.test/lib.js';
+        document.head.appendChild(s);
+        log('allowed', `script → unknown host (passed through): "${s.src}"`);
+      },
+      'iframe-tracker': () => {
+        const f = document.createElement('iframe');
+        f.src = 'https://tracker.example.test/embed';
+        document.body.appendChild(f);
+        log('info', `iframe.src after assignment: "${f.src}"`);
+      },
+      'iframe-video': () => {
+        const f = document.createElement('iframe');
+        f.src = 'https://player.video.example.test/abc';
+        document.body.appendChild(f);
+        log('info', `iframe.src after assignment: "${f.src}"`);
+      },
+      'image-tracker': () => {
+        const img = new Image();
+        img.src = 'https://tracker.example.test/pixel.gif?u=1';
+        log('info', `image.src after assignment: "${img.src}"`);
+      },
+      'image-same-origin': () => {
+        const img = new Image();
+        img.src = `${window.location.origin}/favicon.ico`;
+        log('allowed', `image → same-origin (passed through): "${img.src}"`);
+      },
+      'fetch-tracker': async () => {
+        try {
+          await fetch('https://tracker.example.test/collect', { method: 'POST', body: 'x' });
+          log('allowed', 'fetch resolved (would have hit network)');
+        } catch (e) {
+          log('info', `fetch rejected: ${e.message}`);
+        }
+      },
+      'xhr-tracker': () => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', 'https://tracker.example.test/collect');
+        xhr.send('x');
+        log('info', `xhr.readyState after send: ${xhr.readyState}`);
+      },
+      'beacon-tracker': () => {
+        const ok = navigator.sendBeacon('https://tracker.example.test/beacon', 'x');
+        log('info', `sendBeacon return: ${ok}`);
+      },
+      all: async () => {
+        log('info', '--- running all six ---');
+        handlers['script-tracker']();
+        handlers['iframe-tracker']();
+        handlers['image-tracker']();
+        await handlers['fetch-tracker']();
+        handlers['xhr-tracker']();
+        handlers['beacon-tracker']();
+      },
+    };
+
+    document.querySelectorAll('button[data-test]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-test');
+        const fn = handlers[key];
+        if (fn) fn();
+      });
+    });
+
+    log('info', 'demo loaded — patches installed via init({ interceptRuntime: { ... } })');
+  </script>
+</body>
+</html>

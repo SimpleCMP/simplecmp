@@ -48,13 +48,7 @@
 
 export interface BlockInfo {
   /** Which patched mechanism triggered the block. */
-  mechanism:
-    | 'script-src'
-    | 'iframe-src'
-    | 'img-src'
-    | 'fetch'
-    | 'xhr'
-    | 'sendBeacon';
+  mechanism: 'script-src' | 'iframe-src' | 'img-src' | 'fetch' | 'xhr' | 'sendBeacon';
   /** The URL that was blocked (string form). */
   url: string;
   /** The library service id the URL matched against. */
@@ -164,9 +158,12 @@ function decideBlock(url: string, opts: Resolved): string | null {
  * Returns the uninstaller.
  */
 function patchElementSrc(
-  proto: typeof HTMLScriptElement.prototype | typeof HTMLIFrameElement.prototype | typeof HTMLImageElement.prototype,
+  proto:
+    | typeof HTMLScriptElement.prototype
+    | typeof HTMLIFrameElement.prototype
+    | typeof HTMLImageElement.prototype,
   mechanism: 'script-src' | 'iframe-src' | 'img-src',
-  opts: Resolved,
+  opts: Resolved
 ): () => void {
   const original = Object.getOwnPropertyDescriptor(proto, 'src');
   if (!original?.get || !original?.set) return () => {};
@@ -209,7 +206,9 @@ function patchFetch(opts: Resolved): () => void {
     }
     return original(input, init);
   };
-  return () => { window.fetch = original; };
+  return () => {
+    window.fetch = original;
+  };
 }
 
 /**
@@ -235,14 +234,16 @@ function patchXhr(opts: Resolved): () => void {
       (this as unknown as Record<string, unknown>)[BLOCKED_MARKER] = service;
     }
     // @ts-expect-error rest spread on overloaded signature
-    return originalOpen.call(this, method, url, ...rest);
+    originalOpen.call(this, method, url, ...rest);
   };
 
-  XMLHttpRequest.prototype.send = function patchedSend(body?: Document | XMLHttpRequestBodyInit | null): void {
+  XMLHttpRequest.prototype.send = function patchedSend(
+    body?: Document | XMLHttpRequestBodyInit | null
+  ): void {
     if ((this as unknown as Record<string, unknown>)[BLOCKED_MARKER] !== undefined) {
       return;
     }
-    return originalSend.call(this, body);
+    originalSend.call(this, body);
   };
 
   return () => {
@@ -258,7 +259,10 @@ function patchXhr(opts: Resolved): () => void {
 function patchSendBeacon(opts: Resolved): () => void {
   if (typeof navigator.sendBeacon !== 'function') return () => {};
   const original = navigator.sendBeacon.bind(navigator);
-  navigator.sendBeacon = function patchedSendBeacon(url: string | URL, data?: BodyInit | null): boolean {
+  navigator.sendBeacon = function patchedSendBeacon(
+    url: string | URL,
+    data?: BodyInit | null
+  ): boolean {
     const urlString = typeof url === 'string' ? url : url.href;
     const service = decideBlock(urlString, opts);
     if (service !== null) {
@@ -267,5 +271,7 @@ function patchSendBeacon(opts: Resolved): () => void {
     }
     return original(url, data);
   };
-  return () => { navigator.sendBeacon = original; };
+  return () => {
+    navigator.sendBeacon = original;
+  };
 }

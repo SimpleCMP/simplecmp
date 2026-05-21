@@ -78,8 +78,13 @@ export function cookieMatches(
   return false;
 }
 
-/** Match a host against a single origin matcher entry. */
-function originMatches(host: string, matcher: OriginMatcher): boolean {
+/**
+ * Match a host against a single origin matcher entry. Exported so the
+ * runtime-patches matcher (ADR-0013 Phase 2) can use the same wildcard
+ * semantics — keeps the server-side rewriter, the recorder, and the
+ * JS-injected-call patch all classifying hosts consistently.
+ */
+export function originMatches(host: string, matcher: OriginMatcher): boolean {
   if (matcher instanceof RegExp) {
     return matcher.test(host);
   }

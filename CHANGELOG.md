@@ -10,6 +10,22 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Added
 
+- **Universal pre-consent blocking — runtime patches (ADR-0013 Phase
+  2).** New opt-in `interceptRuntime` config field on `init()`. When
+  enabled, SimpleCMP installs prototype-level patches on
+  `HTMLScriptElement.prototype.src`,
+  `HTMLIFrameElement.prototype.src`,
+  `HTMLImageElement.prototype.src`, `window.fetch`,
+  `XMLHttpRequest.prototype.open`+`send`, and
+  `navigator.sendBeacon`. JS-injected calls to configured
+  third-party hosts (matched via `config.services[].origins`) are
+  blocked until the visitor consents; same-origin and unconfigured
+  hosts pass through untouched. Pairs naturally with the TYPO3 ext's
+  server-side rewriter shipped in Phase 1 — the rewriter catches
+  declarative tags, the runtime patches close the JS-injected gap.
+  Pass `true` for defaults or an object for `sameOriginHosts`
+  / `onBlock` overrides. Off by default — see
+  `src/runtime-patches/README.md` and `docs/adr/0013-universal-blocking-implementation-plan.md`.
 - **`?simplecmp_discover=1` discover-mode override.** When the page URL
   carries this query parameter, the CMS bridge ignores the bandwidth
   controls that normally suppress repeat visits for that page load:

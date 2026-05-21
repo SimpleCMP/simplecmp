@@ -1,8 +1,9 @@
-# Runtime patches — ADR-0013 Phase 0 prototype
+# Runtime patches — ADR-0013
 
-The runtime-patch half of universal pre-consent blocking. Patches six
-browser API surfaces so JS-injected third-party calls go through the
-same consent check as declarative tags:
+The runtime-patch half of universal pre-consent blocking. Shipped
+2026-05-21 (Phase 2). Patches six browser API surfaces so JS-injected
+third-party calls go through the same consent check as declarative
+tags:
 
 - `HTMLScriptElement.prototype.src` setter
 - `HTMLIFrameElement.prototype.src` setter
@@ -84,20 +85,34 @@ story when productionising:
   Klaro/SimpleCMP's banner-init has — load first, gate everything
   else.
 
-## How to apply (Phase 2+)
+## How to use
 
-When this module productionises:
+```ts
+import { init } from 'simplecmp';
 
-1. Replace the demo's hardcoded mock matcher with one derived from
-   `simplecmp/services-library` — same matcher logic the recorder
-   uses (`src/recorder/classifier.ts::originMatches`).
-2. Replace the mock consent checker with `manager.getConsent(name)`
-   from the engine's `ConsentManager`.
-3. Wire `installRuntimePatches({ ... })` into the `init()` flow,
-   gated by a new `interceptRuntime: true` config flag so existing
-   integrators don't opt in unexpectedly.
-4. Add the same-origin host list to a Site Set setting so admins can
-   pass through their own CDN/asset hosts.
+init({
+  storageName: 'simplecmp-site',
+  services: [
+    { name: 'analytics', origins: ['analytics.example.com'] },
+    { name: 'video', origins: ['*.youtube.com', '*.ytimg.com'] },
+  ],
+  interceptRuntime: {
+    sameOriginHosts: ['cdn.mysite.example'],
+    onBlock: (info) => console.debug('[simplecmp] blocked', info),
+  },
+});
+```
 
-The patches themselves don't need to change between prototype and
-production. The plumbing around them does.
+`interceptRuntime: true` is equivalent to `interceptRuntime: {}` with
+default same-origin (`[window.location.host]`) and no `onBlock`
+hook. The matcher is built once from `config.services[].origins` at
+`init()` time and uses the same wildcard semantics as the recorder
+(`src/recorder/classifier.ts::originMatches`).
+
+Consent is read live on every patched call via
+`manager.getConsent(serviceId)`, so toggling a service via the
+banner / modal takes effect for the next request without
+re-initing.
+
+`handle.destroy()` removes the patches and restores the native
+prototype methods.
