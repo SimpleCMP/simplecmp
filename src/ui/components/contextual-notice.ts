@@ -19,7 +19,7 @@
  */
 
 import { css, html, nothing } from 'lit';
-import type { TemplateResult } from 'lit';
+import type { PropertyValues, TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { Service } from '../../engine/index.js';
 import { asTitle } from '../../engine/utils/strings.js';
@@ -35,6 +35,24 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
   /** ...or by attribute, in which case the component looks it up in config.services. */
   @property({ type: String, attribute: 'service-name' })
   serviceName?: string;
+
+  /**
+   * Whether the host element carries `data-simplecmp-auto-placeholder` —
+   * set by `ConsentManager._toggleAutoPlaceholder` when the engine
+   * inserts this notice itself. We use it to decide whether to steal
+   * focus on first paint (auto-insert: yes; integrator-authored: no).
+   */
+  private _autoPlaceholder = false;
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this._autoPlaceholder = this.hasAttribute('data-simplecmp-auto-placeholder');
+    // Landmark role + accessible name. Set on the host so screen
+    // readers see this as a discrete region. The aria-label is
+    // refreshed on each render in `firstUpdated`/`updated` once the
+    // resolved service title is known.
+    if (!this.hasAttribute('role')) this.setAttribute('role', 'region');
+  }
 
   static override styles = [
     tokens,
@@ -131,11 +149,12 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
     const service = this._resolveService();
     if (service === undefined || this.manager === undefined) return nothing;
 
-    const title = this._tString(['!', service.name, 'title?']) || asTitle(service.name);
+    const title = this._resolveTitle(service);
+    const description = this._resolveDescription(service, title);
     const hasStored = this.manager.store.get() !== null;
 
     return html`
-      <p>${this._t(['contextualConsent', 'description'], { title })}</p>
+      <p>${description}</p>
       <div class="buttons">
         <button type="button" class="accept-once" @click=${this._onAcceptOnce}>
           ${this._t(['contextualConsent', 'acceptOnce'])}
@@ -152,6 +171,86 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
         </button>
       </div>
     `;
+  }
+
+  /**
+   * Resolve the title shown on the notice. Precedence:
+   *
+   * 1. `service.placeholderTitle` — explicit per-service override from
+   *    the integrator (CMS BE, settings.yaml, or the JS config).
+   * 2. The translated `!.<service>.title?` (i18n table).
+   * 3. `asTitle(service.name)` — title-cased fallback so a notice for
+   *    `'google-maps'` reads "Google Maps" even when nothing else is
+   *    configured.
+   */
+  private _resolveTitle(service: Service): string {
+    if (typeof service.placeholderTitle === 'string' && service.placeholderTitle.length > 0) {
+      return service.placeholderTitle;
+    }
+    return this._tString(['!', service.name, 'title?']) || asTitle(service.name);
+  }
+
+  /**
+   * Resolve the description shown on the notice. Precedence:
+   *
+   * 1. `service.placeholderDescription` — explicit per-service override.
+   *    Used as-is, no interpolation, so admins can write a complete
+   *    sentence ("This map needs Google Maps to load.").
+   * 2. The translated `contextualConsent.description` with `{title}`
+   *    interpolation — the default ("Click here to load the {title}
+   *    content").
+   */
+  private _resolveDescription(service: Service, title: string): unknown {
+    if (
+      typeof service.placeholderDescription === 'string' &&
+      service.placeholderDescription.length > 0
+    ) {
+      return service.placeholderDescription;
+    }
+    return this._t(['contextualConsent', 'description'], { title });
+  }
+
+  override firstUpdated(changed: PropertyValues): void {
+    super.firstUpdated?.(changed);
+    this._updateAriaLabel();
+    this._maybeFocusFirstAction();
+  }
+
+  override updated(changed: PropertyValues): void {
+    super.updated?.(changed);
+    this._updateAriaLabel();
+  }
+
+  /**
+   * Mirror the resolved title into the host's `aria-label` so the
+   * landmark has a useful accessible name ("Google Maps placeholder")
+   * for screen readers walking the page.
+   */
+  private _updateAriaLabel(): void {
+    const service = this._resolveService();
+    if (service === undefined) return;
+    const title = this._resolveTitle(service);
+    // `!` prefix suppresses the `[missing translation: …]` marker so
+    // we get an empty string when no `contextualConsent.ariaLabel`
+    // key is declared, allowing the fallback to `title` to fire.
+    const label = this._tString(['!', 'contextualConsent', 'ariaLabel?']) || title;
+    const final = label.includes('{title}') ? label.replace('{title}', title) : label;
+    if (this.getAttribute('aria-label') !== final) {
+      this.setAttribute('aria-label', final);
+    }
+  }
+
+  /**
+   * When the engine auto-inserts this notice (engine adds
+   * `data-simplecmp-auto-placeholder` on the host), focus the first
+   * non-disabled action button so keyboard users land on a useful
+   * control. Integrator-authored notices (no marker attribute) don't
+   * steal focus — they're declarative markup, not a dialog.
+   */
+  private _maybeFocusFirstAction(): void {
+    if (!this._autoPlaceholder) return;
+    const button = this.renderRoot.querySelector<HTMLButtonElement>('button:not([disabled])');
+    button?.focus();
   }
 
   private _tString(key: string | string[]): string {

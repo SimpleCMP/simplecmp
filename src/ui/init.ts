@@ -19,6 +19,11 @@
 
 import { type ConsentConfig, type ConsentManager, getManager } from '../engine/index.js';
 import { SimpleCmpBanner } from './components/banner.js';
+// Side-effect import — registers `<simplecmp-contextual-notice>` so the
+// engine's auto-placeholder click-to-enable affordance has a real custom
+// element to upgrade. Without this the engine inserts raw HTMLElements
+// that never render their shadow root.
+import './components/contextual-notice.js';
 import { SimpleCmpModal } from './components/modal.js';
 import { SimpleCmpTrigger } from './components/trigger.js';
 
@@ -99,10 +104,16 @@ export function initLit(config: LitInitConfig): LitInitHandle {
 
   // --- wiring -----------------------------------------------------------
 
-  const onBannerConfigure = (): void => {
+  // Listen at the document level so any element in the SimpleCMP family
+  // can open the modal by emitting `simplecmp:configure` — currently the
+  // banner and the contextual-notice ("Open settings" button), but any
+  // future widget that wants to surface this affordance gets it for free.
+  // Bubbles + composed on the event means it crosses Shadow DOM up to
+  // the document.
+  const onConfigure = (): void => {
     modal.open = true;
   };
-  banner?.addEventListener('simplecmp:configure', onBannerConfigure);
+  document.addEventListener('simplecmp:configure', onConfigure);
 
   // Watcher: drop the banner once the user saves consent through any path
   // (banner buttons, modal buttons, programmatic).
@@ -150,7 +161,7 @@ export function initLit(config: LitInitConfig): LitInitHandle {
     },
     destroy() {
       manager.unwatch(watcher);
-      banner?.removeEventListener('simplecmp:configure', onBannerConfigure);
+      document.removeEventListener('simplecmp:configure', onConfigure);
       banner?.remove();
       modal.remove();
       if (trigger !== undefined && onTriggerClick !== undefined) {

@@ -216,4 +216,88 @@ describe('<simplecmp-contextual-notice>', () => {
     // is what actually loaded the embed; consent storage is unchanged.
     expect(manager.consents.youtube).toBe(false);
   });
+
+  it('sets role="region" on the host element', async () => {
+    const el = await mount();
+    expect(el.getAttribute('role')).toBe('region');
+  });
+
+  it('uses service.placeholderTitle as the aria-label when set', async () => {
+    const config = {
+      ...baseConfig,
+      services: [
+        {
+          name: 'youtube',
+          purposes: ['marketing'],
+          default: false,
+          placeholderTitle: 'YouTube videos',
+        },
+      ],
+    } as const;
+    resetManagers();
+    const customManager = getManager(config);
+    const el = document.createElement('simplecmp-contextual-notice') as SimpleCmpContextualNotice;
+    el.config = config;
+    el.manager = customManager;
+    el.setAttribute('service-name', 'youtube');
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    expect(el.getAttribute('aria-label')).toBe('YouTube videos');
+  });
+
+  it('uses service.placeholderDescription instead of the default i18n description', async () => {
+    const config = {
+      ...baseConfig,
+      services: [
+        {
+          name: 'youtube',
+          purposes: ['marketing'],
+          default: false,
+          placeholderDescription: 'This embed needs YouTube to load.',
+        },
+      ],
+    } as const;
+    resetManagers();
+    const customManager = getManager(config);
+    const el = document.createElement('simplecmp-contextual-notice') as SimpleCmpContextualNotice;
+    el.config = config;
+    el.manager = customManager;
+    el.setAttribute('service-name', 'youtube');
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const description = el.shadowRoot?.querySelector('p')?.textContent?.trim();
+    expect(description).toBe('This embed needs YouTube to load.');
+  });
+
+  it('focuses the first action button when auto-inserted by the engine', async () => {
+    const el = document.createElement('simplecmp-contextual-notice') as SimpleCmpContextualNotice;
+    el.config = baseConfig;
+    el.manager = manager;
+    el.setAttribute('service-name', 'youtube');
+    el.setAttribute('data-simplecmp-auto-placeholder', '');
+    document.body.appendChild(el);
+    await el.updateComplete;
+    // Give Lit one extra tick for the focus call inside firstUpdated.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const focused = el.shadowRoot?.activeElement;
+    expect(focused?.tagName.toLowerCase()).toBe('button');
+  });
+
+  it('does not steal focus when authored by the integrator (no auto-placeholder marker)', async () => {
+    // Mount a control element that already has focus before the notice
+    // appears. An integrator-authored notice (no data-simplecmp-auto-
+    // placeholder) should leave that focus alone.
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    const el = await mount();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(document.activeElement).toBe(input);
+    expect(el.shadowRoot?.activeElement).toBeNull();
+  });
 });

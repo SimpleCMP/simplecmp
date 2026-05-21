@@ -42,6 +42,26 @@ export interface Service {
   onDecline?: ServiceHandler;
   callback?: (consent: boolean, service: Service) => void;
   onlyOnce?: boolean;
+  /**
+   * Click-to-enable affordance for blocked embeds. When this service is
+   * not consented and one of its `[data-name]` elements is swapped/blocked,
+   * the engine auto-inserts a `<simplecmp-contextual-notice>` as the
+   * element's immediate following sibling so the visitor can grant
+   * consent inline. Disable per-service with `noAutoPlaceholder: true`,
+   * or per-element with `data-no-placeholder` on the blocked element.
+   * Global default is `config.autoContextualPlaceholder` (default true).
+   */
+  noAutoPlaceholder?: boolean;
+  /**
+   * Optional short title shown in the auto-inserted contextual notice.
+   * Falls back to the service's normal title / `name` if unset.
+   */
+  placeholderTitle?: string;
+  /**
+   * Optional short description shown in the auto-inserted contextual
+   * notice. Falls back to the translation default if unset.
+   */
+  placeholderDescription?: string;
   // Custom fields (e.g., `title`, `description`, `purposes` translations) flow
   // through. We keep this open via the index signature.
   [key: string]: unknown;
@@ -76,6 +96,17 @@ export interface ConsentConfig {
   consentVersionPolicy?: 'any' | 'major';
   // REQ-5
   respectGPC?: boolean;
+  /**
+   * Global toggle for the click-to-enable affordance on blocked embeds.
+   * When true (default), the engine inserts a
+   * `<simplecmp-contextual-notice>` as a sibling of every blocked
+   * `[data-name]` element so visitors can grant consent inline.
+   * Per-service `Service.noAutoPlaceholder` overrides this for one
+   * service; `data-no-placeholder` on an element overrides for one
+   * element. Set this to `false` to disable globally — typically only
+   * needed when the integrator authors their own placeholders.
+   */
+  autoContextualPlaceholder?: boolean;
   // i18n
   lang?: string;
   languages?: string[];
@@ -450,7 +481,8 @@ export class ConsentManager {
       const { type, src, href } = ds;
       const attrs = ['href', 'src', 'type'] as const;
 
-      // Placeholder: just toggle visibility
+      // Placeholder: just toggle visibility. Integrator-authored markup;
+      // no auto-notice is needed because the placeholder IS the notice.
       if (type === 'placeholder') {
         if (consent) {
           element.style.display = 'none';
@@ -505,6 +537,7 @@ export class ConsentManager {
         }
         parent.insertBefore(newElement, element);
         parent.removeChild(element);
+        this._toggleAutoPlaceholder(newElement, service, consent);
       } else if (element.tagName === 'SCRIPT' || element.tagName === 'LINK') {
         const scripted = element as HTMLScriptElement & HTMLLinkElement;
         if (consent && scripted.type === (type ?? '') && scripted.src === src) {
@@ -534,6 +567,7 @@ export class ConsentManager {
         }
         parent.insertBefore(newElement, element);
         parent.removeChild(element);
+        this._toggleAutoPlaceholder(newElement, service, consent);
       } else {
         // images and others — modify in place
         const generic = element as unknown as Record<string, string | undefined>;
@@ -567,8 +601,74 @@ export class ConsentManager {
           }
         }
         applyDataset(ds, element);
+        this._toggleAutoPlaceholder(element, service, consent);
       }
     }
+  }
+
+  /**
+   * Click-to-enable affordance: when a `[data-name]` element is blocked
+   * by absent consent, insert a `<simplecmp-contextual-notice>` as its
+   * immediate following sibling so the visitor can grant consent
+   * inline; when consent flips on, remove that notice.
+   *
+   * Idempotent — a duplicate call with `consent: false` won't insert a
+   * second notice if one is already there. Skips when:
+   *
+   * - the global `config.autoContextualPlaceholder` is `false`
+   * - the per-service `service.noAutoPlaceholder` is true
+   * - the per-element `data-no-placeholder` attribute is present
+   *
+   * The auto-inserted notice is marked
+   * `data-simplecmp-auto-placeholder data-simplecmp-for="<service>"`
+   * so the remove path can identify and prune it without affecting any
+   * integrator-authored `<simplecmp-contextual-notice>` siblings.
+   */
+  private _toggleAutoPlaceholder(anchor: HTMLElement, service: Service, consent: boolean): void {
+    if (typeof document === 'undefined') return;
+    const existing = anchor.nextElementSibling;
+    const matchedExisting =
+      existing?.hasAttribute('data-simplecmp-auto-placeholder') &&
+      existing.getAttribute('data-simplecmp-for') === service.name
+        ? existing
+        : null;
+
+    if (consent) {
+      if (matchedExisting !== null) matchedExisting.remove();
+      return;
+    }
+    if (this.config.autoContextualPlaceholder === false) return;
+    if (service.noAutoPlaceholder === true) return;
+    if (anchor.hasAttribute('data-no-placeholder')) return;
+    if (matchedExisting !== null) return;
+
+    const notice = document.createElement('simplecmp-contextual-notice');
+    // `service-name` attribute is set for DOM-inspection ergonomics
+    // (devtools, integration tests, ad-hoc querySelector) but the
+    // component-side property is set explicitly below — relying on
+    // Lit's attribute→property sync alone is fragile when the element
+    // is created and the attribute is set before the custom-element
+    // upgrade has finished.
+    notice.setAttribute('service-name', service.name);
+    notice.setAttribute('data-simplecmp-auto-placeholder', '');
+    notice.setAttribute('data-simplecmp-for', service.name);
+    // The component reads `serviceName`, `config`, and `manager` as Lit
+    // properties (not attributes) — without them, `_resolveService()`
+    // returns undefined and the notice renders `nothing`. The UI mounter
+    // sets these on integrator-authored notices; for engine-inserted
+    // ones we have to do it ourselves. Cast through unknown so the
+    // engine module stays independent of the UI component's exported
+    // type (ADR-0007 keeps `src/engine` UI-free).
+    type NoticeProps = {
+      manager: ConsentManager;
+      config: ConsentConfig;
+      serviceName: string;
+    };
+    const props = notice as unknown as NoticeProps;
+    props.serviceName = service.name;
+    props.manager = this;
+    props.config = this.config;
+    anchor.insertAdjacentElement('afterend', notice);
   }
 
   /** Delete cookies set by a service when consent is revoked. */
