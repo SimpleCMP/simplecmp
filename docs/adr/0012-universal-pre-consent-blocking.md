@@ -241,17 +241,21 @@ The ADR is accepted; implementation is gated. Start when:
 1. **SimpleCMP has reached 1.0.** Universal blocking is too
    architecturally invasive for the pre-1.0 churn window.
    Stability of the engine + library APIs is a prerequisite.
-2. **Interpretation A has shipped and stabilised** (task #22).
-   A's per-detection allowlist is the right UX template for the
-   host-allowlist this feature needs; landing A first lets the
-   ADR for B's implementation describe convergence concretely
-   rather than speculatively.
-3. **The TYPO3 plugin has at least one CMS-plugin sibling**
+2. **The TYPO3 plugin has at least one CMS-plugin sibling**
    (WordPress or Contao). The output-rewrite mechanism has to
    live in each CMS plugin separately — having a second plugin
    in scope forces the design to factor out CMS-agnostic
    concerns (host-list management, runtime patch loader)
    instead of accidentally entangling them with TYPO3 specifics.
+
+> **Revision 2026-05-21:** the original ADR also listed
+> "Interpretation A has shipped and stabilised" as a gate.
+> Interpretation A was a banner-completeness feature (detected
+> services appear on the banner so the visitor's consent decision is
+> legally complete) that doesn't deliver actual blocking. On further
+> review the banner-completeness gap turned out not to be the felt
+> problem; only B's technical blocking is. A was dropped; B no longer
+> depends on it.
 
 If any of those gates slip past expected timing — e.g. the German
 market visibly shifts and CCM19 displacement becomes urgent before
