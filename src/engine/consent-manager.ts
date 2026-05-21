@@ -524,7 +524,11 @@ export class ConsentManager {
           }
           if (ds.src !== undefined) newElement.src = ds.src;
         } else {
-          newElement.src = '';
+          // `about:blank` (not the empty string) — `src=""` is treated
+          // as a relative URL by browsers, so the iframe would load the
+          // host page recursively inside itself. `about:blank` is the
+          // standard "explicitly empty document" URL.
+          newElement.src = 'about:blank';
           if (ds['modified-by-klaro'] !== undefined && ds['original-display'] !== undefined) {
             newElement.setAttribute('data-original-display', ds['original-display']);
           } else {

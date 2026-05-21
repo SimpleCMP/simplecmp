@@ -153,6 +153,21 @@ describe('auto-placeholder click-to-enable', () => {
     expect(autoPlaceholderFor('youtube')).toBeNull();
   });
 
+  it('sets blocked iframe src to about:blank, not the empty string', () => {
+    // Regression for the Klaro-heritage bug where src="" was treated by
+    // browsers as a relative URL pointing to the current page — the
+    // blocked iframe would load the host page recursively inside
+    // itself. about:blank is the standard "explicitly empty document"
+    // URL and doesn't trigger any network request.
+    makeBlockedIframe('youtube');
+    const manager = getManager(makeConfig());
+    manager.applyConsents();
+
+    const iframe = document.querySelector<HTMLIFrameElement>('iframe[data-name="youtube"]');
+    expect(iframe).not.toBeNull();
+    expect(iframe?.getAttribute('src')).toBe('about:blank');
+  });
+
   it('inserts a notice next to a blocked <script> element', () => {
     const script = document.createElement('script');
     script.setAttribute('data-name', 'youtube');
