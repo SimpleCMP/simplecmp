@@ -1,6 +1,6 @@
 # 0012. Universal pre-consent blocking of third-party requests
 
-- **Status:** accepted (strategic direction; implementation gated post-1.0)
+- **Status:** accepted; implementation in progress (Phase 0 done 2026-05-21; remaining gates lifted same day)
 - **Date:** 2026-05-21
 - **Deciders:** Ilja Melnicenko
 
@@ -234,34 +234,29 @@ into; this ADR commits to closing it.
   — the placeholder UI, the per-service allowlist, the
   detection-driven service catalog are all reusable here.
 
-## Implementation gates / triggers to start
+## Implementation status
 
-The ADR is accepted; implementation is gated. Start when:
+All implementation gates removed 2026-05-21. The ADR's original
+gates were author caution about pre-1.0 churn risk + premature
+cross-CMS abstraction; Ilja's direction is "proceed without those
+guardrails." Notes for future selves so the rationale isn't lost:
 
-1. **SimpleCMP has reached 1.0.** Universal blocking is too
-   architecturally invasive for the pre-1.0 churn window.
-   Stability of the engine + library APIs is a prerequisite.
-2. **The TYPO3 plugin has at least one CMS-plugin sibling**
-   (WordPress or Contao). The output-rewrite mechanism has to
-   live in each CMS plugin separately — having a second plugin
-   in scope forces the design to factor out CMS-agnostic
-   concerns (host-list management, runtime patch loader)
-   instead of accidentally entangling them with TYPO3 specifics.
+- **Pre-1.0 churn risk** — accepted. The blocking mechanism is
+  additive (opt-in via config flag) and doesn't break existing
+  consumers. Pre-1.0 instability of *other* APIs (engine,
+  contextual-notice copy, library schema) may force re-work
+  inside the blocking code, but that's a cost we'll absorb.
+- **Cross-CMS abstraction** — deferred but not gating. The TYPO3
+  rewriter will accumulate TYPO3-specific patterns; when a second
+  CMS plugin lands (WordPress, Contao, or another), Phase 3
+  factors out what's shared. Until then, single-CMS specifics
+  in `Classes/UniversalBlocking/` are acceptable.
+- **Interpretation A** — dropped (see also revision history at
+  the bottom of this file).
 
-> **Revision 2026-05-21:** the original ADR also listed
-> "Interpretation A has shipped and stabilised" as a gate.
-> Interpretation A was a banner-completeness feature (detected
-> services appear on the banner so the visitor's consent decision is
-> legally complete) that doesn't deliver actual blocking. On further
-> review the banner-completeness gap turned out not to be the felt
-> problem; only B's technical blocking is. A was dropped; B no longer
-> depends on it.
-
-If any of those gates slip past expected timing — e.g. the German
-market visibly shifts and CCM19 displacement becomes urgent before
-1.0 — reopen the conversation and decide whether to defer 1.0 or
-ship universal blocking earlier under a `0.x.0` minor that
-documents the still-pre-1.0 churn risk.
+Status: Phase 0 prototypes done 2026-05-21; Phase 1+2
+productionisation is now the active work, can start anytime. See
+ADR-0013 for the phase breakdown.
 
 ## Triggers to revisit *this* ADR
 

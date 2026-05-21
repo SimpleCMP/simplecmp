@@ -1,11 +1,12 @@
 # 0013. Implementation plan for universal pre-consent blocking
 
-- **Status:** accepted
+- **Status:** accepted (Phase 0 complete 2026-05-21; remaining gates
+  lifted same day — see "Phasing")
 - **Date:** 2026-05-21
 - **Deciders:** Ilja Melnicenko
 - **Supersedes:** —
 - **Related:** ADR-0012 (strategic decision); this ADR is the
-  implementation plan it gates.
+  implementation plan.
 
 ## Context
 
@@ -40,37 +41,40 @@ performance budget — are resolved in this ADR.
 
 ### Phasing
 
-Five phases, with explicit exit criteria between them so we don't
-half-ship a fragile rewriter under deadline pressure.
+Five phases. Phase 0 done; Phases 1+2 can start anytime, no
+remaining gates (see revision note below). Phase 3 deferred until
+a second CMS plugin appears; Phase 4 hardening follows after.
 
-**Phase 0 — Design spike** (1–2 weeks; starts immediately on a
-feature branch, parallel to 1.0 work). Two prototypes plus a
-measurement report. Exit criteria:
+**Phase 0 — Design spike. DONE 2026-05-21.** Two prototypes + a
+measurement report on the `feature/universal-blocking` branch.
+Exit criteria met:
 
-- HTML-rewriter prototype on dev14 hits the performance budget
-  defined below on 5 representative pages.
-- FE monkey-patch prototype blocks a programmatically-injected
-  third-party script on a dev page and doesn't break the existing
-  banner / modal / recorder flow.
-- All 12 critical design calls in this ADR have a documented
-  answer (even if "punt for now, revisit in Phase 1").
-- Clear "go/redesign" recommendation captured in a Phase 0 report.
+- HTML-rewriter prototype measures ~5 ms p50 across all 5 dev14
+  pages including the synthetic 30-iframe worst-case (budget was
+  <30 ms typical / <80 ms worst-case).
+- FE monkey-patch prototype catches all six JS-injected mechanisms
+  (`script.src`, `iframe.src`, `img.src`, `fetch`, `XHR`,
+  `sendBeacon`) without breaking the install/uninstall lifecycle.
+- All 12 critical design calls have documented outcomes.
+- Phase 0 report (`docs/phase0/REPORT.md`) recommends **go**.
 
-**Phase 1 — TYPO3 rewriter productionised** (~5 days, gated by 1.0
-+ Phase 0 green). Middleware wired into the FE pipeline running
-last; per-Site-Set toggle + host allowlist; cache integration;
-functional tests.
+**Phase 1 — TYPO3 rewriter productionised** (~5 days). Middleware
+wired into the FE pipeline running last; per-Site-Set toggle +
+host allowlist; cache integration; functional tests. Replaces the
+env-var/query-param Phase 0 gating with proper Site Set config.
 
-**Phase 2 — FE runtime patches** (~5 days, parallelisable with
-Phase 1). `createElement('script'|'iframe')`, `XHR.open`, `fetch`,
-`sendBeacon`. Gated by `interceptRuntime: true` config so sites can
-opt in. Playwright specs covering GTM-style loaders, fetch
-interception, image-pixel blocking.
+**Phase 2 — FE runtime patches productionised** (~5 days,
+parallelisable with Phase 1). Wire `installRuntimePatches({...})`
+into `init()` gated by a new `interceptRuntime: true` config flag.
+Replace the mock matcher with a library-derived one and the mock
+consent checker with `manager.getConsent`. Playwright specs.
 
-**Phase 3 — Cross-CMS abstraction** (~3 days, gated by WordPress
-plugin work starting). Factor out library-origin-matcher, host
-allowlist storage, runtime patch loader as CMS-agnostic; the
-TYPO3-specific glue stays in the TYPO3 ext.
+**Phase 3 — Cross-CMS abstraction** (~3 days). Triggered by
+WordPress (or other) plugin work *starting* — not blocking Phase 1
+or 2. Factors out library-origin-matcher, host-allowlist storage,
+runtime patch loader as CMS-agnostic; TYPO3-specific glue stays in
+the TYPO3 ext. Skipped/postponed if no second CMS plugin
+materialises.
 
 **Phase 4 — Hardening + documentation** (~3 days). Three to five
 real sites tested; documented fragility surface; migration guide
@@ -78,7 +82,15 @@ from manual `[data-name]` opt-in to universal blocking; ADR-0012
 trigger list updated based on lessons learned.
 
 Total estimate: ~2.5 weeks of focused work plus integration time
-across sites. The Phase 0 spike narrows that estimate considerably.
+across sites.
+
+> **Revision 2026-05-21:** the original ADR gated Phase 1+ on "1.0
+> reached" + "second CMS plugin in scope". Both gates lifted same
+> day. Pre-1.0 churn risk is accepted (the mechanism is opt-in via
+> config flag, additive, doesn't break existing consumers). The
+> WordPress-plugin gate was a guardrail against premature
+> abstraction in Phase 3 — Phase 3 itself is still deferred until a
+> second plugin lands, but Phases 1+2 don't depend on Phase 3.
 
 ### Performance budget
 
