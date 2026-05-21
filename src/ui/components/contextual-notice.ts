@@ -176,10 +176,17 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
   /**
    * Resolve the title shown on the notice. Precedence:
    *
-   * 1. `service.placeholderTitle` — explicit per-service override from
-   *    the integrator (CMS BE, settings.yaml, or the JS config).
-   * 2. The translated `!.<service>.title?` (i18n table).
-   * 3. `asTitle(service.name)` — title-cased fallback so a notice for
+   * 1. `service.placeholderTitle` — explicit per-service override on
+   *    the JS init config. Used as-is so integrators who hardcode it
+   *    bypass the translation chain entirely.
+   * 2. The translated `!.<service>.placeholderTitle?` (i18n table).
+   *    This is what CMS plugins use to surface library-curated copy
+   *    per-language without forcing every integrator to set the
+   *    service property.
+   * 3. The translated `!.<service>.title?` — falls back to the
+   *    service's regular title so a notice without a dedicated
+   *    placeholder title still reads sensibly.
+   * 4. `asTitle(service.name)` — title-cased fallback so a notice for
    *    `'google-maps'` reads "Google Maps" even when nothing else is
    *    configured.
    */
@@ -187,18 +194,24 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
     if (typeof service.placeholderTitle === 'string' && service.placeholderTitle.length > 0) {
       return service.placeholderTitle;
     }
-    return this._tString(['!', service.name, 'title?']) || asTitle(service.name);
+    return (
+      this._tString(['!', service.name, 'placeholderTitle?']) ||
+      this._tString(['!', service.name, 'title?']) ||
+      asTitle(service.name)
+    );
   }
 
   /**
    * Resolve the description shown on the notice. Precedence:
    *
-   * 1. `service.placeholderDescription` — explicit per-service override.
-   *    Used as-is, no interpolation, so admins can write a complete
-   *    sentence ("This map needs Google Maps to load.").
-   * 2. The translated `contextualConsent.description` with `{title}`
-   *    interpolation — the default ("Click here to load the {title}
-   *    content").
+   * 1. `service.placeholderDescription` — explicit per-service override
+   *    on the JS init config. Used as-is, no interpolation.
+   * 2. The translated `!.<service>.placeholderDescription?` (i18n
+   *    table). CMS plugins surface library-curated copy per-language
+   *    through this slot.
+   * 3. The translated `contextualConsent.description` template with
+   *    `{title}` interpolation — the language-aware default ("Click
+   *    here to load the {title} content").
    */
   private _resolveDescription(service: Service, title: string): unknown {
     if (
@@ -206,6 +219,10 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
       service.placeholderDescription.length > 0
     ) {
       return service.placeholderDescription;
+    }
+    const fromI18n = this._tString(['!', service.name, 'placeholderDescription?']);
+    if (fromI18n !== '') {
+      return fromI18n;
     }
     return this._t(['contextualConsent', 'description'], { title });
   }
