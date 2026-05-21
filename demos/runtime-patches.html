@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Runtime-patches demo — ADR-0013 Phase 0</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1.5rem; line-height: 1.5; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.05rem; margin-top: 1.5rem; }
+    .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin: 0.5rem 0; }
+    button { font: inherit; padding: 0.35rem 0.85rem; border: 1px solid #888; background: #f5f5f5; cursor: pointer; border-radius: 3px; }
+    button:hover { background: #e8e8e8; }
+    label { font-size: 0.95rem; }
+    code { background: #f4f4f4; padding: 0.1em 0.3em; border-radius: 2px; }
+    .log {
+      margin-top: 1rem;
+      padding: 0.5rem;
+      max-height: 300px;
+      overflow: auto;
+      background: #fafafa;
+      border: 1px solid #ddd;
+      font-family: monospace;
+      font-size: 0.85rem;
+    }
+    .log .blocked { color: #b80000; }
+    .log .allowed { color: #1a6700; }
+    .log .info { color: #555; }
+    .state-on { background: #cfe9d5; }
+    .state-off { background: #f8d6d6; }
+  </style>
+</head>
+<body>
+  <h1>Runtime-patches demo (ADR-0013 Phase 0)</h1>
+
+  <p>
+    Verifies the six runtime monkey-patches block known third-party
+    calls when consent isn't granted, and pass them through when it is.
+    Hosts in <code>third-party.test</code> match the demo's mock
+    matcher (service id <code>tracker</code>); everything else passes
+    through as either same-origin or unknown.
+  </p>
+
+  <div class="row">
+    <strong>Consent for <code>tracker</code>:</strong>
+    <button id="toggle">toggle</button>
+    <span id="state" class="state-off">denied</span>
+  </div>
+
+  <h2>1. Programmatic <code>&lt;script src&gt;</code></h2>
+  <div class="row">
+    <button data-test="script">inject script tag (third-party)</button>
+    <button data-test="script-same-origin">inject script tag (same-origin)</button>
+  </div>
+
+  <h2>2. Programmatic <code>&lt;iframe src&gt;</code></h2>
+  <div class="row">
+    <button data-test="iframe">inject iframe (third-party)</button>
+  </div>
+
+  <h2>3. <code>new Image()</code> tracking pixel</h2>
+  <div class="row">
+    <button data-test="image">fire image pixel (third-party)</button>
+  </div>
+
+  <h2>4. <code>fetch()</code></h2>
+  <div class="row">
+    <button data-test="fetch">fetch tracking endpoint (third-party)</button>
+  </div>
+
+  <h2>5. <code>XMLHttpRequest</code></h2>
+  <div class="row">
+    <button data-test="xhr">XHR to tracking endpoint (third-party)</button>
+  </div>
+
+  <h2>6. <code>navigator.sendBeacon</code></h2>
+  <div class="row">
+    <button data-test="beacon">sendBeacon to tracking endpoint (third-party)</button>
+  </div>
+
+  <h2>Activity log</h2>
+  <div id="log" class="log"></div>
+
+  <script type="module">
+    // Built by tsup as a separate entry — see tsup.config.ts.
+    // Run `pnpm build` first; demo loads via `pnpm demo`.
+    import { installRuntimePatches } from '/dist/runtime-patches.mjs';
+
+    // Demo state: a single fake third-party service called "tracker".
+    // Real production code wires this to the engine's ConsentManager +
+    // the library-derived host matcher.
+    const KNOWN_HOSTS = new Set(['third-party.test', 'cdn.third-party.test']);
+    let trackerConsent = false;
+
+    installRuntimePatches({
+      matcher: (host) => KNOWN_HOSTS.has(host) ? 'tracker' : null,
+      consentChecker: (service) => service === 'tracker' ? trackerConsent : true,
+      onBlock: (info) => log(`✗ blocked ${info.mechanism} — ${info.service} — ${info.url}`, 'blocked'),
+    });
+
+    const logEl = document.getElementById('log');
+    const stateEl = document.getElementById('state');
+    const toggleBtn = document.getElementById('toggle');
+
+    function log(message, cls = 'info') {
+      const line = document.createElement('div');
+      line.className = cls;
+      line.textContent = `[${new Date().toISOString().slice(11, 23)}] ${message}`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function updateState() {
+      stateEl.textContent = trackerConsent ? 'granted' : 'denied';
+      stateEl.className = trackerConsent ? 'state-on' : 'state-off';
+    }
+    updateState();
+    toggleBtn.addEventListener('click', () => {
+      trackerConsent = !trackerConsent;
+      updateState();
+      log(`consent toggled → ${trackerConsent ? 'granted' : 'denied'}`, 'info');
+    });
+
+    // --- test triggers -----------------------------------------------
+
+    const tests = {
+      script() {
+        const s = document.createElement('script');
+        s.src = 'https://third-party.test/analytics.js';
+        document.head.appendChild(s);
+        // Whether the network request actually fired is the test —
+        // the patch swallows the .src setter, so the appendChild
+        // touches a still-srcless element.
+        log(`tried script src → ${s.src || '(blocked)'}`, s.src ? 'allowed' : 'info');
+      },
+      'script-same-origin'() {
+        const s = document.createElement('script');
+        s.src = `${location.origin}/never-existed.js`;
+        log(`tried same-origin script → src=${s.src}`, 'allowed');
+        // We don't actually append it (404 would clutter the log).
+      },
+      iframe() {
+        const f = document.createElement('iframe');
+        f.src = 'https://third-party.test/widget';
+        document.body.appendChild(f);
+        log(`tried iframe src → ${f.src || '(blocked)'}`, f.src ? 'allowed' : 'info');
+        f.remove();
+      },
+      image() {
+        const i = new Image();
+        i.src = 'https://third-party.test/pixel.gif?id=abc';
+        log(`tried image src → ${i.src || '(blocked)'}`, i.src ? 'allowed' : 'info');
+      },
+      async fetch() {
+        try {
+          await fetch('https://third-party.test/beacon?event=pageview');
+          log('fetch → resolved (passed through)', 'allowed');
+        } catch (err) {
+          log(`fetch → rejected (${err.message})`, 'info');
+        }
+      },
+      xhr() {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', 'https://third-party.test/track', true);
+        xhr.onload = () => log(`xhr → loaded ${xhr.status}`, 'allowed');
+        xhr.onerror = () => log('xhr → onerror', 'allowed');
+        xhr.send(JSON.stringify({ event: 'pageview' }));
+        // If blocked, neither onload nor onerror fires (we no-op send).
+        // Synthesise a check: 50 ms later if neither fired, it was blocked.
+        setTimeout(() => {
+          if (xhr.readyState === XMLHttpRequest.UNSENT || xhr.readyState === XMLHttpRequest.OPENED) {
+            log('xhr → send was no-op (blocked)', 'info');
+          }
+        }, 50);
+      },
+      beacon() {
+        const ok = navigator.sendBeacon('https://third-party.test/beacon', 'event=unload');
+        log(`sendBeacon → return ${ok}`, ok ? 'allowed' : 'info');
+      },
+    };
+
+    document.body.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-test]');
+      if (!button) return;
+      tests[button.dataset.test]();
+    });
+  </script>
+</body>
+</html>

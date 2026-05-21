@@ -33,7 +33,15 @@ export default defineConfig([
   //  - `engine`    — UI-free headless surface (REQ-N2); reached via the
   //    `simplecmp/engine` subpath export in `package.json`.
   {
-    entry: { simplecmp: 'src/index.ts', engine: 'src/engine/index.ts' },
+    entry: {
+      simplecmp: 'src/index.ts',
+      engine: 'src/engine/index.ts',
+      // ADR-0013 Phase 0 — runtime patches for universal pre-consent
+      // blocking, prototype on feature/universal-blocking. Drop this
+      // entry when Phase 0 exits with a redesign (else keep through to
+      // Phase 2 productionisation).
+      'runtime-patches': 'src/runtime-patches/index.ts',
+    },
     format: ['esm'],
     outDir: 'dist',
     outExtension: () => ({ js: '.mjs' }),
