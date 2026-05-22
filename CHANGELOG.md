@@ -10,6 +10,19 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Added
 
+- **Purposes line in the contextual notice.** A muted "Zwecke:
+  Marketing, Statistik" line renders below the description when the
+  service has known purposes — gives the visitor a clear "what AM
+  I consenting to?" signal at the point of consent. Two data
+  sources, in precedence order: (1) `service.purposes` for state-1
+  configured services; (2) new `ConsentConfig.libraryFallback?.<name>.purposes`
+  for state-2 library-known unknowns. Integrators (TYPO3 ext, future
+  WordPress plugin) populate `libraryFallback` to surface library
+  purposes for state-2 services without shipping the entire library
+  to FE. New `LibraryFallback` type exported from
+  `src/engine/index.ts`. State 3 (truly unknown hosts) intentionally
+  omits purposes — we have no data and the visitor has no consent
+  path anyway.
 - **Three-state contextual notices for library-known and host-derived
   blocks (ADR-0013 Phase 4 step 4c).** Closes the "white void" the
   visitor used to see when a `[data-name]` element's service wasn't

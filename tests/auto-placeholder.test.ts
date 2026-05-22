@@ -261,6 +261,39 @@ describe('auto-placeholder click-to-enable', () => {
     expect(shadow?.querySelector('p')).not.toBeNull();
   });
 
+  it('state 2 — surfaces purposes from libraryFallback when service is not in config', async () => {
+    // libraryFallback is the integrator-supplied per-service metadata
+    // that lets state-2 notices show "Zwecke: …" without shipping the
+    // whole library to FE. Used by the TYPO3 ext when universal
+    // blocking is on.
+    const config: ConsentConfig = {
+      ...makeConfig(),
+      // Service NOT in config.services but in libraryFallback.
+      libraryFallback: {
+        'unknown-from-library': { purposes: ['marketing', 'analytics'] },
+      },
+    } as ConsentConfig;
+
+    const notice = document.createElement('simplecmp-contextual-notice');
+    notice.setAttribute('service-name', 'unknown-from-library');
+    notice.setAttribute('data-blocked-source', 'library');
+    (
+      notice as unknown as { config: ConsentConfig; manager: ReturnType<typeof getManager> }
+    ).config = config;
+    (notice as unknown as { manager: ReturnType<typeof getManager> }).manager = getManager(config);
+    document.body.appendChild(notice);
+    await (notice as unknown as { updateComplete: Promise<void> }).updateComplete;
+
+    const purposesP = notice.shadowRoot?.querySelector('p.purposes');
+    expect(purposesP).not.toBeNull();
+    // Resolved against existing `purposes.marketing.title` /
+    // `purposes.analytics.title` keys in the i18n table — content
+    // depends on whether the test config wired up translations
+    // (which it doesn't), so we assert on the dedicated CSS class
+    // + the count of `<p>` elements (description + purposes line).
+    expect(notice.shadowRoot?.querySelectorAll('p')).toHaveLength(2);
+  });
+
   it('state 1 (in config) — renders full set: accept-once + Immer (if stored) + Cookie-Einstellungen', async () => {
     // The existing baseline — make sure my render-mode refactor didn't
     // regress the configured-service path.

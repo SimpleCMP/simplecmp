@@ -43,6 +43,7 @@ const events: Record<string, unknown[][]> = {};
 
 export type {
   ConsentConfig,
+  LibraryFallback,
   Service,
   ConsentWatcher,
   VersionMismatchInfo,

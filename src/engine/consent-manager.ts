@@ -78,6 +78,17 @@ export interface ServiceHandlerOpts {
   confirmed?: boolean;
 }
 
+/**
+ * Per-service metadata surfaced by `<simplecmp-contextual-notice>`
+ * when the service isn't in `config.services`. Currently only
+ * `purposes` is read (rendered as the "Zwecke: …" line in the
+ * notice). Additional fields can be added later (vendor, privacy
+ * policy URL, …) as the contextual-notice's UI grows. Keyed by
+ * the synthetic service id used in `data-name` — typically the
+ * library entry's id (e.g. `youtube`, `google-tag-manager`).
+ */
+export type LibraryFallback = Record<string, { purposes?: readonly string[] }>;
+
 /** Klaro/SimpleCMP consent-config shape — what ConsentManager reads. */
 export interface ConsentConfig {
   services: Service[];
@@ -107,6 +118,17 @@ export interface ConsentConfig {
    * needed when the integrator authors their own placeholders.
    */
   autoContextualPlaceholder?: boolean;
+  /**
+   * Per-service metadata for services NOT in `config.services` but
+   * known to a library (e.g. `simplecmp/services-library`). When a
+   * `<simplecmp-contextual-notice>` renders in state 2 (library-known
+   * but not in config), it looks up the synthetic service name here
+   * to surface purposes (and potentially other library metadata) in
+   * the notice text — without shipping the whole library to the FE.
+   * Typically populated by a CMS plugin (TYPO3 ext, future WordPress
+   * plugin) when universal blocking is enabled.
+   */
+  libraryFallback?: LibraryFallback;
   // i18n
   lang?: string;
   languages?: string[];

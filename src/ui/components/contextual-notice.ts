@@ -21,7 +21,7 @@
 import { css, html, nothing } from 'lit';
 import type { PropertyValues, TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import type { Service } from '../../engine/index.js';
+import type { ConsentConfig, LibraryFallback, Service } from '../../engine/index.js';
 import { asTitle } from '../../engine/utils/strings.js';
 import { SimpleCmpElement } from '../base.js';
 import { tokens } from '../styles/tokens.js';
@@ -81,6 +81,11 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
 
       p {
         margin: 0 0 var(--simplecmp-spacing) 0;
+      }
+
+      p.purposes {
+        font-size: 0.875em;
+        color: var(--simplecmp-color-text-muted);
       }
 
       .buttons {
@@ -227,7 +232,8 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
     // State 3 (`host`): informational only — visitor has no basis to
     // grant informed consent to an unknown vendor and there's no
     // service config to drive a meaningful toggle. The admin path is
-    // the only way to enable this content.
+    // the only way to enable this content. Purposes are omitted in
+    // state 3 — we don't have library data for the synthetic host id.
     if (mode === 'host') {
       return html`<p>${description}</p>`;
     }
@@ -242,6 +248,7 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
 
     return html`
       <p>${description}</p>
+      ${this._renderPurposes(service)}
       <div class="buttons">
         <button type="button" class="accept-once" @click=${this._onAcceptOnce}>
           ${this._t(['contextualConsent', 'acceptOnce'])}
@@ -262,6 +269,42 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
         }
       </div>
     `;
+  }
+
+  /**
+   * Render the per-service purposes as a small "Zwecke: Marketing,
+   * Statistik" line below the description, so the visitor sees WHY
+   * they'd be loading the content (informed-consent ergonomics).
+   *
+   * Two data sources, in precedence order:
+   * 1. `service.purposes` — populated for state-1 services (in
+   *    `config.services`).
+   * 2. `config.libraryFallback?.<name>.purposes` — populated by
+   *    integrators (TYPO3 ext when universalBlocking is on) for
+   *    state-2 library-known-but-not-in-config services. The
+   *    synthesized service used in state 2 has empty purposes by
+   *    default; this fallback lets it surface library data without
+   *    shipping the whole library to FE.
+   *
+   * Returns `nothing` when no purposes are resolvable.
+   */
+  private _renderPurposes(service: Service): TemplateResult | typeof nothing {
+    let purposes: readonly string[] = service.purposes ?? [];
+    if (purposes.length === 0 && this.config !== undefined) {
+      const fallback = (this.config as ConsentConfig & { libraryFallback?: LibraryFallback })
+        .libraryFallback;
+      const entry = fallback?.[service.name];
+      if (entry?.purposes !== undefined) {
+        purposes = entry.purposes;
+      }
+    }
+    if (purposes.length === 0) return nothing;
+    const titles = purposes
+      .map((id) => this._tString(['purposes', id, 'title']))
+      .filter((t) => t.length > 0);
+    if (titles.length === 0) return nothing;
+    const label = this._tString(['service', 'purposes']) || 'Purposes';
+    return html`<p class="purposes">${label}: ${titles.join(', ')}</p>`;
   }
 
   /**
