@@ -39,6 +39,20 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
   in `tests/bridge/discover-mode.spec.ts` cover the override and the
   control case.
 
+### Changed
+
+- **`init()` is now safe to call before `document.body` is parsed.**
+  The DOM-free setup (manager creation, recorder start, runtime-patch
+  installation) runs immediately; the banner/modal mount is deferred
+  to `DOMContentLoaded` when body isn't ready yet. Lets integrators
+  wire the SimpleCMP bundle + the inline `init()` call into `<head>`
+  so the runtime patches install BEFORE any inline body script can
+  dispatch third-party requests — previously `init()` would throw on
+  the first `document.body.appendChild(...)` inside `mountUI`. The
+  returned handle's `show()` / `hide()` queue if mount is deferred
+  and replay once it lands. `handle.manager` is available immediately
+  regardless. No API change — pre-body callers just stop throwing.
+
 ### Fixed
 
 - **Bandwidth-control options now reach the bridge from the public
