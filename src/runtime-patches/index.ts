@@ -179,6 +179,22 @@ function patchElementSrc(
     enumerable: original.enumerable,
     get: original.get,
     set(value: string) {
+      // Engine-managed elements carry `data-name`. When the engine
+      // grants consent (visitor clicks "Ja" on a contextual notice),
+      // it swaps the iframe's src from `about:blank` to the real URL
+      // — and that assignment lands here. Defer to consent for the
+      // data-name BEFORE running the URL-host matcher: under
+      // `universalBlock`, the matcher would synthesize a host-derived
+      // service id (e.g. `www.youtube-nocookie.com`) for which no
+      // consent has been recorded under that exact name, and the
+      // engine's data-name-keyed grant (e.g. `youtube`) would be
+      // silently overridden. Without this short-circuit, "Ja" on a
+      // state-2 notice clicks through but the iframe never loads.
+      const dataName = (this as Element).getAttribute?.('data-name');
+      if (dataName !== null && dataName !== undefined && opts.consentChecker(dataName) === true) {
+        originalSet.call(this, value);
+        return;
+      }
       const service = decideBlock(value, opts);
       if (service !== null) {
         opts.onBlock({ mechanism, url: value, service });

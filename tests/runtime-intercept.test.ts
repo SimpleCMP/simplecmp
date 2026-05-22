@@ -255,6 +255,45 @@ describe('init({ interceptRuntime })', () => {
     handle.destroy();
   });
 
+  it('respects data-name consent on engine-managed elements (state-2 Ja click unblocks)', () => {
+    // Regression guard for the state-2 accept-once flow. When the
+    // visitor clicks "Ja" on a state-2 notice (library-known but not
+    // in config.services), the engine grants consent under the
+    // data-name and then assigns the real src to the iframe. Without
+    // the data-name short-circuit, the runtime patch's universalBlock
+    // fallback would see the host (e.g. www.youtube-nocookie.com),
+    // not find it in consents under that exact name, and re-block —
+    // visitor clicks Ja but the iframe stays at about:blank.
+    const handle = init({
+      storageName: 'simplecmp-intercept-data-name-consent',
+      services: [], // youtube intentionally NOT in config (state 2)
+      interceptRuntime: {
+        universalBlock: true,
+        sameOriginHosts: ['localhost'],
+      },
+    });
+
+    // Simulate the engine's swap-back: iframe carries `data-name`,
+    // visitor consent was granted under that name.
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('data-name', 'youtube');
+    iframe.setAttribute('data-src', 'https://www.youtube-nocookie.com/embed/test');
+
+    // Grant consent under the data-name (what _onAcceptOnce does).
+    handle.manager.updateConsent('youtube', true);
+
+    // Now the engine assigns the real src. Without the fix the patch
+    // would block (matcher returns 'www.youtube-nocookie.com',
+    // consent for that key is false). With the fix, the data-name
+    // grant short-circuits the check.
+    iframe.src = 'https://www.youtube-nocookie.com/embed/test';
+    expect(iframe.src).toBe('https://www.youtube-nocookie.com/embed/test');
+
+    // Reset for hygiene — accept-once flips the consent back.
+    handle.manager.updateConsent('youtube', false);
+    handle.destroy();
+  });
+
   it('destroy() restores the native prototype src setter', () => {
     const handle = init({
       storageName: 'simplecmp-intercept-destroy',

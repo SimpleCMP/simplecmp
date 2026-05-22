@@ -140,6 +140,19 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Fixed
 
+- **State-2 "Ja" click now actually unblocks the iframe.** When the
+  visitor accepted a state-2 contextual notice (library-known but
+  not in `config.services`), the engine swapped the iframe's src
+  from `about:blank` to the real URL — but with `universalBlock:
+  true` the runtime patch's `src` setter re-blocked the assignment
+  because the URL's host (e.g. `www.youtube-nocookie.com`) didn't
+  match the consent grant keyed on the data-name (`youtube`). The
+  iframe stayed at `about:blank` even after the click. Fix: the
+  `src` setter on `HTMLScriptElement` / `HTMLIFrameElement` /
+  `HTMLImageElement` now short-circuits when the element carries a
+  `data-name` and consent for that name is granted. Engine-managed
+  elements defer to data-name consent; unmarked third-party calls
+  go through the normal host-based decideBlock path.
 - **Bandwidth-control options now reach the bridge from the public
   `init()` config.** The schema-v2 work added `crossSessionDedupMs`,
   `flushDebounceMs`, `maxBatchSize`, `sampleRate`, and
