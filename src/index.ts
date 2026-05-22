@@ -17,7 +17,7 @@ import {
   getManager as engineGetManager,
   updateConfig as engineUpdateConfig,
 } from './engine/index.js';
-import type { ConsentConfig, Service } from './engine/index.js';
+import type { ConsentConfig, ConsentManager, Service } from './engine/index.js';
 import bundledTranslations from './engine/translations/index.js';
 import { convertToMap, update } from './engine/utils/maps.js';
 import { LocalClassifier } from './recorder/classifier.js';
@@ -305,39 +305,80 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
     activeRuntimePatchUninstaller = null;
   }
 
-  const handle = mountUI(config);
+  // Phase 1 — set up everything that doesn't need the DOM. Critically,
+  // the recorder + runtime patches install BEFORE any inline body script
+  // can dispatch third-party requests when init() is called pre-body
+  // (e.g. from a TYPO3 head-priority asset). `getManager(config)` is
+  // pure JS (the engine's manager cache); the recorder uses
+  // `document.documentElement` not `document.body`; patches just swap
+  // prototype descriptors. None need a parsed body.
+  const manager = engineGetManager(config);
   if (config.record) startRecorder(config);
   if (config.interceptRuntime) {
-    activeRuntimePatchUninstaller = installRuntimePatchesForConfig(config, handle);
+    activeRuntimePatchUninstaller = installRuntimePatchesWithManager(config, manager);
   }
-  // Wrap destroy() so it also tears the runtime patches down. The
-  // returned handle still satisfies the LitInitHandle interface; the
-  // wrapping is invisible to callers.
+
+  // Phase 2 — mount the UI. Defer to DOMContentLoaded if body isn't
+  // ready yet so callers can wire init() into <head> without breaking
+  // the banner/modal/trigger mount path.
+  let mountedHandle: LitInitHandle | null = null;
+  type QueuedOp = 'show' | 'hide';
+  const queued: QueuedOp[] = [];
+  const mountNow = (): void => {
+    mountedHandle = mountUI(config);
+    for (const op of queued) {
+      if (op === 'show') mountedHandle.show();
+      else mountedHandle.hide();
+    }
+    queued.length = 0;
+  };
+  let deferredMountListener: (() => void) | null = null;
+  if (typeof document !== 'undefined' && document.body !== null) {
+    mountNow();
+  } else if (typeof document !== 'undefined') {
+    deferredMountListener = mountNow;
+    document.addEventListener('DOMContentLoaded', deferredMountListener, { once: true });
+  }
+
+  // Wrap into a single handle that proxies show/hide to the mounted
+  // handle when available and queues otherwise. destroy() also tears
+  // the runtime patches down so re-init / explicit teardown is clean.
   activeHandle = {
-    show: handle.show.bind(handle),
-    hide: handle.hide.bind(handle),
-    manager: handle.manager,
+    show: () => {
+      if (mountedHandle !== null) mountedHandle.show();
+      else queued.push('show');
+    },
+    hide: () => {
+      if (mountedHandle !== null) mountedHandle.hide();
+      else queued.push('hide');
+    },
+    manager,
     destroy: () => {
       if (activeRuntimePatchUninstaller !== null) {
         activeRuntimePatchUninstaller();
         activeRuntimePatchUninstaller = null;
       }
-      handle.destroy();
+      if (deferredMountListener !== null && typeof document !== 'undefined') {
+        document.removeEventListener('DOMContentLoaded', deferredMountListener);
+        deferredMountListener = null;
+      }
+      mountedHandle?.destroy();
+      mountedHandle = null;
+      queued.length = 0;
     },
   };
   return activeHandle;
 }
 
-function installRuntimePatchesForConfig(
+function installRuntimePatchesWithManager(
   config: SimpleCMPConfig,
-  handle: LitInitHandle
+  manager: ConsentManager
 ): () => void {
   const opts: InterceptRuntimeOptions =
     typeof config.interceptRuntime === 'object' && config.interceptRuntime !== null
       ? config.interceptRuntime
       : {};
   const matcher = buildHostMatcher(config.services);
-  const manager = handle.manager;
   return installRuntimePatches({
     matcher,
     consentChecker: (serviceId: string) => manager.getConsent(serviceId),

@@ -162,4 +162,76 @@ describe('init({ interceptRuntime })', () => {
     handle.destroy();
     expect(currentImageSrcSetter()).toBe(nativeImageSrcSetter);
   });
+
+  // The key Phase 4 hardening property: when init() is called from a
+  // head-priority asset slot (TYPO3 universal-blocking integration),
+  // patches must install BEFORE inline body scripts execute. Mount
+  // gets deferred to DOMContentLoaded.
+  it('installs runtime patches even when document.body is not yet ready', () => {
+    // Override the instance property so `document.body` returns null
+    // for the duration of the try block. `delete` in finally restores
+    // access to the prototype's native getter.
+    Object.defineProperty(document, 'body', {
+      configurable: true,
+      get: () => null,
+    });
+    try {
+      const blocked: string[] = [];
+      init({
+        storageName: 'simplecmp-intercept-pre-body',
+        services: [{ name: 'analytics', origins: ['analytics.example.com'] }],
+        interceptRuntime: {
+          sameOriginHosts: ['localhost'],
+          onBlock: (info) => {
+            blocked.push(`${info.mechanism}:${info.service}`);
+          },
+        },
+      });
+      // Patches installed despite body being null.
+      expect(currentImageSrcSetter()).not.toBe(nativeImageSrcSetter);
+
+      // And they're wired to a real manager, so consent checks work.
+      const img = new Image();
+      img.src = 'https://analytics.example.com/pixel.gif';
+      expect(img.src === '' || img.src === 'about:blank').toBe(true);
+      expect(blocked).toContain('img-src:analytics');
+    } finally {
+      // Drop the own-property override so accesses fall back to the
+      // prototype getter (which returns the real body again).
+      Reflect.deleteProperty(document, 'body');
+    }
+  });
+
+  it('deferred mount happens on DOMContentLoaded and replays queued show()', () => {
+    // Override the instance property so `document.body` returns null
+    // for the duration of the try block. `delete` in finally restores
+    // access to the prototype's native getter.
+    Object.defineProperty(document, 'body', {
+      configurable: true,
+      get: () => null,
+    });
+    let handle: ReturnType<typeof init>;
+    try {
+      handle = init({
+        storageName: 'simplecmp-intercept-pre-body-mount',
+        services: [{ name: 'analytics', origins: ['analytics.example.com'] }],
+        interceptRuntime: { sameOriginHosts: ['localhost'] },
+      });
+      // Pre-mount: show() must not throw, it queues until mount.
+      expect(() => handle.show()).not.toThrow();
+      // Nothing should be mounted yet.
+      expect(document.querySelector('simplecmp-modal')).toBeNull();
+    } finally {
+      // Drop the own-property override so accesses fall back to the
+      // prototype getter (which returns the real body again).
+      Reflect.deleteProperty(document, 'body');
+    }
+    // Body is restored; fire DOMContentLoaded.
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+    const modal = document.querySelector('simplecmp-modal');
+    expect(modal).not.toBeNull();
+    // Queued show() should have been replayed — modal opens.
+    expect((modal as HTMLElement & { open?: boolean }).open).toBe(true);
+    handle.destroy();
+  });
 });
