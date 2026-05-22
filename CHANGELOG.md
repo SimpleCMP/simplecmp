@@ -10,6 +10,46 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Added
 
+- **Three-state contextual notices for library-known and host-derived
+  blocks (ADR-0013 Phase 4 step 4c).** Closes the "white void" the
+  visitor used to see when a `[data-name]` element's service wasn't
+  in `config.services`. The notice now picks one of three render
+  modes from `data-blocked-source` on the anchor:
+  - **state 1** (service in `config.services`) — full notice with
+    `accept-once` + `accept-always` (if stored) + `configure` buttons.
+    Unchanged from before.
+  - **state 2** (`data-blocked-source="library"`, service NOT in
+    config) — visitor sees the `accept-once` ("Ja") button only.
+    `accept-always` is hidden because there's no persistent toggle to
+    wire it to; `configure` is hidden because the modal has no entry
+    for an unconfigured service. The one-time consent grant is
+    defensible because the visitor recognises the library-derived
+    brand (e.g. "youtube").
+  - **state 3** (`data-blocked-source="host"`, universal-block caught
+    an otherwise-unknown third-party host) — informational notice
+    with NO buttons. The visitor has no basis to grant informed
+    consent to an unknown vendor; the only path forward is contacting
+    the site admin. New i18n key `contextualConsent.descriptionUnknownHost`
+    in EN + DE.
+  Companion changes:
+  - `ConsentManager._toggleAutoPlaceholder` copies `data-blocked-source`
+    from the anchor onto the engine-inserted notice so the render-mode
+    logic can pick it up.
+  - `ConsentManager.applyConsents` adds a second pass that processes
+    `[data-name]` elements whose service is NOT in `config.services` —
+    synthesizes a minimal `Service` and dispatches through the
+    existing pipeline. Without this, removing a service from
+    `config.services` while Phase 1 server-side rewriting still
+    produces `data-name` would leave a blank iframe with no notice.
+  - `<simplecmp-contextual-notice>` `:host` switched to flex column
+    with `justify-content: center` so the notice content centers
+    inside aspect-ratio-constrained wrappers (Bootstrap's
+    `.ratio ratio-16x9` etc.) instead of clinging to the top with
+    ~300px of white below.
+  - `initLit()` re-runs `manager.applyConsents()` at the end of
+    mountUI for the body-deferred init path (ADR-0013 Phase 4 step
+    1b) so the auto-placeholder logic catches `[data-name]` elements
+    that didn't exist when the manager was constructed in `<head>`.
 - **Universal pre-consent blocking — runtime patches (ADR-0013 Phase
   2).** New opt-in `interceptRuntime` config field on `init()`. When
   enabled, SimpleCMP installs prototype-level patches on

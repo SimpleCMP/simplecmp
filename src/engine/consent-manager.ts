@@ -460,6 +460,39 @@ export class ConsentManager {
 
       this.states[service.name] = consent;
     }
+
+    // Second pass: `[data-name]` elements whose service is NOT in
+    // `config.services`. Phase 1 server-side rewriting and universal
+    // pre-consent blocking can produce these — e.g. an admin removes a
+    // service from the registry but the library/host gating keeps
+    // marking embeds with that `data-name`. Without this pass, the
+    // element stays blocked at `about:blank` with no contextual notice
+    // (silent white void). The contextual-notice component's render-
+    // mode logic handles the visible UI; here we just ensure the
+    // notice gets inserted + `updateServiceElements` runs so the
+    // visitor's "Ja" click on a state-2 (library-known) notice can
+    // actually swap the src back in.
+    if (!dryRun && typeof document !== 'undefined') {
+      const knownNames = new Set(this.config.services.map((s) => s.name));
+      const seen = new Set<string>();
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-name]'))) {
+        const name = el.getAttribute('data-name');
+        if (name === null || name === '' || knownNames.has(name) || seen.has(name)) {
+          continue;
+        }
+        if (serviceName !== undefined && serviceName !== name) continue;
+        seen.add(name);
+        const syntheticService: Service = { name, purposes: [] };
+        // For unconfigured services the consent map starts empty;
+        // `getConsent` returns false. The visitor's "Ja" click on the
+        // state-2 notice runs `updateConsent(name, true)` before
+        // re-entering this code path, so the consent value reflects
+        // the in-progress acceptance.
+        const consent = this.getConsent(name);
+        this.updateServiceElements(syntheticService, consent);
+      }
+    }
+
     this.notify('applyConsents', { changedServices, serviceName });
     return changedServices;
   }
@@ -656,6 +689,16 @@ export class ConsentManager {
     notice.setAttribute('service-name', service.name);
     notice.setAttribute('data-simplecmp-auto-placeholder', '');
     notice.setAttribute('data-simplecmp-for', service.name);
+    // Propagate `data-blocked-source` (set by Phase 1 server-side
+    // rewriter — see TYPO3 ext `HtmlRewriter`) to the notice so its
+    // `_renderMode()` can pick the right UI: `library` → state 2
+    // (Ja only), `host` → state 3 (informational, no buttons),
+    // absent → defaults to state 2 / state 1 depending on config
+    // membership.
+    const blockedSource = anchor.getAttribute('data-blocked-source');
+    if (blockedSource !== null) {
+      notice.setAttribute('data-blocked-source', blockedSource);
+    }
     // The component reads `serviceName`, `config`, and `manager` as Lit
     // properties (not attributes) — without them, `_resolveService()`
     // returns undefined and the notice renders `nothing`. The UI mounter

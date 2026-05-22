@@ -13,6 +13,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ConsentConfig } from '../src/engine/index.js';
 import { getManager, resetManagers } from '../src/engine/index.js';
+// Side-effect import registers <simplecmp-contextual-notice> so the
+// engine's auto-placeholder logic (and the per-state render tests
+// below) have a real custom element to upgrade. Mirrors the
+// `src/ui/init.ts` runtime path. See `memory/lit_component_engine_creation.md`
+// for the durable lesson.
+import '../src/ui/components/contextual-notice.js';
 
 function makeConfig(extra: Partial<ConsentConfig> = {}): ConsentConfig {
   return {
@@ -181,5 +187,100 @@ describe('auto-placeholder click-to-enable', () => {
     const notice = autoPlaceholderFor('youtube');
     expect(notice).not.toBeNull();
     expect(notice?.previousElementSibling?.tagName.toLowerCase()).toBe('script');
+  });
+
+  // --- ADR-0013 Phase 4 step 4c: three-state notice rendering ----------
+  //
+  // The Phase 1 server-side rewriter can produce `[data-name]` elements
+  // for services NOT in `config.services` — either library-known (`data-
+  // blocked-source="library"`) or universalBlock-derived (`data-blocked-
+  // source="host"`). The notice has three render modes; these tests lock
+  // the button visibility per mode.
+
+  it('state 2 (library, not in config) — renders accept-once only, hides Immer + Cookie-Einstellungen', async () => {
+    // Service NOT in config.services but Phase 1 marked the host as
+    // library-known. Visitor recognises the brand → "Ja" is informed.
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('data-name', 'unknown-but-library-known');
+    iframe.setAttribute('data-src', 'https://library-known.example/embed');
+    iframe.setAttribute('data-blocked-source', 'library');
+    document.body.appendChild(iframe);
+
+    // Manually insert a contextual notice with the same data-name. The
+    // engine's auto-placeholder skips unknown services (legitimate
+    // legacy behavior); here we exercise the notice's own render-mode
+    // logic in isolation.
+    const notice = document.createElement('simplecmp-contextual-notice');
+    notice.setAttribute('service-name', 'unknown-but-library-known');
+    notice.setAttribute('data-blocked-source', 'library');
+    (
+      notice as unknown as { config: ConsentConfig; manager: ReturnType<typeof getManager> }
+    ).config = makeConfig();
+    (notice as unknown as { manager: ReturnType<typeof getManager> }).manager = getManager(
+      makeConfig()
+    );
+    document.body.appendChild(notice);
+    await (notice as unknown as { updateComplete: Promise<void> }).updateComplete;
+
+    const shadow = notice.shadowRoot;
+    expect(shadow).not.toBeNull();
+    const buttons = Array.from(shadow?.querySelectorAll('button') ?? []);
+    const classes = buttons.map((b) => b.className);
+    // Exactly one button — the accept-once. (Asserting on CSS class
+    // rather than label so the test doesn't depend on translation data
+    // being wired up in this test config.)
+    expect(buttons).toHaveLength(1);
+    expect(classes).toEqual(['accept-once']);
+  });
+
+  it('state 3 (host-derived) — renders informational notice with NO buttons', async () => {
+    // Universal-block caught an unknown third-party host. Visitor has
+    // no basis to grant informed consent → admin contact is the only
+    // path forward.
+    const notice = document.createElement('simplecmp-contextual-notice');
+    notice.setAttribute('service-name', 'random-tracker.example');
+    notice.setAttribute('data-blocked-source', 'host');
+    (
+      notice as unknown as { config: ConsentConfig; manager: ReturnType<typeof getManager> }
+    ).config = makeConfig();
+    (notice as unknown as { manager: ReturnType<typeof getManager> }).manager = getManager(
+      makeConfig()
+    );
+    document.body.appendChild(notice);
+    await (notice as unknown as { updateComplete: Promise<void> }).updateComplete;
+
+    const shadow = notice.shadowRoot;
+    expect(shadow).not.toBeNull();
+    // The key property of state 3: NO consent buttons. Visitor has no
+    // basis for informed consent — admin contact is the only path.
+    expect(shadow?.querySelectorAll('button')).toHaveLength(0);
+    // The notice renders an informational `<p>` (the description).
+    // The translation lookup itself depends on the engine's i18n table
+    // being wired into the test config, which isn't done here; the
+    // engine-level i18n tests cover that path.
+    expect(shadow?.querySelector('p')).not.toBeNull();
+  });
+
+  it('state 1 (in config) — renders full set: accept-once + Immer (if stored) + Cookie-Einstellungen', async () => {
+    // The existing baseline — make sure my render-mode refactor didn't
+    // regress the configured-service path.
+    const notice = document.createElement('simplecmp-contextual-notice');
+    notice.setAttribute('service-name', 'youtube');
+    (
+      notice as unknown as { config: ConsentConfig; manager: ReturnType<typeof getManager> }
+    ).config = makeConfig();
+    const manager = getManager(makeConfig());
+    // Mark store as having a saved consent so the "Always" button shows.
+    manager.saveConsents('initial-test');
+    (notice as unknown as { manager: ReturnType<typeof getManager> }).manager = manager;
+    document.body.appendChild(notice);
+    await (notice as unknown as { updateComplete: Promise<void> }).updateComplete;
+
+    const buttons = Array.from(notice.shadowRoot?.querySelectorAll('button') ?? []);
+    const classes = buttons.map((b) => b.className).sort();
+    // All three button classes present (asserting on CSS class — the
+    // labels would require the engine's translation tables to be wired
+    // into the test config).
+    expect(classes).toEqual(['accept', 'accept-once', 'configure']);
   });
 });

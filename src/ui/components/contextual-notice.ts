@@ -58,12 +58,25 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
     tokens,
     css`
       :host {
-        display: block;
+        /*
+         * Flex column with content centered along the cross axis fills
+         * the host when a parent constrains its dimensions (e.g.
+         * Bootstrap's \`.ratio ratio-16x9\` wrapper that absolute-
+         * positions children to 640×360), and shrinks to natural
+         * content size when nothing constrains it. Prevents the
+         * "compact notice bar at top, ~300px white below" layout the
+         * universal-blocking rewriter would otherwise produce inside
+         * aspect-ratio wrappers.
+         */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
         padding: var(--simplecmp-spacing-lg);
         background: var(--simplecmp-color-bg-alt);
         border: 1px solid var(--simplecmp-color-border);
         border-radius: var(--simplecmp-radius);
         color: var(--simplecmp-color-text);
+        box-sizing: border-box;
       }
 
       p {
@@ -109,10 +122,61 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
 
   // --- handlers ---------------------------------------------------------
 
+  /**
+   * Resolve to a `Service` object the render + handlers can rely on.
+   *
+   * When the service is in `config.services`, returns the real entry.
+   *
+   * When it isn't (e.g. Phase 1 server-side rewriter gated a host the
+   * admin hasn't curated into the registry — `data-blocked-source`
+   * tells us which sub-case), synthesizes a minimal `{ name, purposes:
+   * [] }` shape. The engine's `updateConsent` / `applyConsents` work
+   * on service NAMES rather than full objects, so this synthetic
+   * shape is enough to power the "Ja" (accept-once) flow for the
+   * library-known-but-not-configured state. Returns undefined only
+   * when there's no `serviceName` AND no direct `service` property,
+   * which would be a misuse.
+   */
   private _resolveService(): Service | undefined {
     if (this.service !== undefined) return this.service;
-    if (this.serviceName === undefined || this.config === undefined) return undefined;
-    return this.config.services.find((s) => s.name === this.serviceName);
+    if (this.serviceName === undefined) return undefined;
+    if (this.config !== undefined) {
+      const found = this.config.services.find((s) => s.name === this.serviceName);
+      if (found !== undefined) return found;
+    }
+    // Synthesize a minimal service so the render + accept-once handler
+    // don't bail. State 2 (library-known) and State 3 (host-derived)
+    // both land here; the render-mode logic decides what UI to show.
+    return { name: this.serviceName, purposes: [] };
+  }
+
+  /**
+   * Resolution state machine driving which buttons / copy the notice
+   * renders:
+   *
+   * - `'configured'` — `service.name` is in `config.services`. Visitor
+   *   sees the full set (Ja / Immer / Cookie-Einstellungen) because
+   *   the engine has a persistence path (banner toggle, modal).
+   * - `'library'` — host was matched by a library entry but isn't in
+   *   `config.services`. Visitor sees a "Ja" (accept-once) button
+   *   only — there's no persistent toggle to wire "Immer" to, and
+   *   the Cookie-Einstellungen modal has no entry for this service.
+   *   The accept-once is informed because the visitor recognises the
+   *   library-derived brand (e.g. "youtube").
+   * - `'host'` — universal-blocking caught an otherwise-unknown
+   *   third-party host (service id = the host itself). Visitor sees
+   *   an informational notice with NO consent button — they have no
+   *   basis to grant informed consent to an unknown vendor, so we
+   *   route them to the site admin instead.
+   */
+  private _renderMode(): 'configured' | 'library' | 'host' {
+    const name = this.service?.name ?? this.serviceName;
+    if (name === undefined) return 'configured';
+    if (this.config?.services.some((s) => s.name === name) === true) {
+      return 'configured';
+    }
+    const blockedSource = this.getAttribute('data-blocked-source');
+    return blockedSource === 'host' ? 'host' : 'library';
   }
 
   private _onAcceptOnce = (): void => {
@@ -149,9 +213,32 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
     const service = this._resolveService();
     if (service === undefined || this.manager === undefined) return nothing;
 
-    const title = this._resolveTitle(service);
-    const description = this._resolveDescription(service, title);
+    const mode = this._renderMode();
+    // For state 3 (host-derived), surface the raw host as the title so
+    // the visitor sees "random-tracker.example" rather than a
+    // title-cased disguise. For state 1/2, the multi-level fallback
+    // (placeholderTitle → i18n → asTitle) gives a polished brand label.
+    const title = mode === 'host' ? service.name : this._resolveTitle(service);
+    const description =
+      mode === 'host'
+        ? this._t(['contextualConsent', 'descriptionUnknownHost'], { title })
+        : this._resolveDescription(service, title);
+
+    // State 3 (`host`): informational only — visitor has no basis to
+    // grant informed consent to an unknown vendor and there's no
+    // service config to drive a meaningful toggle. The admin path is
+    // the only way to enable this content.
+    if (mode === 'host') {
+      return html`<p>${description}</p>`;
+    }
+
     const hasStored = this.manager.store.get() !== null;
+    // State 2 (`library`): library knows the host but admin hasn't
+    // curated it into config.services — show only "Ja" (accept once).
+    // "Immer" has no persistent toggle to wire to, "Cookie-Einstellungen"
+    // has no entry in the modal for this service.
+    const showImmer = mode === 'configured' && hasStored;
+    const showConfigure = mode === 'configured';
 
     return html`
       <p>${description}</p>
@@ -160,15 +247,19 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
           ${this._t(['contextualConsent', 'acceptOnce'])}
         </button>
         ${
-          hasStored
+          showImmer
             ? html`<button type="button" class="accept" @click=${this._onAccept}>
               ${this._t(['contextualConsent', 'acceptAlways'])}
             </button>`
             : nothing
         }
-        <button type="button" class="configure" @click=${this._onConfigure}>
-          ${this._t(['contextualConsent', 'modalLinkText'])}
-        </button>
+        ${
+          showConfigure
+            ? html`<button type="button" class="configure" @click=${this._onConfigure}>
+              ${this._t(['contextualConsent', 'modalLinkText'])}
+            </button>`
+            : nothing
+        }
       </div>
     `;
   }

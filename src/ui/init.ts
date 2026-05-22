@@ -150,6 +150,21 @@ export function initLit(config: LitInitConfig): LitInitHandle {
     trigger.addEventListener('simplecmp:trigger-click', onTriggerClick);
   }
 
+  // --- reapply consents now that the DOM has the [data-name] elements ----
+  //
+  // The manager's constructor calls applyConsents() once at creation time.
+  // When init() is wired into <head> (body-aware path, ADR-0013 Phase 4),
+  // the manager is created BEFORE the body parses, so that first
+  // applyConsents pass finds zero `[data-name]` elements and the
+  // auto-contextual-notice insertion does nothing. Once mountUI runs
+  // (either now if body is ready, or via DOMContentLoaded), the elements
+  // are in the DOM — re-apply so the engine inserts notices next to
+  // blocked embeds.
+  //
+  // Idempotent — for the synchronous-mount path (body was already ready
+  // at init time) this is a redundant second pass but harmless.
+  manager.applyConsents();
+
   // --- handle -----------------------------------------------------------
 
   return {

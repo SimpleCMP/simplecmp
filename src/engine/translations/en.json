@@ -21,6 +21,7 @@
     "acceptOnce": "Yes",
     "description": "Do you want to load external content supplied by {title}?",
     "descriptionEmptyStore": "To agree to this service permanently, you must accept {title} in the {link}.",
+    "descriptionUnknownHost": "Blocked third-party content from {title}. The site administrator has not reviewed this source — please contact them to enable it.",
     "modalLinkText": "Consent Manager"
   },
   "decline": "I decline",

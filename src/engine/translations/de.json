@@ -28,6 +28,7 @@
     "acceptOnce": "Ja",
     "description": "Möchten Sie von {title} bereitgestellte externe Inhalte laden?",
     "descriptionEmptyStore": "Um diesem Dienst dauerhaft zustimmen zu können, müssen Sie {title} in den {link} zustimmen.",
+    "descriptionUnknownHost": "Blockierter Drittinhalt von {title}. Diese Quelle wurde vom Site-Administrator noch nicht freigegeben — bitte wenden Sie sich an die Administratorin oder den Administrator, um diese Inhalte zu aktivieren.",
     "modalLinkText": "Cookie-Einstellungen"
   },
   "decline": "Ich lehne ab",
