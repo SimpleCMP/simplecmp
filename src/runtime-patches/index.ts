@@ -249,11 +249,19 @@ function patchXhr(opts: Resolved): () => void {
     url: string | URL,
     ...rest: unknown[]
   ): void {
+    // XHR instances are reusable — the same object can be `.open()`ed
+    // multiple times across its lifetime. Clear any prior block marker
+    // so a previously-blocked instance reopened with a benign URL
+    // doesn't carry a stale flag into `.send()` and silently suppress.
+    const instance = this as unknown as Record<string, unknown>;
+    if (instance[BLOCKED_MARKER] !== undefined) {
+      delete instance[BLOCKED_MARKER];
+    }
     const urlString = typeof url === 'string' ? url : url.href;
     const service = decideBlock(urlString, opts);
     if (service !== null) {
       opts.onBlock({ mechanism: 'xhr', url: urlString, service });
-      (this as unknown as Record<string, unknown>)[BLOCKED_MARKER] = service;
+      instance[BLOCKED_MARKER] = service;
     }
     // @ts-expect-error rest spread on overloaded signature
     originalOpen.call(this, method, url, ...rest);

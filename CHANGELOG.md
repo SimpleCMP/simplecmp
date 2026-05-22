@@ -140,6 +140,23 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Fixed
 
+- **`changeAll(false)` now correctly declines non-required services
+  even when `config.required: true` is set.** The previous operator
+  chain (`service.required || this.config.required || value`) treated
+  `config.required` as a global force-true override, so visitors
+  could never decline anything on configs that used the config-level
+  required default. Fix uses the same per-service-overrides-default
+  pattern as `applyConsents` line 461 (`service.required ??
+  this.config.required ?? false`), and short-circuits `value` only
+  when the resolved required is true. An explicit `service.required:
+  false` now properly overrides a `config.required: true` default.
+- **XHR `.open()` reuse no longer carries a stale block marker.** An
+  XMLHttpRequest instance whose first `.open()` was blocked retained
+  the internal `__simplecmpBlockedService` marker forever — a
+  subsequent `.open()` with a benign URL still triggered `.send()`'s
+  silent suppression code path, breaking legitimate later requests
+  on the same instance. Fix clears the marker at the top of every
+  `.open()` so it only reflects the current call.
 - **State-2 "Ja" click now actually unblocks the iframe.** When the
   visitor accepted a state-2 contextual notice (library-known but
   not in `config.services`), the engine swapped the iframe's src

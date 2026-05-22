@@ -255,6 +255,34 @@ describe('init({ interceptRuntime })', () => {
     handle.destroy();
   });
 
+  it('XHR instance reuse — reopening with a benign URL clears the prior block marker', () => {
+    // Regression guard for the audit-surfaced bug where the
+    // BLOCKED_MARKER set during a blocked `.open()` persisted across
+    // subsequent `.open()` calls on the same XHR instance, causing
+    // `.send()` to suppress legitimate requests forever.
+    const blocked: string[] = [];
+    init({
+      storageName: 'simplecmp-intercept-xhr-reuse',
+      services: [{ name: 'tracker', origins: ['tracker.example.com'] }],
+      interceptRuntime: {
+        sameOriginHosts: ['localhost'],
+        onBlock: (info) => {
+          if (info.mechanism === 'xhr') blocked.push(info.service);
+        },
+      },
+    });
+
+    const xhr = new XMLHttpRequest();
+    // First open: blocked URL — marker gets set on the instance.
+    xhr.open('GET', 'https://tracker.example.com/beacon');
+    expect(blocked).toContain('tracker');
+    // Reopen with a benign URL. Marker MUST be cleared so .send()
+    // doesn't suppress this legitimate request.
+    xhr.open('GET', `${window.location.origin}/api/local-data`);
+    const marker = (xhr as unknown as Record<string, unknown>).__simplecmpBlockedService;
+    expect(marker).toBeUndefined();
+  });
+
   it('respects data-name consent on engine-managed elements (state-2 Ja click unblocks)', () => {
     // Regression guard for the state-2 accept-once flow. When the
     // visitor clicks "Ja" on a state-2 notice (library-known but not

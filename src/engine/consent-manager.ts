@@ -293,8 +293,16 @@ export class ConsentManager {
   changeAll(value: boolean): number {
     let changedServices = 0;
     for (const service of this.config.services.filter((s) => !s.contextualConsentOnly)) {
-      const target = service.required || this.config.required || value;
-      if (this.updateConsent(service.name, Boolean(target))) {
+      // Required services always consent — never togglable by the
+      // visitor's accept-all/decline-all action. Per-service
+      // `required` overrides `config.required`: `??` preserves an
+      // explicit `service.required: false` against a `config.required:
+      // true` default. The previous `||` chain treated `config.required`
+      // as a global "force every service to true" override, ignoring
+      // both the per-service negation AND the visitor's `value`.
+      const required = service.required ?? this.config.required ?? false;
+      const target = required ? true : value;
+      if (this.updateConsent(service.name, target)) {
         changedServices++;
       }
     }

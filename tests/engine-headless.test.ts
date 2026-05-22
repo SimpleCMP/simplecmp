@@ -77,4 +77,60 @@ describe('engine headless surface (REQ-N2)', () => {
     expect(typeof version()).toBe('string');
     expect(version().length).toBeGreaterThan(0);
   });
+
+  // --- changeAll() precedence -----------------------------------------
+  //
+  // Regression guards for the audit-surfaced bug where the previous
+  // `service.required || this.config.required || value` chain treated
+  // config.required as a global "force every service to true" override.
+
+  it('changeAll(false) declines a non-required service even when config.required is true', () => {
+    const config: ConsentConfig = {
+      storageName: 'simplecmp-changeall-config-required',
+      storageMethod: 'localStorage',
+      // Global default = required, but the visitor's accept/decline
+      // choice still has to govern services that explicitly override.
+      required: true,
+      services: [
+        // Explicit `required: false` — overrides the config default.
+        { name: 'optional', purposes: ['marketing'], required: false, default: false },
+      ],
+    };
+    const manager = getManager(config);
+    manager.updateConsent('optional', true);
+    manager.changeAll(false);
+    expect(manager.getConsent('optional')).toBe(false);
+  });
+
+  it('changeAll(false) preserves consent on a required service', () => {
+    const config: ConsentConfig = {
+      storageName: 'simplecmp-changeall-required-service',
+      storageMethod: 'localStorage',
+      services: [
+        { name: 'required', purposes: ['functional'], required: true, default: true },
+        { name: 'analytics', purposes: ['analytics'], default: false },
+      ],
+    };
+    const manager = getManager(config);
+    manager.updateConsent('analytics', true);
+    manager.changeAll(false);
+    // Required service stays consented; non-required flips off.
+    expect(manager.getConsent('required')).toBe(true);
+    expect(manager.getConsent('analytics')).toBe(false);
+  });
+
+  it('changeAll(true) sets non-required services to true', () => {
+    const config: ConsentConfig = {
+      storageName: 'simplecmp-changeall-accept-all',
+      storageMethod: 'localStorage',
+      services: [
+        { name: 'analytics', purposes: ['analytics'], default: false },
+        { name: 'marketing', purposes: ['marketing'], default: false },
+      ],
+    };
+    const manager = getManager(config);
+    manager.changeAll(true);
+    expect(manager.getConsent('analytics')).toBe(true);
+    expect(manager.getConsent('marketing')).toBe(true);
+  });
 });
