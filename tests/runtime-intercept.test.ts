@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { resetManagers } from '../src/engine/index.js';
-import { init } from '../src/index.js';
+import { getRecorder, init } from '../src/index.js';
 
 /**
  * Integration tests for `init({ interceptRuntime: ... })` (ADR-0013
@@ -207,6 +207,52 @@ describe('init({ interceptRuntime })', () => {
     const img2 = new Image();
     img2.src = 'https://cdn.example.com/asset.png';
     expect(img2.src).toBe('https://cdn.example.com/asset.png');
+  });
+
+  it('blocked calls feed the recorder snapshot when record is on', () => {
+    // The visibility gap (ADR-0013 step 4b): with universal blocking
+    // on, the patches kill third-party URLs at the prototype-setter
+    // level — PerformanceObserver / NetworkWatcher would otherwise be
+    // blind to the attempted request. The `onBlock` hook feeds a
+    // synthetic detection through the recorder so the bridge + BE
+    // detection table still discover blocked hosts. Regression guard
+    // for that wiring.
+    const handle = init({
+      storageName: 'simplecmp-intercept-recorder-feed',
+      services: [{ name: 'configured', origins: ['known.example.com'] }],
+      record: { silenceProductionWarning: true },
+      interceptRuntime: {
+        universalBlock: true,
+        sameOriginHosts: ['localhost'],
+      },
+    });
+
+    // Try one configured-service host and one unknown host. Both
+    // should be swallowed by the patch AND should land in the
+    // recorder snapshot afterwards.
+    const s1 = document.createElement('script');
+    s1.src = 'https://known.example.com/loader.js';
+    const i1 = new Image();
+    i1.src = 'https://unknown-tracker.example/pixel.gif';
+
+    const snapshot = getRecorder()?.getSnapshot() ?? [];
+    const byKey = new Map(snapshot.map((d) => [`${d.kind}:${d.identifier}`, d]));
+
+    const known = byKey.get('script:https://known.example.com/loader.js');
+    expect(known).toBeDefined();
+    expect(known?.origin).toBe('known.example.com');
+    expect(known?.matchedService).toBe('configured');
+    expect(known?.status).toBe('known');
+
+    const unknown = byKey.get('image:https://unknown-tracker.example/pixel.gif');
+    expect(unknown).toBeDefined();
+    expect(unknown?.origin).toBe('unknown-tracker.example');
+    // Unknown host has no matching service in config — recorder
+    // classifies as `unknown`. The bridge will POST it; admin
+    // Kuratieren'd it from the BE detection table.
+    expect(unknown?.status).toBe('unknown');
+
+    handle.destroy();
   });
 
   it('destroy() restores the native prototype src setter', () => {

@@ -399,12 +399,59 @@ function installRuntimePatchesWithManager(
   const matcher = buildHostMatcher(config.services, {
     blockAllUnknown: opts.universalBlock === true,
   });
+  const userOnBlock = opts.onBlock;
   return installRuntimePatches({
     matcher,
     consentChecker: (serviceId: string) => manager.getConsent(serviceId),
     sameOriginHosts: opts.sameOriginHosts,
-    onBlock: opts.onBlock,
+    onBlock: (info) => {
+      // ADR-0013 step 4b — feed blocked-at-the-prototype calls into the
+      // recorder so the bridge + BE detection table still discover
+      // them. Patches kill the URL before the network sees it, which
+      // means PerformanceObserver / NetworkWatcher would otherwise be
+      // blind to the attempted request. Reading `activeRecorder` at
+      // call time (not install time) means a re-init keeps the wiring
+      // correct.
+      if (activeRecorder !== null) {
+        activeRecorder.recordSyntheticDetection({
+          kind: detectionKindForMechanism(info.mechanism),
+          identifier: info.url,
+          origin: hostFromUrl(info.url),
+        });
+      }
+      // Preserve the integrator's onBlock callback (dev-mode logging,
+      // debug panels, etc.).
+      userOnBlock?.(info);
+    },
   });
+}
+
+/**
+ * Maps the patch's `mechanism` field onto the recorder's
+ * `DetectionKind` taxonomy. Stable contract — the bridge + BE
+ * detection table read this kind directly.
+ */
+function detectionKindForMechanism(mechanism: BlockInfo['mechanism']): Detection['kind'] {
+  switch (mechanism) {
+    case 'script-src':
+      return 'script';
+    case 'iframe-src':
+      return 'iframe';
+    case 'img-src':
+      return 'image';
+    case 'fetch':
+    case 'xhr':
+    case 'sendBeacon':
+      return 'request';
+  }
+}
+
+function hostFromUrl(url: string): string | undefined {
+  try {
+    return new URL(url, window.location.href).host || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

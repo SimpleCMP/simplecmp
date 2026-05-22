@@ -41,6 +41,18 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Added
 
+- **Recorder visibility for runtime-blocked calls.** With
+  `interceptRuntime` enabled, URLs swallowed at the prototype-setter
+  level used to be invisible to the recorder (no network request →
+  no `PerformanceObserver` entry → no detection → silent BE log).
+  `init()` now wraps the patches' `onBlock` hook to feed a synthetic
+  `RawDetection` through `Recorder.recordSyntheticDetection(raw)`,
+  so blocked calls flow through the same classifier + bridge +
+  webhook path as observed requests. Admins recover the
+  "discover unknown trackers via the detection log" workflow under
+  universal blocking. Integrator-supplied `onBlock` callbacks still
+  fire alongside the internal feed. New public method
+  `Recorder.recordSyntheticDetection(raw)` for direct producers.
 - **`interceptRuntime.universalBlock: true` — strict block-all-third-party
   posture.** Widens the FE matcher so any non-same-origin call to a
   host that DOESN'T match a configured service is also blocked, using

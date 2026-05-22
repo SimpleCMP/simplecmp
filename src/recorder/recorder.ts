@@ -143,6 +143,26 @@ export class Recorder {
   }
 
   /**
+   * Inject a fully-formed `RawDetection` into the recorder pipeline as
+   * if a watcher had emitted it.
+   *
+   * Use case: universal pre-consent blocking (ADR-0013 step 4). Phase 2
+   * runtime patches swallow third-party URLs at the prototype-setter
+   * level — the network request never goes out, so PerformanceObserver /
+   * NetworkWatcher have nothing to observe and the detection log goes
+   * silent. The `onBlock` hook feeds synthesized raw detections through
+   * here so the bridge + BE detection table still discover blocked
+   * hosts; admin can Kuratieren as usual.
+   *
+   * Goes through the same `_ingest` path watchers use: classifier,
+   * dedup, snapshot, listener fan-out, settled-event scheduling.
+   */
+  recordSyntheticDetection(raw: RawDetection): void {
+    if (!this.active) return;
+    this._ingest(raw);
+  }
+
+  /**
    * Patch a previously-recorded detection with new classification data.
    *
    * Used by `LayeredClassifier` (REQ-8 / ADR-0005 G) when a background
