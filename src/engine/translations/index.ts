@@ -17,9 +17,10 @@
  * Klaro's English file is the canonical reference; missing keys fall back
  * to English at runtime via the `fallbackLang` config.
  *
- * Note: Klaro's upstream `hu.yml` is malformed (bad indentation at
- * 54:103). It ships here as `{}`, falling through to English. Fix
- * upstream before adding a real Hungarian pack.
+ * Note: `hu.json` ships as `{}` and falls through to English. Klaro's
+ * upstream Hungarian source was malformed YAML; rather than carry the
+ * brokenness forward we kept the slot empty until someone translates
+ * a fresh JSON pack from scratch.
  */
 
 import bg from './bg.json';

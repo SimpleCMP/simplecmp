@@ -302,8 +302,11 @@ export class Recorder {
     if (this.onDetectionForLibEvent) {
       try {
         this.onDetectionForLibEvent(d);
-      } catch {
-        // ignore — lib event bus is best-effort
+      } catch (err) {
+        // Lib event bus is best-effort, but staying silent makes
+        // integration bugs invisible. Warn (don't throw) — same shape
+        // as the regular listener path above.
+        console.warn('SimpleCMP recorder: lib-event handler threw:', err);
       }
     }
   }
