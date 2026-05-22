@@ -77,9 +77,12 @@ export interface RuntimePatchOptions {
   consentChecker: (serviceId: string) => boolean;
 
   /**
-   * Hosts the site owns — same-origin traffic, the site's own CDN,
-   * vendor's own infrastructure. Always passes through, never matched
-   * against the library. Defaults to `[window.location.host]`.
+   * Extra hosts treated as "same-origin" for pass-through purposes —
+   * the site's own CDN, vendor's own infrastructure, anything the
+   * admin trusts. `window.location.host` is **always** included
+   * implicitly; entries here are additive on top of that, so
+   * integrators can't accidentally lose own-host protection by
+   * passing an array. Pass `[]` to keep just `window.location.host`.
    */
   sameOriginHosts?: readonly string[];
 
@@ -100,7 +103,10 @@ export function installRuntimePatches(options: RuntimePatchOptions): () => void 
   const resolved: Required<RuntimePatchOptions> = {
     matcher: options.matcher,
     consentChecker: options.consentChecker,
-    sameOriginHosts: options.sameOriginHosts ?? [window.location.host],
+    // `window.location.host` is always included; any explicit entries
+    // are additive. Integrators can no longer accidentally strip the
+    // own-host pass-through by passing an array.
+    sameOriginHosts: [window.location.host, ...(options.sameOriginHosts ?? [])],
     onBlock: options.onBlock ?? (() => {}),
   };
   const uninstallers: Array<() => void> = [

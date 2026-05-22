@@ -152,6 +152,63 @@ describe('init({ interceptRuntime })', () => {
     handle1.destroy();
   });
 
+  it('universalBlock: true gates any non-same-origin host as the host id', () => {
+    // Maximum-protection posture: even hosts NOT in config.services
+    // get blocked, using the host as the synthetic service id. Admin
+    // has to Kuratieren them via the BE to unblock.
+    const blocked: string[] = [];
+    init({
+      storageName: 'simplecmp-intercept-universal',
+      services: [{ name: 'configured', origins: ['known.example.com'] }],
+      interceptRuntime: {
+        universalBlock: true,
+        sameOriginHosts: ['localhost'],
+        onBlock: (info) => {
+          blocked.push(`${info.mechanism}:${info.service}`);
+        },
+      },
+    });
+
+    // Configured host blocks under its real service id.
+    const img1 = new Image();
+    img1.src = 'https://known.example.com/pixel.gif';
+    expect(img1.src === '' || img1.src === 'about:blank').toBe(true);
+    expect(blocked).toContain('img-src:configured');
+
+    // Unknown third-party host blocks under the synthetic host-id.
+    const img2 = new Image();
+    img2.src = 'https://unknown-tracker.com/track.gif';
+    expect(img2.src === '' || img2.src === 'about:blank').toBe(true);
+    expect(blocked).toContain('img-src:unknown-tracker.com');
+
+    // Same-origin (window.location.host = 'localhost') still passes.
+    const img3 = new Image();
+    img3.src = `${window.location.origin}/local.png`;
+    expect(img3.src).toBe(`${window.location.origin}/local.png`);
+    expect(blocked).not.toContain('img-src:localhost');
+  });
+
+  it('sameOriginHosts is additive — window.location.host always included implicitly', () => {
+    // Regression guard: the old "replaces default" semantics let an
+    // integrator strip own-host protection by passing any array. The
+    // new semantics combine `[window.location.host, ...extras]`.
+    init({
+      storageName: 'simplecmp-intercept-same-origin-additive',
+      services: [{ name: 'cfg', origins: ['cfg.example.com'] }],
+      interceptRuntime: {
+        sameOriginHosts: ['cdn.example.com'], // intentionally NOT including localhost
+      },
+    });
+    // Own-host still passes through despite not being listed.
+    const img1 = new Image();
+    img1.src = `${window.location.origin}/asset.png`;
+    expect(img1.src).toBe(`${window.location.origin}/asset.png`);
+    // Explicit extra also passes through.
+    const img2 = new Image();
+    img2.src = 'https://cdn.example.com/asset.png';
+    expect(img2.src).toBe('https://cdn.example.com/asset.png');
+  });
+
   it('destroy() restores the native prototype src setter', () => {
     const handle = init({
       storageName: 'simplecmp-intercept-destroy',

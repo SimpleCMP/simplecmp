@@ -250,9 +250,11 @@ export interface SimpleCMPConfig extends ConsentConfig {
  */
 export interface InterceptRuntimeOptions {
   /**
-   * Hosts the site owns. Always pass through, never matched against
-   * any service. Defaults to `[window.location.host]`. Pass your CDN
-   * and vendor-own hostnames here so first-party traffic isn't gated.
+   * Extra hosts treated as same-origin for pass-through. The site's
+   * own `window.location.host` is **always** implicitly included;
+   * entries here are additive. Use for CDNs, vendor infrastructure,
+   * or anything the admin has explicitly trusted (e.g. the TYPO3
+   * `simplecmp.universalBlocking.allowlist` Site Set).
    */
   sameOriginHosts?: readonly string[];
 
@@ -262,6 +264,22 @@ export interface InterceptRuntimeOptions {
    * debug panel.
    */
   onBlock?: (info: BlockInfo) => void;
+
+  /**
+   * Strict "block everything third-party" posture — when `true`, any
+   * non-same-origin call to a host that DOESN'T match a configured
+   * service is blocked too, using the host itself as the synthetic
+   * service id (visible in `BlockInfo.service` and the recorder
+   * detection log).
+   *
+   * Off by default — opt in via the per-CMS universal-blocking switch
+   * (TYPO3 Site Set `simplecmp.universalBlocking.enabled`). The
+   * trade-off is real: hosts blocked without a curated service have
+   * no consent UI to unblock through; admin has to Kuratieren them
+   * via the BE. That's the intended posture for sites that have
+   * opted into maximum protection.
+   */
+  universalBlock?: boolean;
 }
 
 /**
@@ -378,7 +396,9 @@ function installRuntimePatchesWithManager(
     typeof config.interceptRuntime === 'object' && config.interceptRuntime !== null
       ? config.interceptRuntime
       : {};
-  const matcher = buildHostMatcher(config.services);
+  const matcher = buildHostMatcher(config.services, {
+    blockAllUnknown: opts.universalBlock === true,
+  });
   return installRuntimePatches({
     matcher,
     consentChecker: (serviceId: string) => manager.getConsent(serviceId),

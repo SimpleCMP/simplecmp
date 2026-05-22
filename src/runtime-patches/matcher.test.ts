@@ -62,4 +62,37 @@ describe('buildHostMatcher', () => {
     const matcher = buildHostMatcher([]);
     expect(matcher('any.host.example')).toBeNull();
   });
+
+  describe('blockAllUnknown mode', () => {
+    it('returns the host as the synthetic service id for unmatched hosts', () => {
+      const matcher = buildHostMatcher(
+        [{ name: 'analytics', origins: ['analytics.example.com'] }],
+        { blockAllUnknown: true }
+      );
+      // Unknown host → fallback to host-as-id, so the patch can still
+      // block it (consent check against a synthetic id always denies).
+      expect(matcher('unknown-tracker.com')).toBe('unknown-tracker.com');
+      expect(matcher('cdn.someplace.net')).toBe('cdn.someplace.net');
+    });
+
+    it('still prefers configured services over the synthetic fallback', () => {
+      const matcher = buildHostMatcher([{ name: 'analytics', origins: ['*.analytics.example'] }], {
+        blockAllUnknown: true,
+      });
+      // Real service match wins over the host-as-id fallback.
+      expect(matcher('cdn1.analytics.example')).toBe('analytics');
+    });
+
+    it('returns null for empty host even in universal mode', () => {
+      // decideBlock relies on this — an empty host is a non-URL, not
+      // a synthetic service to block.
+      const matcher = buildHostMatcher([], { blockAllUnknown: true });
+      expect(matcher('')).toBeNull();
+    });
+
+    it('default (no options) preserves narrow behavior', () => {
+      const matcher = buildHostMatcher([{ name: 'analytics', origins: ['analytics.example.com'] }]);
+      expect(matcher('unknown-tracker.com')).toBeNull();
+    });
+  });
 });

@@ -39,8 +39,28 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
   in `tests/bridge/discover-mode.spec.ts` cover the override and the
   control case.
 
+### Added
+
+- **`interceptRuntime.universalBlock: true` — strict block-all-third-party
+  posture.** Widens the FE matcher so any non-same-origin call to a
+  host that DOESN'T match a configured service is also blocked, using
+  the host itself as the synthetic service id. Pairs with the per-CMS
+  universal-blocking switch (TYPO3 Site Set
+  `simplecmp.universalBlocking.enabled`) where the admin has opted in
+  to maximum protection. Off by default — narrow mode (configured
+  services only) stays the default for plain `interceptRuntime: true`
+  callers. `buildHostMatcher` gains a `{ blockAllUnknown?: boolean }`
+  options arg for direct consumers.
+
 ### Changed
 
+- **`InterceptRuntimeOptions.sameOriginHosts` is now additive instead
+  of replacing.** `window.location.host` is *always* included
+  implicitly; entries you pass are added on top. Lets integrators
+  forward an admin allowlist without accidentally stripping own-host
+  protection. Behaviour change for callers that previously passed an
+  array expecting replacement — explicit own-host entries become
+  harmless duplicates.
 - **`init()` is now safe to call before `document.body` is parsed.**
   The DOM-free setup (manager creation, recorder start, runtime-patch
   installation) runs immediately; the banner/modal mount is deferred
