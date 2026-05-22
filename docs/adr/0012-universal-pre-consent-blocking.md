@@ -220,6 +220,42 @@ into; this ADR commits to closing it.
   (task #21) before this lands** — the engine has to set
   `src="about:blank"` instead, which is a small fix but worth
   doing alongside this work, not after.
+- **Discovery becomes multi-pass under universal blocking.** A
+  tracker chain (GTM → GA + Meta Pixel + LinkedIn Insight; Meta
+  Pixel → fbevents.js → error-log beacon) only surfaces its first
+  link in the detection log. Downstream URLs only fire if the
+  upstream loader actually loads, which requires consent — so admin
+  workflow becomes: crawl → curate → accept → re-crawl. Discovered
+  during Phase 4 fixture verification (2026-05-22). See
+  `docs/phase4/fragility-surface.md` for the full discussion and
+  the three options for making this single-pass when prioritised.
+- **Detection-table row explosion from cache-bust query params.**
+  Trackers that suffix `&_=Date.now()` (Hotjar, jQuery non-cache
+  fetches, many ad networks) generate a new detection row per
+  visit because the recorder dedups by full URL. Visible mainly
+  to admins of high-traffic sites with universal blocking on; not
+  a coverage gap but a curation-noise issue. Mitigation deferred
+  pending a deliberate design choice on URL normalisation
+  granularity. Trade-off: stripping cache-bust keys loses
+  path-level detail for legitimately query-driven trackers
+  (campaign IDs, A/B variants).
+- **Multi-TLD vendor coverage is a per-service curation gap, not
+  a structural one.** Library entries cover one canonical apex
+  domain; vendors that run across multiple TLDs (Meta on
+  `.facebook.com` + `.facebook.net` + `.fbcdn.net`; Google on
+  `googletagmanager.com` + `googletagservices.com` + `doubleclick.net`)
+  leak the un-curated TLDs as **Unbekannt** even though they're
+  obviously the same vendor. Workaround: ad-hoc library PRs to
+  extend `origins` per vendor. Generalisation options (per-service
+  `aliasOrigins`, vendor-level origin lists, audit script) tracked
+  in the memory system.
+- **Library-known services not in `config.services` get
+  blocked-without-UI.** Phase 1 rewrites the embed to
+  `about:blank` (because the host matches a library service), but
+  the engine has no entry in `config.services` to drive the
+  consent UI — so the visitor sees a blank iframe with no
+  click-to-enable affordance. Admin recovers by adopting the
+  library service into their registry (Bibliothek → Übernehmen).
 
 ### Neutral
 
