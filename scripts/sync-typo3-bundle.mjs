@@ -1,5 +1,5 @@
 /**
- * Post-build sync: copy `dist/simplecmp.global.js` to the simplecmp-typo3
+ * Post-build sync: copy `dist/simplecmp.global.js` to the t3-simplecmp
  * extension if a local checkout is available.
  *
  * Auto-discovers known locations. Silent no-op if no target dir exists —
@@ -28,8 +28,8 @@ if (env.SIMPLECMP_TYPO3_PATH) {
   candidates.push(resolve(env.SIMPLECMP_TYPO3_PATH));
 }
 candidates.push(
-  resolve(ROOT, '..', 'simplecmp-typo3'),
-  resolve(ROOT, '..', 'dev14', 'vendor', 'wapplersystems', 'simplecmp-typo3')
+  resolve(ROOT, '..', 't3-simplecmp'),
+  resolve(ROOT, '..', 'dev14', 'vendor', 'simplecmp', 't3-simplecmp')
 );
 
 let synced = false;
