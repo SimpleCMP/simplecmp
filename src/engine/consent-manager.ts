@@ -798,11 +798,16 @@ export class ConsentManager {
           'Domain:',
           cookieDomain
         );
-        deleteCookie(cookie.name, cookiePath, cookieDomain);
+        let deleted = deleteCookie(cookie.name, cookiePath, cookieDomain);
         // If no domain was specified, also try `.<host>` since some services
         // (Facebook pixel etc.) explicitly set the dotted form.
-        if (cookieDomain === undefined) {
-          deleteCookie(cookie.name, cookiePath, `.${window.location.hostname}`);
+        if (!deleted && cookieDomain === undefined) {
+          deleted = deleteCookie(cookie.name, cookiePath, `.${window.location.hostname}`);
+        }
+        if (!deleted) {
+          console.warn(
+            `SimpleCMP: cookie "${cookie.name}" still present after deletion attempt for service "${service.name}". It may be set on a path/domain we cannot reach from JS, or another script re-set it.`
+          );
         }
       }
     }

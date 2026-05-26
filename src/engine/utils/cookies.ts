@@ -66,9 +66,13 @@ export function setCookie(
  * Delete a cookie. Tries multiple Path/Domain combinations because browsers
  * scope cookies by both — without trying each variation we leave orphans
  * behind on some setups.
+ *
+ * Returns `true` if the cookie name is no longer visible to JS after the
+ * write attempts, `false` if it's still present (set on a path/domain we
+ * can't reach, or re-set by another script between write and read).
  */
-export function deleteCookie(name: string, path?: string, domain?: string): void {
-  if (typeof document === 'undefined') return;
+export function deleteCookie(name: string, path?: string, domain?: string): boolean {
+  if (typeof document === 'undefined') return false;
   let str = `${name}=; Max-Age=-99999999;`;
   // try without path / domain first
   document.cookie = str;
@@ -78,4 +82,5 @@ export function deleteCookie(name: string, path?: string, domain?: string): void
     str += ` domain=${domain};`;
     document.cookie = str;
   }
+  return getCookie(name) === null;
 }
