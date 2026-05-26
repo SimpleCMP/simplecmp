@@ -8,6 +8,54 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Cookie deletion now warns when it silently fails.** `deleteCookie`
+  returns a boolean reflecting post-write visibility; `updateServiceStorage`
+  emits a `console.warn` naming the cookie and the service when both
+  deletion attempts (with-domain + dotted-host fallback) leave the
+  cookie behind. Previously the engine + visitor both treated the
+  revocation as successful even if the cookie was set on a path/domain
+  unreachable from JS. 3 regression tests in
+  `src/engine/utils/cookies.test.ts`.
+- **Recorder listener sets snapshotted before dispatch.** `_announce`
+  and `_announceSettled` now iterate `[...set]` instead of the live
+  Set. A listener that called `.off()` (or `.on()`) on itself or
+  another listener mid-dispatch previously perturbed the in-flight
+  iteration with order-dependent behavior. Now additions are queued
+  for the next event (DOM convention); removals don't take effect
+  until the next event.
+- **`SimpleCmpElement` watcher subscription tracking.** Previously
+  the base class sourced the manager to unwatch from Lit's
+  `changed.get('manager')`, which could drift from the manager the
+  watcher was actually attached to when `disconnectedCallback` /
+  `connectedCallback` ran between the property swap and the deferred
+  `willUpdate`. Now tracks the target in `_watcherManager` and
+  collapses lifecycle hooks into idempotent `_syncWatcher` /
+  `_detachWatcher` helpers. Also fixed a quieter double-subscribe on
+  the standard mount path (connect subscribed once, then initial
+  willUpdate subscribed again). 5 regression tests in
+  `tests/base.test.ts`.
+- **Port-smuggling bypass in `decideBlock` closed.** `new URL(url).host`
+  includes the port for non-default ports, so a URL like
+  `https://tracker.com:8443/x` did NOT match a bare `tracker.com`
+  library entry. Asymmetric port handling now: same-origin check
+  stays port-strict (a page on `localhost:3000` doesn't auto-trust
+  `localhost:8080`); matcher lookup uses `hostname` (port-stripped)
+  so consent decisions apply per-host, not per-host-port.
+
+### Added — tests
+
+- **`decideBlock` URL-parsing fuzz** (`src/runtime-patches/index.test.ts`):
+  28 table-driven cases covering pass-through edges (empty, about:blank,
+  unparseable, data:/javascript:/file:/blob:, same-origin, unknown
+  host, consented service), block decisions (plain http(s),
+  protocol-relative, userinfo prefix, mixed-case, whitespace-trimmed,
+  subdomain, IDN → Punycode, IPv4, IPv6 brackets, trailing-dot,
+  default-port stripped, non-default port stripped, query + fragment),
+  and asymmetry (port-mismatched URL matches bare-host library entry;
+  same-origin check stays port-strict).
+
 ### Added
 
 - **Purposes line in the contextual notice.** A muted "Zwecke:
