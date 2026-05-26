@@ -1,4 +1,4 @@
-# SimpleCMP
+# SimpleCMP 
 
 > An open-source consent manager that simplifies cookie compliance for static sites and CMS. 
 
