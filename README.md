@@ -1,6 +1,6 @@
 # SimpleCMP
 
-> An open-source consent manager that simplifies cookie compliance for static sites and CMS.
+> An open-source consent manager that simplifies cookie compliance for static sites and CMS. 
 
 [![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 [![Status: Early Development](https://img.shields.io/badge/Status-Early%20Development-orange.svg)]()
