@@ -59,6 +59,10 @@ final class Database
                 FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_service_origins_service ON service_origins(service_id);
+            CREATE TABLE IF NOT EXISTS meta (
+                key          TEXT PRIMARY KEY,
+                value        TEXT NOT NULL
+            );
             SQL
         );
     }
@@ -68,5 +72,22 @@ final class Database
         $stmt = $this->pdo->query('SELECT COUNT(*) AS n FROM services');
         $row = $stmt ? $stmt->fetch() : null;
         return is_array($row) ? (int)($row['n'] ?? 0) : 0;
+    }
+
+    public function getMeta(string $key): ?string
+    {
+        $stmt = $this->pdo->prepare('SELECT value FROM meta WHERE key = :key');
+        $stmt->execute(['key' => $key]);
+        $row = $stmt->fetch();
+        return is_array($row) ? (string)$row['value'] : null;
+    }
+
+    public function setMeta(string $key, string $value): void
+    {
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO meta (key, value) VALUES (:key, :value)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+        );
+        $stmt->execute(['key' => $key, 'value' => $value]);
     }
 }

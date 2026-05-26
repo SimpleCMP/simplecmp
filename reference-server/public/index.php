@@ -46,26 +46,68 @@ $lookup = new Lookup($db);
 
 // --- helpers ----------------------------------------------------------------
 
-function send_json(mixed $body, int $status = 200): void
+function send_json(mixed $body, int $status = 200, array $extraHeaders = []): void
 {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
     header('Access-Control-Allow-Headers: Content-Type, Authorization');
-    header('Cache-Control: public, max-age=3600');
+    foreach ($extraHeaders as $name => $value) {
+        header($name . ': ' . $value);
+    }
+    if (($GLOBALS['IS_HEAD_REQUEST'] ?? false) === true) {
+        return;
+    }
     echo json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
 
 function send_error(string $message, int $status = 400): void
 {
-    send_json(['error' => $message], $status);
+    send_json(['error' => $message], $status, ['Cache-Control' => 'no-store']);
+}
+
+/**
+ * Send a JSON payload with ETag + Cache-Control. Honours If-None-Match
+ * (returns 304 with no body). Used for the publicly cached /v1/services* routes.
+ */
+function send_cacheable_json(mixed $body): void
+{
+    $json = json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $etag = '"' . substr(hash('sha256', (string)$json), 0, 32) . '"';
+    $ifNoneMatch = $_SERVER['HTTP_IF_NONE_MATCH'] ?? '';
+    $cacheControl = 'public, max-age=3600, stale-while-revalidate=86400';
+
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
+    header('Cache-Control: ' . $cacheControl);
+    header('ETag: ' . $etag);
+
+    if ($ifNoneMatch !== '' && trim($ifNoneMatch) === $etag) {
+        http_response_code(304);
+        return;
+    }
+
+    http_response_code(200);
+    header('Content-Type: application/json; charset=utf-8');
+    if (($GLOBALS['IS_HEAD_REQUEST'] ?? false) === true) {
+        return;
+    }
+    echo $json;
 }
 
 // --- routing ----------------------------------------------------------------
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+
+// Treat HEAD like GET for routing; body is suppressed by send_json /
+// send_cacheable_json once they see the global flag.
+$IS_HEAD_REQUEST = ($method === 'HEAD');
+if ($IS_HEAD_REQUEST) {
+    $method = 'GET';
+}
 
 if ($method === 'OPTIONS') {
     send_json([], 204);
@@ -74,11 +116,16 @@ if ($method === 'OPTIONS') {
 
 // /v1/health
 if ($method === 'GET' && $path === '/v1/health') {
+    $count = $db->count();
+    $lastSync = $db->getMeta('lastSyncAt');
+    $sourceSha = $db->getMeta('sourceSha');
     send_json([
-        'ok' => true,
+        'status' => $count > 0 ? 'ok' : 'empty',
         'schemaVersion' => 1,
-        'count' => $db->count(),
-    ]);
+        'serviceCount' => $count,
+        'lastSyncAt' => $lastSync,
+        'sourceSha' => $sourceSha,
+    ], 200, ['Cache-Control' => 'no-store']);
     exit;
 }
 
@@ -97,7 +144,7 @@ if ($method === 'GET' && $path === '/v1/services') {
         $items = $lookup->all($limit, $offset);
     }
 
-    send_json([
+    send_cacheable_json([
         'items' => $items,
         'total' => $db->count(),
         'limit' => $limit,
@@ -113,7 +160,7 @@ if ($method === 'GET' && preg_match('#^/v1/services/([\w-]+)$#', $path, $m)) {
         send_error('Service not found', 404);
         exit;
     }
-    send_json($service);
+    send_cacheable_json($service);
     exit;
 }
 
