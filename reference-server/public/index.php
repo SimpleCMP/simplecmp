@@ -56,6 +56,9 @@ function send_json(mixed $body, int $status = 200, array $extraHeaders = []): vo
     foreach ($extraHeaders as $name => $value) {
         header($name . ': ' . $value);
     }
+    if (($GLOBALS['IS_HEAD_REQUEST'] ?? false) === true) {
+        return;
+    }
     echo json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
 
@@ -88,6 +91,9 @@ function send_cacheable_json(mixed $body): void
 
     http_response_code(200);
     header('Content-Type: application/json; charset=utf-8');
+    if (($GLOBALS['IS_HEAD_REQUEST'] ?? false) === true) {
+        return;
+    }
     echo $json;
 }
 
@@ -95,6 +101,13 @@ function send_cacheable_json(mixed $body): void
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+
+// Treat HEAD like GET for routing; body is suppressed by send_json /
+// send_cacheable_json once they see the global flag.
+$IS_HEAD_REQUEST = ($method === 'HEAD');
+if ($IS_HEAD_REQUEST) {
+    $method = 'GET';
+}
 
 if ($method === 'OPTIONS') {
     send_json([], 204);
