@@ -51,7 +51,8 @@ function urlForTag(el: Element): string | undefined {
 
 function safeOrigin(url: string): string | undefined {
   try {
-    return new URL(url).host;
+    // `hostname` (port-stripped) — see network-watcher's matching comment.
+    return new URL(url).hostname;
   } catch {
     return undefined;
   }
@@ -121,7 +122,7 @@ export class DomWatcher implements Watcher {
     const origin = safeOrigin(url);
     if (!origin) return;
     // Same-origin resources aren't trackers in the consent sense; skip.
-    if (typeof location !== 'undefined' && origin === location.host) return;
+    if (typeof location !== 'undefined' && origin === location.hostname) return;
     const key = `${kind}:${url}`;
     if (this.seen.has(key)) return;
     this.seen.add(key);

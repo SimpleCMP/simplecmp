@@ -17,7 +17,11 @@ import type { DetectionSink, RawDetection, Watcher } from '../types.js';
 
 function safeOrigin(url: string): string | undefined {
   try {
-    return new URL(url).host;
+    // `hostname` (port-stripped), not `host` — so library origins like
+    // `tracker.com` match the recorder's view of a URL on `tracker.com:8443`.
+    // Consent decisions apply per-host, not per-host-port; same logic
+    // as `decideBlock` in `src/runtime-patches/index.ts`.
+    return new URL(url).hostname;
   } catch {
     return undefined;
   }
@@ -98,7 +102,7 @@ export class NetworkWatcher implements Watcher {
     if (!url) return;
     const origin = safeOrigin(url);
     if (!origin) return;
-    if (typeof location !== 'undefined' && origin === location.host) return;
+    if (typeof location !== 'undefined' && origin === location.hostname) return;
     const key = `request:${url}`;
     if (this.seen.has(key)) return;
     this.seen.add(key);

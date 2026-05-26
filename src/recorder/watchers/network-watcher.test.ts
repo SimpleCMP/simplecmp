@@ -90,4 +90,24 @@ describe('NetworkWatcher', () => {
 
     expect(seen).toEqual([]);
   });
+
+  it('reports `origin` as hostname only — port is stripped', () => {
+    // Regression: a URL like `https://tracker.com:8443/x` previously
+    // produced origin `tracker.com:8443` which did NOT match a bare
+    // `tracker.com` library entry. Now hostname is used so both
+    // default-port and non-default-port URLs classify identically.
+    const fake = makeFake();
+    fake.entries.push(fake.entry('https://tracker.com:8443/x'));
+    fake.entries.push(fake.entry('https://tracker.com/y'));
+
+    const seen: RawDetection[] = [];
+    const watcher = new NetworkWatcher((d) => seen.push(d), {
+      performance: fake.perf,
+      PerformanceObserver: fake.FakePO as unknown as typeof PerformanceObserver,
+    });
+    watcher.start();
+    watcher.stop();
+
+    expect(seen.map((d) => d.origin)).toEqual(['tracker.com', 'tracker.com']);
+  });
 });

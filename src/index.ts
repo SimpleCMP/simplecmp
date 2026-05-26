@@ -448,7 +448,14 @@ function detectionKindForMechanism(mechanism: BlockInfo['mechanism']): Detection
 
 function hostFromUrl(url: string): string | undefined {
   try {
-    return new URL(url, window.location.href).host || undefined;
+    // `hostname` (port-stripped) — consistent with the recorder watchers
+    // and `decideBlock` so consent decisions apply per-host, not
+    // per-host-port. Closes the cosmetic gap where universal-block
+    // synthetic detections of a port-mismatched URL like
+    // `https://tracker.com:8443/x` surfaced in the BE detection log as
+    // origin `tracker.com:8443` rather than matching the bare library
+    // entry for `tracker.com`.
+    return new URL(url, window.location.href).hostname || undefined;
   } catch {
     return undefined;
   }
