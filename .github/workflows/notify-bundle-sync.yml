@@ -1,0 +1,35 @@
+name: Notify t3-simplecmp on bundle change
+
+# Fires after the main CI workflow completes on `main`. If CI passed,
+# dispatches a `bundle-sync` event to t3-simplecmp carrying the upstream
+# SHA. The ext-side workflow then rebuilds the bundle, runs the gates,
+# and either pushes to main directly (all green) or opens a failure PR.
+#
+# Setup once:
+# 1. Create a fine-grained PAT at github.com/settings/tokens?type=beta with:
+#    - Resource owner: SimpleCMP
+#    - Repository access: SimpleCMP/t3-simplecmp
+#    - Permissions: Contents (read), Metadata (read), Actions (write)
+# 2. Add it as a repository secret named `BUNDLE_SYNC_DISPATCH_TOKEN`
+#    in SimpleCMP/simplecmp (Settings → Secrets and variables → Actions).
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+
+jobs:
+  dispatch:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send repository_dispatch to t3-simplecmp
+        env:
+          GH_TOKEN: ${{ secrets.BUNDLE_SYNC_DISPATCH_TOKEN }}
+        run: |
+          gh api repos/SimpleCMP/t3-simplecmp/dispatches \
+            --method POST \
+            -f event_type=bundle-sync \
+            -f client_payload[upstream_sha]=${{ github.event.workflow_run.head_sha }} \
+            -f client_payload[upstream_url]=${{ github.event.workflow_run.html_url }}
