@@ -137,8 +137,11 @@ interface Resolved {
  *
  * Pass-through reasons: empty URL, same-origin, unparseable URL,
  * unknown host (no library service), or consented service.
+ *
+ * Exported for unit testing — not re-exported via `src/index.ts`, so
+ * it doesn't enter the public package surface.
  */
-function decideBlock(url: string, opts: Resolved): string | null {
+export function decideBlock(url: string, opts: Resolved): string | null {
   if (!url || url === 'about:blank') return null;
   let host: string;
   try {
