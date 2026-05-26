@@ -20,7 +20,6 @@ const KNOWN_HOSTS = new Set([
   '1.2.3.4',
   '[::1]',
   'tracker.com.', // trailing-dot variant
-  'tracker.com:8443', // explicit port — matcher sees `:8443`
 ]);
 
 function makeOpts(extra: Partial<Parameters<typeof decideBlock>[1]> = {}) {
@@ -136,7 +135,7 @@ describe('decideBlock — block decisions', () => {
       expect: 'analytics',
     },
     {
-      name: 'non-default port is preserved in host (matcher sees `:8443`)',
+      name: 'non-default port is stripped before matcher lookup',
       url: 'https://tracker.com:8443/x',
       expect: 'analytics',
     },
@@ -153,16 +152,33 @@ describe('decideBlock — block decisions', () => {
   }
 });
 
-describe('decideBlock — port-stripped variants do NOT match bare-host entries', () => {
-  it('matcher gets `tracker.com:8443`, not `tracker.com`, so a bare-host library entry misses', () => {
-    // This is the known port-handling smell: library origins are typically
-    // host-only, so a tracker on a non-standard port slips through. Locked
-    // in here as current behavior — fix is a matcher-layer change (normalize
-    // off port before consulting the index), not a `decideBlock` change.
+describe('decideBlock — port-smuggling bypass is closed', () => {
+  it('bare-host library entry matches URL with non-default port', () => {
+    // Regression: prior to the asymmetric port-stripping fix, a URL like
+    // `https://tracker.com:8443/x` produced host `tracker.com:8443`, which
+    // did NOT match a library entry of `tracker.com`. An attacker could
+    // bypass the patch by serving the tracker on a non-standard port. Fix:
+    // decideBlock now passes `hostname` (port-stripped) to the matcher.
     const opts = makeOpts({
       matcher: (host: string) => (host === 'tracker.com' ? 'analytics' : null),
     });
-    expect(decideBlock('https://tracker.com:8443/x', opts)).toBeNull();
+    expect(decideBlock('https://tracker.com:8443/x', opts)).toBe('analytics');
     expect(decideBlock('https://tracker.com/x', opts)).toBe('analytics');
+  });
+});
+
+describe('decideBlock — same-origin check stays port-strict', () => {
+  it('different port on same host is NOT treated as same-origin', () => {
+    // Same-origin check intentionally uses `host` (port-strict). A dev page
+    // on `localhost:3000` must NOT auto-trust `localhost:8080`. The matcher
+    // lookup downstream still uses `hostname` (port-stripped), which is the
+    // asymmetry we want.
+    const opts = makeOpts({
+      sameOriginHosts: ['localhost:3000'],
+      matcher: (host: string) => (host === 'localhost' ? 'devtool' : null),
+      consentChecker: () => false,
+    });
+    expect(decideBlock('https://localhost:3000/api', opts)).toBeNull();
+    expect(decideBlock('https://localhost:8080/api', opts)).toBe('devtool');
   });
 });

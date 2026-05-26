@@ -143,14 +143,21 @@ interface Resolved {
  */
 export function decideBlock(url: string, opts: Resolved): string | null {
   if (!url || url === 'about:blank') return null;
-  let host: string;
+  let parsed: URL;
   try {
-    host = new URL(url, window.location.href).host;
+    parsed = new URL(url, window.location.href);
   } catch {
     return null;
   }
+  const { host, hostname } = parsed;
   if (host === '' || opts.sameOriginHosts.includes(host)) return null;
-  const service = opts.matcher(host);
+  // Same-origin check above uses `host` (port-strict) so a page on
+  // `localhost:3000` doesn't auto-trust `localhost:8080`. The matcher
+  // lookup below uses `hostname` (port-stripped) so a library entry
+  // of `tracker.com` matches `https://tracker.com:8443/x` too —
+  // consent decisions apply per-host, not per-host-port. Closes a
+  // port-smuggling bypass surfaced by the decideBlock fuzz.
+  const service = opts.matcher(hostname);
   if (service === null) return null;
   if (opts.consentChecker(service)) return null;
   return service;
