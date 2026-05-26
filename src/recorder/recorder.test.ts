@@ -129,6 +129,45 @@ describe('Recorder — ingestion + classification', () => {
     recorder.stop();
   });
 
+  it('isolates listeners from mid-dispatch (un)subscribe mutations', () => {
+    const { recorder, fake } = makeRecorder();
+    const calls: string[] = [];
+
+    const listenerA = () => {
+      calls.push('A');
+      // A removes B AND adds C, mid-dispatch.
+      recorder.off('detection', listenerB);
+      recorder.on('detection', listenerC);
+    };
+    const listenerB = () => {
+      calls.push('B');
+    };
+    const listenerC = () => {
+      calls.push('C');
+    };
+
+    recorder.on('detection', listenerA);
+    recorder.on('detection', listenerB);
+    recorder.start();
+
+    fake.sink({ kind: 'cookie', identifier: '_ga' });
+    // Snapshot semantics: B still fires (it was in the snapshot), C does not
+    // (it was added after snapshot). Without the snapshot, B's call would be
+    // skipped per spec'd for...of-over-Set behavior.
+    expect(calls).toEqual(['A', 'B']);
+
+    // Second dispatch: A and C are registered (B was removed). A re-runs and
+    // re-adds C — but C was already added by A's first run, so `Set.add` is a
+    // no-op. Net: A + C fire once each.
+    calls.length = 0;
+    fake.sink({ kind: 'cookie', identifier: '_gid' });
+    expect(calls).toEqual(['A', 'C']);
+
+    recorder.off('detection', listenerA);
+    recorder.off('detection', listenerC);
+    recorder.stop();
+  });
+
   it("fires 'detectionSettled' immediately when the classifier returns no pending promise (REQ-N7)", async () => {
     const { recorder, fake } = makeRecorder();
     const settled = vi.fn();

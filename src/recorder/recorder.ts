@@ -292,7 +292,9 @@ export class Recorder {
         `[SimpleCMP recorder] ${d.kind} ${d.status === 'unknown' ? '🟡 unknown' : `→ ${d.matchedService}`}: ${d.identifier}`
       );
     }
-    for (const listener of this.listeners) {
+    // Snapshot before iterating so listeners that unsubscribe (or add)
+    // mid-dispatch don't perturb the in-flight notification.
+    for (const listener of [...this.listeners]) {
       try {
         listener(d);
       } catch (err) {
@@ -360,7 +362,7 @@ export class Recorder {
   private _announceSettled(key: string): void {
     const d = this.detections.get(key);
     if (!d) return;
-    for (const listener of this.settledListeners) {
+    for (const listener of [...this.settledListeners]) {
       try {
         listener(d);
       } catch (err) {
