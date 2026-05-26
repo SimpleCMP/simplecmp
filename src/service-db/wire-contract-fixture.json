@@ -1,0 +1,58 @@
+{
+  "_doc": "Wire-contract snapshot for the Service-DB HTTP protocol (ADR-0005, docs/service-db-protocol.md). Locks in the exact shape of each endpoint's response body so client + server can't drift silently. The TS types in types.ts and the reference-server (reference-server/public/index.php) both have to keep producing these shapes.",
+  "GET /v1/services": {
+    "_doc": "Listing with pagination. Container is `items`, NOT `services`. Audit P2 from 2026-05-22: protocol had no test or comment pinning this; if a curator ever switched the key to `services` thinking it was clearer, JS consumers would silently see empty lists.",
+    "example": {
+      "items": [
+        {
+          "id": "google-analytics",
+          "name": "Google Analytics",
+          "purposes": ["analytics"]
+        }
+      ],
+      "total": 1,
+      "limit": 100,
+      "offset": 0
+    }
+  },
+  "GET /v1/services/:id": {
+    "_doc": "Single service detail. Response is the ServiceMatch object directly (NOT wrapped in `{ item: ... }` or similar).",
+    "example": {
+      "id": "google-analytics",
+      "name": "Google Analytics",
+      "purposes": ["analytics"]
+    }
+  },
+  "POST /v1/lookup": {
+    "_doc": "Batch lookup. Request body is `{ items: [{ cookie?, origin? }] }`. Response is `{ items: [{ query, matches }] }` — positionally aligned with the request. Each `matches` is an array because multiple library services CAN match the same cookie/origin (e.g. shared FB+Insta cookie names).",
+    "request_example": {
+      "items": [{ "cookie": "_ga" }, { "origin": "doubleclick.net" }]
+    },
+    "response_example": {
+      "items": [
+        {
+          "query": { "cookie": "_ga" },
+          "matches": [
+            {
+              "id": "google-analytics",
+              "name": "Google Analytics",
+              "purposes": ["analytics"]
+            }
+          ]
+        },
+        {
+          "query": { "origin": "doubleclick.net" },
+          "matches": []
+        }
+      ]
+    }
+  },
+  "GET /v1/health": {
+    "_doc": "Liveness + schema version probe. The library count is optional — when present, lets an external uptime checker detect 'data dropped to zero' even when HTTP 200 says the server is up.",
+    "example": {
+      "ok": true,
+      "schemaVersion": 1,
+      "count": 369
+    }
+  }
+}
