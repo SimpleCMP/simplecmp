@@ -1,0 +1,60 @@
+# Caddyfile for library.simplecmp.eu — runs inside the FrankenPHP container.
+# TLS terminates one layer up (Coolify/Traefik); this listens plain HTTP.
+#
+# GDPR posture: no access log, no per-request IP touches disk.
+# Rate limiting is enforced by the upstream Traefik middleware (Coolify),
+# so it stays out of this file.
+
+{
+    # Coolify/Traefik handles HTTPS + the public certificate.
+    auto_https off
+
+    # Zero log retention — drop access logs entirely. Errors still surface
+    # to stderr / Coolify container logs (no request bodies in there).
+    log {
+        output discard
+    }
+
+    # Enable PHP via FrankenPHP's worker.
+    frankenphp
+    order php_server before file_server
+}
+
+:8080 {
+    root * /app/public
+    encode zstd gzip
+
+    # ---- Security + posture headers ----
+    header {
+        # Public, read-only JSON — wide CORS is intentional so future
+        # browser-side consumers work without infra changes.
+        Access-Control-Allow-Origin "*"
+        Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        Access-Control-Allow-Headers "Content-Type, Authorization"
+        Access-Control-Max-Age "86400"
+
+        # Tell intermediates not to keep this around longer than necessary
+        # (PHP overrides Cache-Control per route).
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+
+        # Hide the powered-by trail.
+        -Server
+        -X-Powered-By
+    }
+
+    # ---- robots.txt — public data but not website content ----
+    handle /robots.txt {
+        header Content-Type "text/plain; charset=utf-8"
+        respond "User-agent: *
+Disallow: /
+" 200
+    }
+
+    # ---- everything else: front controller ----
+    handle {
+        try_files {path} /index.php?{query}
+        php_server
+    }
+}
