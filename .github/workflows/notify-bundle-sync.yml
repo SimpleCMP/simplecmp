@@ -24,20 +24,6 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - name: Diagnose token presence
-        env:
-          GH_TOKEN: ${{ secrets.BUNDLE_SYNC_DISPATCH_TOKEN }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "::error::BUNDLE_SYNC_DISPATCH_TOKEN secret is empty or unreadable"
-            exit 1
-          fi
-          # GitHub auto-redacts secret values in logs, but the LENGTH isn't
-          # redacted — useful to confirm the secret is reaching the step
-          # without leaking the value itself.
-          echo "Token length: ${#GH_TOKEN} chars"
-          echo "Token prefix: ${GH_TOKEN:0:11}..." # github_pat_ etc. is safe to print
-
       - name: Send repository_dispatch to t3-simplecmp
         env:
           GH_TOKEN: ${{ secrets.BUNDLE_SYNC_DISPATCH_TOKEN }}
