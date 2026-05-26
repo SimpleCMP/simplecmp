@@ -63,6 +63,15 @@ export abstract class SimpleCmpElement extends LitElement {
   private _watcher?: ReturnType<typeof makeRerenderWatcher>;
 
   /**
+   * Internal: the manager that `_watcher` is actually attached to. Tracked
+   * separately from the `manager` property because the two can drift when
+   * disconnect/reconnect runs between a property swap and the deferred
+   * `willUpdate`. Always source the unwatch target from this, never from
+   * `this.manager` or `changed.get('manager')`.
+   */
+  private _watcherManager?: ConsentManager;
+
+  /**
    * Translate a key against the active config. Components call this in
    * their `render()` templates: `${this._t('acceptAll')}`.
    *
@@ -83,19 +92,40 @@ export abstract class SimpleCmpElement extends LitElement {
     return super.createRenderRoot();
   }
 
-  override connectedCallback(): void {
-    super.connectedCallback();
+  /** Detach the current watcher from whichever manager it's attached to. */
+  private _detachWatcher(): void {
+    if (this._watcher !== undefined && this._watcherManager !== undefined) {
+      this._watcherManager.unwatch(this._watcher);
+    }
+    this._watcher = undefined;
+    this._watcherManager = undefined;
+  }
+
+  /**
+   * Idempotently align the watcher subscription with `this.manager`.
+   *
+   * Safe to call from any lifecycle hook — no-ops when already in sync.
+   * Crucially independent of Lit's `changed.get('manager')`, which can
+   * reflect a manager that was never the active subscription target if
+   * disconnect/reconnect runs between a property swap and `willUpdate`.
+   */
+  private _syncWatcher(): void {
+    if (this._watcherManager === this.manager) return;
+    this._detachWatcher();
     if (this.manager !== undefined) {
       this._watcher = makeRerenderWatcher(this);
+      this._watcherManager = this.manager;
       this.manager.watch(this._watcher);
     }
   }
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this._syncWatcher();
+  }
+
   override disconnectedCallback(): void {
-    if (this.manager !== undefined && this._watcher !== undefined) {
-      this.manager.unwatch(this._watcher);
-      this._watcher = undefined;
-    }
+    this._detachWatcher();
     super.disconnectedCallback();
   }
 
@@ -107,17 +137,9 @@ export abstract class SimpleCmpElement extends LitElement {
       this._translator = undefined;
     }
 
-    // Re-attach the watcher when the manager swaps.
+    // Re-align the watcher when the manager swaps.
     if (changed.has('manager')) {
-      const previousManager = changed.get('manager') as ConsentManager | undefined;
-      if (previousManager !== undefined && this._watcher !== undefined) {
-        previousManager.unwatch(this._watcher);
-        this._watcher = undefined;
-      }
-      if (this.manager !== undefined) {
-        this._watcher = makeRerenderWatcher(this);
-        this.manager.watch(this._watcher);
-      }
+      this._syncWatcher();
     }
   }
 
