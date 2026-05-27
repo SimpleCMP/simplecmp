@@ -25,8 +25,19 @@ lightweight banners (Klaro!, vanilla-cookieconsent). What's missing in the open-
   query, so common cases work out of the box.
 - **A CMS-friendly hook**: in production, optionally notify your CMS via API when an unknown
   cookie or connection is detected, so admins are alerted before compliance issues compound.
+- **Per-instance customization of blocked-embed placeholders** (REQ-19). When the engine
+  auto-inserts a `<simplecmp-contextual-notice>` next to a blocked iframe, content editors
+  can override the title / description / preview image *per embed* via plain
+  `data-simplecmp-*` attributes on the embed itself — no CMS-specific control needed.
+  No other commercial or open-source CMP we surveyed offers this; everyone else locks
+  customization at the per-service level.
+- **DSGVO-conformant layered disclosure out of the box.** The contextual notice's "Weitere
+  Informationen ›" link opens a Provider-Informationen modal (recipient legal entity,
+  address, privacy policy URL, opt-out URL, transfer basis) sourced from the curated
+  [`simplecmp/services-library`](https://github.com/SimpleCMP/services-library). Matches
+  the German-market accepted three-layer-disclosure pattern.
 
-SimpleCMP provides all three on top of a battle-tested consent UI.
+SimpleCMP provides all of this on top of a battle-tested consent UI.
 
 ## Architecture
 
@@ -197,15 +208,18 @@ pnpm ci             # full pipeline (typecheck + check + test + build)
 - ✅ **Phase 3** — Service DB: client + protocol + 23-service PHP+SQLite reference backend (REQ-8)
 - ✅ **Phase 4** — CMS Bridge: webhook for production alerts on unknown trackers (REQ-9)
 - 🚧 **Phase 5** — CMS plugins: WordPress, TYPO3, Contao (separate repos) (REQ-10)
-  - 🚧 [TYPO3 v14 plugin](https://github.com/WapplerSystems/simplecmp-typo3) —
-    iterations 1–10 shipped (FE bundle integration, service-DB endpoint,
+  - 🚧 [TYPO3 v14 plugin (`SimpleCMP/t3-simplecmp`)](https://github.com/SimpleCMP/t3-simplecmp)
+    — v0.5.0 shipped (FE bundle integration, service-DB endpoint,
     CMS-bridge receiver, BE module for detection review + service
     curation, three-state model with library-aware approve flow, Banner
     Design module with live preview, 3-table architecture with
-    `ClassifierLookup` unioning registry + bundled library, webhook
-    schema v2 with batched detections, four-state detection model
-    adding *Verworfen* (durable cross-visitor dismissal), full registry
-    *Dienste* tab with source tagging and Verwaist orphan handling).
+    `ClassifierLookup` unioning registry + bundled library + upstream
+    library service, webhook schema v2 with batched detections,
+    four-state detection model adding *Verworfen* (durable
+    cross-visitor dismissal), full registry *Dienste* tab with source
+    tagging and Verwaist orphan handling, REQ-19 L2 Provider-
+    Informationen modal with `libraryFallback` forwarding +
+    registry-side persistence).
   - ⬜ WordPress plugin
   - ⬜ Contao plugin
 
