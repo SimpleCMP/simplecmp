@@ -188,19 +188,37 @@ Captured here for traceability when this turns into a REQ. **This
 section supersedes the original "Proposed design shape" — the
 original was over-simple.**
 
-**Architecture: four-entity model in the services-library schema:**
+**Architecture: extend Service entries with embedded Provider data;
+no separate Provider entity for v1.0.**
+
+Decision revised 2026-05-27 after a vendor-frequency audit of the
+existing 369 service entries: **336 distinct vendor strings** —
+nearly 1:1 with services. Only ~25-30 services (Google's 12,
+Microsoft's 4, Adobe's 4-5, plus single-service big-N) actually
+benefit from Provider normalization. The remaining ~340 entries are
+unique-vendor-per-service, where a separate Provider entity adds
+schema overhead without payoff. Embed simplifies the migration to
+zero (just add data fields to existing entries) and keeps each
+service self-contained + portable.
 
 - **Service-Group** — already exists via the `purposes` array. Pin
   as the level at which the banner first-layer toggles consent.
-- **Provider** — NEW entity. Fields: id, name (legal entity), address
-  (full postal), description, privacyPolicyUrl, optOutUrl, partner
-  (free text), iabVendorId (TCF stub for future). Either normalized
-  (separate provider files) or embedded.
-- **Service** — existing, gains `providerId` reference. Keeps:
-  matchers, purposes, retention, language overlays.
+- **Provider data** — embedded `provider` object inside each Service
+  entry. Fields: name (legal entity), address (full postal), country,
+  description, privacyPolicyUrl, optOutUrl, partner (free text). NO
+  separate Provider entity files for v1.0. Curators fill the object
+  on the top ~25 entries; the rest stay with `vendor` string only and
+  the renderer degrades gracefully ("Adresse: nicht angegeben").
+- **Service** — existing, gains optional `provider: { ... }` object.
+  Keeps: matchers, purposes, retention, language overlays.
 - **Content-Blocker** — NEW concept (initially folded into Service
   via a `placeholderTemplate` + `placeholderVars` map; may split out
   later if multiple Content-Blockers per Service become useful).
+
+**Future normalization path is non-breaking:** add `providerId` as an
+alternative reference, library loader prefers it over embedded
+`provider`. Pre-1.0 cost/benefit doesn't justify normalization given
+the long-tail distribution.
 
 **Rendering surfaces (matching the layered disclosure model):**
 
@@ -247,35 +265,28 @@ per service-id.
 informed-consent act, provided the disclosure is visible before the
 click.
 
-## Open design questions (revised)
+## Open design questions (revised) — all locked 2026-05-27
 
-Four real ones, in priority order:
-
-1. **Provider entity split — normalize or embed?** Yes-split is the
-   biggest architectural decision either way. Normalize (separate
-   provider files, referenced by id) is the cleanest long-term shape
-   but a bigger breaking schema change for the existing 369 library
-   entries. Embed (`provider: { ... }` object inside each service)
-   is additive, accepts duplication across same-provider services,
-   easier to ship.
+1. ~~**Provider entity split — normalize or embed?**~~ → **EMBED.**
+   Initial lock 2026-05-27 was "normalize"; revised same day after
+   the vendor-frequency audit (336 distinct vendors / 369 services,
+   long-tail distribution). Provider data is embedded inline on
+   each Service entry. Future normalization is non-breaking when
+   the catalog UI surface eventually warrants it.
 
 2. **Add the L2 Provider-Informationen modal to
-   `<simplecmp-contextual-notice>`?** Required for layered-disclosure
-   parity with Borlabs/RCB. Roughly the size of the original notice
-   component itself. Without this, our placeholder is missing the
-   second-layer disclosure surface that the German-market accepted
-   shape needs.
+   `<simplecmp-contextual-notice>`?** → **YES, ship in v1.0.**
+   Required for layered-disclosure parity with Borlabs/RCB.
 
 3. **Per-Content-Blocker HTML template override — ship in v1.0 or
-   v1.x?** The data-attribute primitives cover the common case; the
-   raw-HTML escape hatch is for integrators who want bespoke designs.
-   Borlabs and RCB both ship this; SimpleCMP can defer.
+   v1.x?** → **DEFER to v1.x.** Data-attribute primitives cover
+   90% of cases; XSS/CSP review surface justifies the delay.
 
-4. **Library migration approach.** Bulk-add empty Provider stubs to
-   all 369 entries and let community curation fill them, or
-   block-and-tackle the top 30 high-traffic Providers (Google, Meta,
-   Microsoft, Adobe, Stripe, Vimeo, etc.) and leave the long tail
-   with `vendor` as a fallback?
+4. **Library migration approach.** → **Curate top ~25 services
+   with embedded provider data; long tail stays vendor-string-only
+   with graceful renderer fallback.** Multi-service consolidation
+   benefits (Google's 12 services share canonical data) come from
+   curation discipline, not schema normalization.
 
 ### Superseded original questions (kept for traceability)
 

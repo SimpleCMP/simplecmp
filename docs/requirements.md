@@ -322,11 +322,20 @@ Rechtsanalyse: `docs/research/2026-05-blocked-embed-placeholder-cmp-survey.md`.
 
 **Gesperrte Designentscheidungen (2026-05-27):**
 
-1. **Provider-Entität normalisieren** in der services-library:
-   separate `providers/<id>.json`-Dateien, von Service-Einträgen über
-   `providerId` referenziert. Begründet: ein Provider (z.B. "Google
-   Ireland Limited") wird von 8+ Services geteilt; embedded =
-   N-fache Duplizierung mit Drift-Risiko bei Adress-/URL-Updates.
+1. **Provider-Daten eingebettet** auf jedem Service-Eintrag, NICHT
+   normalisiert. Initial-Entscheidung war "normalisieren" (separate
+   `providers/<id>.json`-Dateien); revidiert nach einem
+   Vendor-Frequenz-Audit: **336 unterschiedliche `vendor`-Strings
+   bei 369 Service-Einträgen** — nahezu 1:1. Nur ~25-30 Services
+   (Googles 12, Microsofts 4, Adobes 4-5) profitieren überhaupt von
+   Normalisierung; die übrigen ~340 sind 1:1. Pre-1.0
+   Kosten/Nutzen rechtfertigt die Normalisierungs-Migration nicht.
+   Stattdessen: `provider: { name, address, country, description,
+   privacyPolicyUrl, optOutUrl, partner }` als optionales Objekt
+   direkt im Service-JSON. Spätere Normalisierung (via `providerId`
+   als Alternative zur eingebetteten Form) bleibt non-breaking,
+   wenn ein konkreter Bedarf entsteht (z.B. BE-Provider-Katalog-
+   UI).
 2. **L2-Provider-Informationen-Modal** zu `<simplecmp-contextual-notice>`
    hinzufügen. Inhalt: Provider-Name, vollständige Adresse,
    Beschreibung, Datenschutz-URL, Opt-Out-URL. Trigger: ein
@@ -336,25 +345,23 @@ Rechtsanalyse: `docs/research/2026-05-blocked-embed-placeholder-cmp-survey.md`.
    verschoben. Data-Attribut-Primitive auf dem eingebetteten Element
    decken 90% der Fälle ab; Roh-HTML hat XSS-/CSP-Implikationen, die
    einen separaten Review verdienen.
-4. **Library-Migration: Top-30 + Fallback.** 30 kanonische Provider-
-   Einträge (Google, Meta, Microsoft, Adobe, Stripe, Vimeo, ...)
-   werden authored; verbleibende Einträge fallen auf den freien
-   `vendor`-String mit einem Renderer-Fallback zurück. Lang-Tail-
-   Kuratierung läuft community-getrieben weiter.
+4. **Top ~25 Service-Einträge mit eingebetteten Provider-Daten
+   kuratieren** (Googles 12, Microsofts 4, Adobes 4-5, plus
+   Single-Service-Big-N wie Meta, Stripe, Vimeo, X, TikTok, LinkedIn
+   wo vorhanden). Long-Tail-Einträge bleiben mit `vendor`-String;
+   Renderer degradiert mit "Adresse: nicht angegeben"-Hinweis.
 
 **Acceptance Criteria (skizziert):**
 
-- [ ] Schema-Erweiterung in `simplecmp/services-library`: neue
-      `Provider`-Entität (Felder: id, name, address, description,
-      privacyPolicyUrl, optOutUrl, partner, iabVendorId).
-- [ ] 30 kanonische Provider-JSON-Dateien authored (Top-Vendors per
-      Frequenz-Audit der bestehenden 369 Service-Einträge).
-- [ ] Migrations-Skript: für jeden Service mit bekanntem `vendor`-
-      String setzt `providerId`; unbekannte bleiben mit
-      `vendor`-Fallback.
-- [ ] Renderer-Fallback: wenn `providerId` fehlt, synthetisiert das
-      L2-Modal eine minimale Provider-Anzeige aus dem `vendor`-String
-      mit "Adresse: nicht angegeben"-Hinweis.
+- [ ] Schema-Erweiterung in `simplecmp/services-library`: optionales
+      `provider`-Objekt direkt im Service-JSON (Felder: name, address,
+      country, description, privacyPolicyUrl, optOutUrl, partner).
+- [ ] Top ~25 Service-Einträge mit eingebetteten Provider-Daten
+      kuratiert (Multi-Service-Vendors + Single-Service-Big-N per
+      Frequenz-Audit).
+- [ ] Renderer-Verhalten bei fehlendem `provider`-Objekt: L2-Modal
+      synthetisiert minimale Anzeige aus dem `vendor`-String mit
+      "nicht angegeben"-Hinweisen für leere Felder.
 - [ ] Neue `<simplecmp-provider-info-modal>`-Komponente (Lit),
       gemeinsam genutzt von Banner-Services-Tab und Contextual-Notice.
 - [ ] `<simplecmp-contextual-notice>` bekommt einen "Weitere
@@ -370,7 +377,7 @@ Rechtsanalyse: `docs/research/2026-05-blocked-embed-placeholder-cmp-survey.md`.
 - [ ] i18n-Strings für DE + EN: Modal-Titel, Feldlabels, Schließen-
       Button. Geschätzt ~8 neue Strings.
 - [ ] Dokumentation in der services-library README aktualisiert
-      (Provider-Schema, Migration, Fallback-Verhalten).
+      (eingebettetes `provider`-Schema, Fallback-Verhalten).
 
 **Hinweise:**
 
