@@ -29,7 +29,22 @@
     "description": "Möchten Sie von {title} bereitgestellte externe Inhalte laden?",
     "descriptionEmptyStore": "Um diesem Dienst dauerhaft zustimmen zu können, müssen Sie {title} in den {link} zustimmen.",
     "descriptionUnknownHost": "Blockierter Drittinhalt von {title}. Diese Quelle wurde vom Site-Administrator noch nicht freigegeben — bitte wenden Sie sich an die Administratorin oder den Administrator, um diese Inhalte zu aktivieren.",
-    "modalLinkText": "Cookie-Einstellungen"
+    "modalLinkText": "Cookie-Einstellungen",
+    "providerInfoLink": "Weitere Informationen ›"
+  },
+  "providerInfo": {
+    "title": "Provider-Informationen",
+    "close": "Schließen",
+    "noData": "Keine Anbieter-Informationen verfügbar.",
+    "field": {
+      "vendor": "Anbieter",
+      "description": "Beschreibung",
+      "address": "Adresse",
+      "country": "Land",
+      "privacyPolicy": "Datenschutzerklärung",
+      "optOut": "Opt-Out",
+      "partner": "Partner / gemeinsam Verantwortliche"
+    }
   },
   "decline": "Ich lehne ab",
   "ok": "Das ist ok",

@@ -62,6 +62,26 @@ export interface Service {
    * notice. Falls back to the translation default if unset.
    */
   placeholderDescription?: string;
+  // --- L2 Provider-Informationen modal fields (REQ-19) -------------
+  // Surface the data recipient's identity + transfer basis on the
+  // second layer of the contextual notice. All optional; the modal
+  // hides fields that are unset and renders "nicht angegeben" only
+  // when the field is missing on a service that has any other vendor*
+  // field present.
+  /** Display brand name (e.g. "Google", "Facebook"). Distinct from the legal entity name (which lives in `vendorAddress`). */
+  vendor?: string;
+  /** ISO 3166-1 alpha-2 country code of the vendor's establishment. */
+  vendorCountry?: string;
+  /** Full postal address of the legal entity, prefixed with the entity name (e.g. "Google Ireland Limited, Gordon House, …"). */
+  vendorAddress?: string;
+  /** Service-specific opt-out endpoint (HTTPS). Distinct from privacyPolicyUrl. */
+  vendorOptOutUrl?: string;
+  /** Joint-controller / partner notes (Fashion ID / Art. 26 GDPR) + transfer-basis disclosure (DPF / SCCs / Art. 49). Free text. */
+  vendorPartner?: string;
+  /** Short description of the legal entity / company itself. Distinct from `description` which describes the service. */
+  vendorDescription?: string;
+  /** Link to the recipient's privacy policy. HTTPS. */
+  privacyPolicyUrl?: string;
   // Custom fields (e.g., `title`, `description`, `purposes` translations) flow
   // through. We keep this open via the index signature.
   [key: string]: unknown;
@@ -87,7 +107,24 @@ export interface ServiceHandlerOpts {
  * the synthetic service id used in `data-name` — typically the
  * library entry's id (e.g. `youtube`, `google-tag-manager`).
  */
-export type LibraryFallback = Record<string, { purposes?: readonly string[] }>;
+export type LibraryFallback = Record<
+  string,
+  {
+    purposes?: readonly string[];
+    // L2 Provider-Informationen modal fields (REQ-19). Same shape as
+    // the optional fields on `Service` — integrators populate these
+    // for services NOT in `config.services` so the L2 modal can
+    // render disclosure data without bundling the full services
+    // library into the FE payload.
+    vendor?: string;
+    vendorCountry?: string;
+    vendorAddress?: string;
+    vendorOptOutUrl?: string;
+    vendorPartner?: string;
+    vendorDescription?: string;
+    privacyPolicyUrl?: string;
+  }
+>;
 
 /** Klaro/SimpleCMP consent-config shape — what ConsentManager reads. */
 export interface ConsentConfig {
@@ -728,6 +765,16 @@ export class ConsentManager {
     const blockedSource = anchor.getAttribute('data-blocked-source');
     if (blockedSource !== null) {
       notice.setAttribute('data-blocked-source', blockedSource);
+    }
+    // Per-instance overrides (REQ-19): if a content editor pasted
+    // `data-simplecmp-title` / `-description` on the embed itself,
+    // surface them on the auto-inserted notice so its render
+    // resolvers can consume them. Integrators authoring notices
+    // directly can put these attributes on the <simplecmp-contextual-
+    // notice> element instead — same effect.
+    for (const attr of ['data-simplecmp-title', 'data-simplecmp-description']) {
+      const v = anchor.getAttribute(attr);
+      if (v !== null) notice.setAttribute(attr, v);
     }
     // The component reads `serviceName`, `config`, and `manager` as Lit
     // properties (not attributes) — without them, `_resolveService()`

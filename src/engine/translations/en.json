@@ -22,7 +22,22 @@
     "description": "Do you want to load external content supplied by {title}?",
     "descriptionEmptyStore": "To agree to this service permanently, you must accept {title} in the {link}.",
     "descriptionUnknownHost": "Blocked third-party content from {title}. The site administrator has not reviewed this source — please contact them to enable it.",
-    "modalLinkText": "Consent Manager"
+    "modalLinkText": "Consent Manager",
+    "providerInfoLink": "More information ›"
+  },
+  "providerInfo": {
+    "title": "Provider information",
+    "close": "Close",
+    "noData": "No provider information available.",
+    "field": {
+      "vendor": "Provider",
+      "description": "Description",
+      "address": "Address",
+      "country": "Country",
+      "privacyPolicy": "Privacy policy",
+      "optOut": "Opt-out",
+      "partner": "Partners / joint controllers"
+    }
   },
   "decline": "I decline",
   "ok": "That's ok",

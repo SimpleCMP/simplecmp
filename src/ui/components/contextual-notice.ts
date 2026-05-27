@@ -20,11 +20,12 @@
 
 import { css, html, nothing } from 'lit';
 import type { PropertyValues, TemplateResult } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import type { ConsentConfig, LibraryFallback, Service } from '../../engine/index.js';
 import { asTitle } from '../../engine/utils/strings.js';
 import { SimpleCmpElement } from '../base.js';
 import { tokens } from '../styles/tokens.js';
+import './provider-info-modal.js';
 
 @customElement('simplecmp-contextual-notice')
 export class SimpleCmpContextualNotice extends SimpleCmpElement {
@@ -43,6 +44,10 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
    * focus on first paint (auto-insert: yes; integrator-authored: no).
    */
   private _autoPlaceholder = false;
+
+  /** Open state for the L2 Provider-Informationen modal (REQ-19). */
+  @state()
+  private _providerInfoOpen = false;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -121,6 +126,21 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
         background: transparent;
         color: var(--simplecmp-color-text);
         border-color: var(--simplecmp-color-border);
+      }
+
+      .provider-info-link {
+        font-size: 0.875em;
+        margin: 0 0 var(--simplecmp-spacing) 0;
+      }
+
+      .provider-info-link a {
+        color: var(--simplecmp-color-primary);
+        text-decoration: underline;
+        cursor: pointer;
+      }
+
+      .provider-info-link a:hover {
+        color: var(--simplecmp-color-primary-hover);
       }
     `,
   ];
@@ -249,6 +269,7 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
     return html`
       <p>${description}</p>
       ${this._renderPurposes(service)}
+      ${this._renderProviderInfoLink(service)}
       <div class="buttons">
         <button type="button" class="accept-once" @click=${this._onAcceptOnce}>
           ${this._t(['contextualConsent', 'acceptOnce'])}
@@ -268,8 +289,90 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
             : nothing
         }
       </div>
+      ${this._renderProviderInfoModal(service)}
     `;
   }
+
+  /**
+   * Render the "Weitere Informationen ›" link that opens the L2
+   * Provider-Informationen modal (REQ-19). Only shown when the
+   * merged provider data (service + libraryFallback) has at least
+   * one disclosable field — otherwise the modal would be empty.
+   */
+  private _renderProviderInfoLink(service: Service): TemplateResult | typeof nothing {
+    if (!this._hasProviderData(service)) return nothing;
+    return html`
+      <p class="provider-info-link">
+        <a href="#" @click=${this._onProviderInfoOpen}>
+          ${this._tString(['contextualConsent', 'providerInfoLink']) || 'More information ›'}
+        </a>
+      </p>
+    `;
+  }
+
+  /**
+   * Mount the modal only when open, and only with merged provider
+   * data resolved from service + libraryFallback.
+   */
+  private _renderProviderInfoModal(service: Service): TemplateResult | typeof nothing {
+    if (!this._providerInfoOpen) return nothing;
+    return html`
+      <simplecmp-provider-info-modal
+        .service=${this._resolveProviderService(service)}
+        .config=${this.config}
+        .manager=${this.manager}
+        ?open=${this._providerInfoOpen}
+        @provider-info-close=${this._onProviderInfoClose}
+      ></simplecmp-provider-info-modal>
+    `;
+  }
+
+  /**
+   * Merge libraryFallback data into the service so the modal sees a
+   * unified view. Service-level fields win over libraryFallback.
+   */
+  private _resolveProviderService(service: Service): Service {
+    const fallback = this.config?.libraryFallback?.[service.name];
+    if (fallback === undefined) return service;
+    return {
+      ...service,
+      vendor: service.vendor ?? fallback.vendor,
+      vendorCountry: service.vendorCountry ?? fallback.vendorCountry,
+      vendorAddress: service.vendorAddress ?? fallback.vendorAddress,
+      vendorOptOutUrl: service.vendorOptOutUrl ?? fallback.vendorOptOutUrl,
+      vendorPartner: service.vendorPartner ?? fallback.vendorPartner,
+      vendorDescription: service.vendorDescription ?? fallback.vendorDescription,
+      privacyPolicyUrl: service.privacyPolicyUrl ?? fallback.privacyPolicyUrl,
+    };
+  }
+
+  /**
+   * True if the merged provider data has at least one renderable
+   * field. Without this guard, services without any vendor* data
+   * would show a misleading "More information ›" link that opens an
+   * empty modal.
+   */
+  private _hasProviderData(service: Service): boolean {
+    const merged = this._resolveProviderService(service);
+    return Boolean(
+      merged.vendor ||
+        merged.vendorCountry ||
+        merged.vendorAddress ||
+        merged.vendorOptOutUrl ||
+        merged.vendorPartner ||
+        merged.vendorDescription ||
+        merged.privacyPolicyUrl
+    );
+  }
+
+  private _onProviderInfoOpen = (event: Event): void => {
+    event.preventDefault();
+    this._providerInfoOpen = true;
+  };
+
+  private _onProviderInfoClose = (): void => {
+    this._providerInfoOpen = false;
+  };
 
   /**
    * Render the per-service purposes as a small "Zwecke: Marketing,
@@ -325,6 +428,13 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
    *    configured.
    */
   private _resolveTitle(service: Service): string {
+    // Per-instance override (REQ-19): `data-simplecmp-title` on the
+    // notice element or on the embed anchor (engine propagates from
+    // anchor → notice during auto-insertion). Wins over everything.
+    const instance = this.getAttribute('data-simplecmp-title');
+    if (instance !== null && instance.length > 0) {
+      return instance;
+    }
     if (typeof service.placeholderTitle === 'string' && service.placeholderTitle.length > 0) {
       return service.placeholderTitle;
     }
@@ -348,6 +458,12 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
    *    here to load the {title} content").
    */
   private _resolveDescription(service: Service, title: string): unknown {
+    // Per-instance override (REQ-19): `data-simplecmp-description` on
+    // the notice element or on the embed anchor. Wins over everything.
+    const instance = this.getAttribute('data-simplecmp-description');
+    if (instance !== null && instance.length > 0) {
+      return instance;
+    }
     if (
       typeof service.placeholderDescription === 'string' &&
       service.placeholderDescription.length > 0
