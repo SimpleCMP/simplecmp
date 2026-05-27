@@ -60,31 +60,241 @@ Five things that changed the design space:
    inherited is the cross-CMP convention — also used by tarteaucitron,
    iframemanager, Drupal modules, the WapplerSystems TYPO3 integration.
 
-## Proposed design shape (discussion notes, not yet locked)
+## Corrections & refinements (2026-05-27, deeper review)
 
-Captured here for traceability when this turns into a REQ.
+Two of the executive bullets above need narrowing after a deeper review
+of the Borlabs and RCB admin schemas + the in-product disclosure
+architecture. Preserved verbatim above so the original framing is
+auditable; the corrected picture is below.
 
-- **Two layout modes per service:** `hero` for media (thumbnail-mimicking
-  card with play-button) and `wrapped` for non-media (transparent overlay
-  around original content). Library curates the default per service;
-  admin can override globally per service.
-- **Per-instance overrides via plain data attributes** on the embed itself
-  (`data-simplecmp-title`, `-description`, `-preview-image`, `-mode`).
-  CMS-agnostic. TYPO3 / Gutenberg / Contao plugins become thin emitters.
-- **Library entry schema extension** to carry DSGVO copy:
-  `controller`, `dataCategories`, `thirdCountry.basis`, `placeholderCopy.<lang>`.
-- **Server-side thumbnail fetcher** as a CMS-plugin concern (not library);
-  off-by-default per service.
-- **One-click consent is sufficient** — legal agent confirmed no two-step
-  modal is required if the disclosure is visible before the click.
+### Correction A: "DSGVO-compliant default copy is an unclaimed lane"
 
-Open questions to resolve before locking the REQ:
-1. Ship thumbnail fetcher in this iteration or later?
-2. Hero default for which services beyond YouTube/Vimeo?
-3. Ship the Wrapped variant now or stick with Hero + current text-card?
-4. Full legal paragraph as library default, or compact 3-line summary?
-5. Bulk-stub the 369 library entries or service-by-service curation?
-6. Thumbnail copyright: hotlink, server-cache, or generic-placeholder default?
+**Overstated.** The German-market accepted compliance shape is a
+**three-layer disclosure**, not Art. 13 inline on the placeholder body.
+What Borlabs/RCB actually ship and what German DPAs / agencies accept:
+
+| Layer | Surface | Content |
+|---|---|---|
+| L1 | Cookie banner first view (Service-Gruppen tab) | Category name + group description + Alle akzeptieren / Alle ablehnen at equal prominence |
+| L2 | Banner per-service expansion ("Informationen anzeigen") AND/OR placeholder "Mehr Informationen" modal | Service description + **Provider name + full postal address + privacy policy URL** |
+| L3 | Linked Datenschutzerklärung (full page, operator-authored) | Full Art. 13: data categories, third-country basis, retention, joint-controller, recipients |
+
+The placeholder body itself stays minimal ("Sie sehen gerade einen
+Platzhalter von **{ServiceName}**…") with a Mehr-Informationen link to
+L2. The DSK same-layer rule is satisfied because the visitor saw the
+full disclosure on the banner first-layer when they originally arrived;
+the placeholder is a "you previously refused; here's a refresher +
+change your mind" surface that needs **only the recipient identity +
+privacy URL link** at the click point. SimpleCMP matching this is
+**parity**, not differentiation.
+
+**What this means for the design:** don't bake the full legal paragraph
+into the placeholder body. Match the layered model. The actual gap to
+fill is that our current `<simplecmp-contextual-notice>` doesn't have
+an L2 surface — we have only the placeholder body. Adding the L2
+modal/expansion is required for legal-parity, not as a differentiator.
+
+### Correction B: Architecture is richer than two layout modes
+
+The original "two layout modes per service (Hero / Wrapped)" framing
+described an *integrator UX choice*, not the underlying primitive. The
+actual primitive is a **per-Content-Blocker HTML template with
+key-value substitution**:
+
+- Each Content-Blocker entity has its own `placeholderTemplate` (HTML).
+- A `placeholderVars` table maps `{key}` substitutions per language.
+- The visible result can be authored as Hero (thumbnail card),
+  Wrapped (transparent overlay), text card, or anything else — those
+  are template-author choices, not enum values.
+
+This matches Borlabs's `preview_html` + `%%name%%` substitution pattern
+and the orestbida/iframemanager `[data-placeholder]` cloneable scaffold.
+RCB ships Hero / Wrapped / Text as named presets, but the underlying
+primitive is the same.
+
+### Correction C: Four-entity architecture, not two
+
+The original synthesis collapsed Provider+Service into one concept.
+Borlabs / RCB / the DACH compliance pattern actually use **four
+distinct entities**:
+
+1. **Service-Group** — top-level consent categorization (Essenziell,
+   Externe Medien, Marketing, Statistik). The cookie banner first-layer
+   toggles consent at this granularity. SimpleCMP has this via the
+   `purposes` array on each service entry.
+2. **Provider** — the recipient legal entity. Fields: legal name, full
+   postal address, description, privacy URL, opt-out URL, IAB Vendor ID
+   (TCF stub), partner/joint-controllers (free text). **Art. 13 source
+   of truth.** One row per legal entity (e.g. "Google Ireland Limited"
+   used by YouTube + Maps + reCAPTCHA + Analytics services).
+3. **Service** — what's offered. Fields: name, matchers (cookies,
+   origins, hosts), Service-Group, Provider reference. Multiple
+   services share one Provider.
+4. **Content-Blocker** — the visible gating UI. Fields: host patterns
+   to intercept, placeholder HTML template, variable substitutions, JS
+   hooks. References a Service. Optional one-to-one per Service.
+
+**What this means for our library schema:** the current
+`simplecmp/services-library` collapses Provider into a free-text
+`vendor` string on each Service entry. To match the DACH-market
+shape, we need to **split Provider into a separate entity** — either
+normalized (separate `providers/<id>.json` files referenced from
+service entries) or embedded (a `provider: { ... }` object inside
+each service entry, accepting duplication for entries sharing one
+Provider).
+
+### Correction D: Borlabs ships shippable "Paket" units
+
+Borlabs's Bibliothek distributes services as composite **Pakete**
+(packages) that bundle Provider + Service + Content-Blocker entities
+atomically — installing a YouTube package creates all three entities
+at once. RCB does the same with their "Service Template +
+Content-Blocker Template" pair. We should consider this packaging
+shape for our library too — one JSON file per service that ships the
+full Provider+Service+Content-Blocker bundle.
+
+### Correction E: Thumbnail-as-placeholder is opt-in, not standard
+
+The earlier survey claimed RCB's Hero layout has **server-side auto-
+download** of YouTube thumbnails as the default UX. RCB does ship this
+feature, gated as Pro-only. Borlabs's YouTube package documents that
+"Thumbnails können automatisch als Content-Blocker Thumbnails gesetzt
+werden" — i.e. the **capability exists as an opt-in admin toggle**,
+not as automatic-by-default behavior. The implementation
+(server-side fetch vs. hotlink vs. admin-upload) is not externally
+documented for either product.
+
+For our design this is mostly trivia — we've separately settled on
+server-side fetch as the privacy-correct path *if* we build the
+feature. The correction is that we shouldn't position Hero/auto-
+thumbnail as "everyone else does this" — it's a Pro-tier / opt-in
+feature even where it exists.
+
+### What stays from the original synthesis
+
+- **Per-instance customization remains the genuine moat.** Zero
+  commercial CMPs and zero open-source CMPs do this. Confirmed across
+  the full admin surface of Borlabs and the public docs of every other
+  product surveyed.
+- **One-click consent is legally sufficient** (no two-step modal).
+- **Server-side thumbnail fetch when we build it.** Defer to v1.x.
+- **Klaro upstream is dead-ish.** We forked from the high-water mark.
+- **iframemanager's `data-iframe-*` + URL templating + cloneable
+  `[data-placeholder]`** remain the cleanest open-source primitives.
+
+## Proposed design shape (revised 2026-05-27)
+
+Captured here for traceability when this turns into a REQ. **This
+section supersedes the original "Proposed design shape" — the
+original was over-simple.**
+
+**Architecture: four-entity model in the services-library schema:**
+
+- **Service-Group** — already exists via the `purposes` array. Pin
+  as the level at which the banner first-layer toggles consent.
+- **Provider** — NEW entity. Fields: id, name (legal entity), address
+  (full postal), description, privacyPolicyUrl, optOutUrl, partner
+  (free text), iabVendorId (TCF stub for future). Either normalized
+  (separate provider files) or embedded.
+- **Service** — existing, gains `providerId` reference. Keeps:
+  matchers, purposes, retention, language overlays.
+- **Content-Blocker** — NEW concept (initially folded into Service
+  via a `placeholderTemplate` + `placeholderVars` map; may split out
+  later if multiple Content-Blockers per Service become useful).
+
+**Rendering surfaces (matching the layered disclosure model):**
+
+| Layer | Surface | SimpleCMP component |
+|---|---|---|
+| L1 | Banner first view (Service-Group toggles) | Existing `<simplecmp-banner>` |
+| L2 | Banner per-service expansion + Placeholder Mehr-Informationen modal | Existing modal extended + **NEW** secondary surface on `<simplecmp-contextual-notice>` |
+| L3 | Operator's Datenschutzerklärung | Outside our scope |
+
+**Placeholder body stays minimal**, matching the German-market
+accepted floor. Default template:
+
+> *"Sie sehen gerade einen Platzhalter von **{provider.name}**.
+> Klicken Sie unten, um diesen Inhalt zu laden. Dabei werden Daten an
+> {provider.name} übertragen. Weitere Informationen ›"*
+
+Single primary CTA (Accept-this-service), `Weitere Informationen ›`
+opens the L2 Provider-Informationen modal, no second "Settings" button
+needed (settings reachable via the persistent floating trigger).
+
+**Per-instance customization via plain data attributes** — still the
+durable differentiator. CMS-agnostic; TYPO3 / Gutenberg / Contao
+plugins become thin emitters:
+
+```html
+<iframe data-name="youtube"
+        data-src="https://youtube.com/embed/abc"
+        data-simplecmp-title="Watch our 2024 keynote"
+        data-simplecmp-description="..."
+        data-simplecmp-preview-image="/uploads/keynote-thumb.jpg"
+        data-simplecmp-i18n='{"de":{...}}'>
+```
+
+**Power-user escape hatch: per-Content-Blocker HTML template
+override** — admins who need bespoke designs can author raw HTML for
+the placeholder. Matches Borlabs's `preview_html` and RCB's per-
+blocker layouts. Not strictly needed for v1.0.
+
+**Distribution as packages** — services-library entries become atomic
+units bundling Provider + Service + Content-Blocker JSON. One file
+per service-id.
+
+**One-click consent is legally sufficient** — placeholder click IS the
+informed-consent act, provided the disclosure is visible before the
+click.
+
+## Open design questions (revised)
+
+Four real ones, in priority order:
+
+1. **Provider entity split — normalize or embed?** Yes-split is the
+   biggest architectural decision either way. Normalize (separate
+   provider files, referenced by id) is the cleanest long-term shape
+   but a bigger breaking schema change for the existing 369 library
+   entries. Embed (`provider: { ... }` object inside each service)
+   is additive, accepts duplication across same-provider services,
+   easier to ship.
+
+2. **Add the L2 Provider-Informationen modal to
+   `<simplecmp-contextual-notice>`?** Required for layered-disclosure
+   parity with Borlabs/RCB. Roughly the size of the original notice
+   component itself. Without this, our placeholder is missing the
+   second-layer disclosure surface that the German-market accepted
+   shape needs.
+
+3. **Per-Content-Blocker HTML template override — ship in v1.0 or
+   v1.x?** The data-attribute primitives cover the common case; the
+   raw-HTML escape hatch is for integrators who want bespoke designs.
+   Borlabs and RCB both ship this; SimpleCMP can defer.
+
+4. **Library migration approach.** Bulk-add empty Provider stubs to
+   all 369 entries and let community curation fill them, or
+   block-and-tackle the top 30 high-traffic Providers (Google, Meta,
+   Microsoft, Adobe, Stripe, Vimeo, etc.) and leave the long tail
+   with `vendor` as a fallback?
+
+### Superseded original questions (kept for traceability)
+
+The original six questions from the first draft:
+
+1. ~~Ship thumbnail fetcher in this iteration or later?~~ → deferred
+   to v1.x (CMS-plugin concern).
+2. ~~Hero default for which services beyond YouTube/Vimeo?~~ →
+   superseded; layout is per-Content-Blocker template, not enum value.
+3. ~~Ship the Wrapped variant now or stick with Hero + current
+   text-card?~~ → same; integrator choice, not architecture.
+4. ~~Full legal paragraph as library default, or compact 3-line
+   summary?~~ → resolved; placeholder body stays minimal, full Art. 13
+   lives in operator's Datenschutzerklärung.
+5. ~~Bulk-stub the 369 library entries or service-by-service
+   curation?~~ → reformulated as Q4 above.
+6. ~~Thumbnail copyright: hotlink, server-cache, or generic-
+   placeholder default?~~ → resolved; generic-placeholder by default,
+   server-cache when admin opts in (post-v1.0).
 
 ---
 
