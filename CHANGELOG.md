@@ -8,6 +8,40 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+## 0.3.0 — 2026-05-27
+
+First tagged release. Captures the rewrite-track and the
+accumulated feature work since the Klaro fork, plus REQ-19 Phase B
+(L2 Provider-Informationen modal for blocked-embed placeholders).
+
+Headline of this release:
+
+- **L2 Provider-Informationen modal** (`<simplecmp-provider-info-modal>`)
+  rendered from the contextual notice's new "Weitere Informationen ›"
+  link. Closes the layered-disclosure parity gap with the DACH-
+  market accepted compliance shape (banner first-view → service
+  expansion / placeholder modal → linked Datenschutzerklärung).
+  Recipient name, full postal address, country, privacy policy URL,
+  opt-out URL, partner / joint-controllers, provider description —
+  all read from a service's new optional vendor* fields.
+- **Per-instance data-attribute overrides** on the blocked embed
+  itself: `data-simplecmp-title`, `data-simplecmp-description`. The
+  engine's auto-placeholder flow propagates them from the embed
+  anchor to the inserted notice; the notice resolvers consult them
+  as the highest-priority source. This is the durable
+  differentiator vs. every commercial + open-source CMP surveyed,
+  which all lock customization at the per-service level.
+- **`Service` + `LibraryFallback` types extended** with optional
+  fields: `vendor`, `vendorCountry`, `vendorAddress`,
+  `vendorOptOutUrl`, `vendorPartner`, `vendorDescription`,
+  `privacyPolicyUrl`. Integrators surface them via `config.services`
+  or via `libraryFallback` for library-known-but-not-configured
+  services. TYPO3 ext (`SimpleCMP/t3-simplecmp`) and library
+  (`SimpleCMP/services-library` ≥ v0.3.0) ship the matching pieces.
+
+Captured in REQ-19 in `docs/requirements.md`. Full background +
+research: `docs/research/2026-05-blocked-embed-placeholder-cmp-survey.md`.
+
 ### Fixed
 
 - **Cookie deletion now warns when it silently fails.** `deleteCookie`
