@@ -188,37 +188,61 @@ Captured here for traceability when this turns into a REQ. **This
 section supersedes the original "Proposed design shape" — the
 original was over-simple.**
 
-**Architecture: extend Service entries with embedded Provider data;
-no separate Provider entity for v1.0.**
+**Architecture: extend existing flat Service schema with four new
+optional `vendor*` fields; no nested `provider` object, no separate
+Provider entity for v1.0.**
 
-Decision revised 2026-05-27 after a vendor-frequency audit of the
-existing 369 service entries: **336 distinct vendor strings** —
-nearly 1:1 with services. Only ~25-30 services (Google's 12,
-Microsoft's 4, Adobe's 4-5, plus single-service big-N) actually
-benefit from Provider normalization. The remaining ~340 entries are
-unique-vendor-per-service, where a separate Provider entity adds
-schema overhead without payoff. Embed simplifies the migration to
-zero (just add data fields to existing entries) and keeps each
-service self-contained + portable.
+Decision revised 2026-05-27 in two steps:
+
+- **First revision:** drop normalization in favor of embedded
+  `provider: { ... }` object per Service. Triggered by a vendor-
+  frequency audit of the 369 service entries: **336 distinct vendor
+  strings** — nearly 1:1 with services. Only ~25-30 services
+  (Google's 12, Microsoft's 4, Adobe's 4-5) actually benefit from
+  Provider normalization; the rest are 1:1.
+- **Second revision:** drop the nested `provider` object in favor of
+  flat `vendor*` fields directly on Service. Triggered by review of
+  the existing library schema: services already have flat
+  `vendor` / `vendorCountry` / `privacyPolicyUrl` / `description`
+  fields with test-enforcement. Introducing a nested object would
+  create a stylistic split between old flat fields and new nested
+  fields, requiring either migration of the existing data or
+  permanent coexistence of two shapes. **Add four new flat fields
+  instead, matching the existing convention.**
+
+**Concrete schema additions on each Service entry (all optional):**
+
+| Existing flat field | L2-modal slot |
+|---|---|
+| `vendor` | Provider name |
+| `vendorCountry` | Provider country (ISO-3166-1 alpha-2) |
+| `privacyPolicyUrl` | Privacy policy URL |
+| `description` | Service description |
+| **NEW** `vendorAddress` | Full postal address of the legal entity |
+| **NEW** `vendorOptOutUrl` | Service-specific opt-out URL (HTTPS) |
+| **NEW** `vendorPartner` | Joint-controllers / partners (free text) |
+| **NEW** `vendorDescription` | Provider description (distinct from service `description`) |
 
 - **Service-Group** — already exists via the `purposes` array. Pin
   as the level at which the banner first-layer toggles consent.
-- **Provider data** — embedded `provider` object inside each Service
-  entry. Fields: name (legal entity), address (full postal), country,
-  description, privacyPolicyUrl, optOutUrl, partner (free text). NO
-  separate Provider entity files for v1.0. Curators fill the object
-  on the top ~25 entries; the rest stay with `vendor` string only and
-  the renderer degrades gracefully ("Adresse: nicht angegeben").
-- **Service** — existing, gains optional `provider: { ... }` object.
-  Keeps: matchers, purposes, retention, language overlays.
+- **Service** — existing flat structure. Gains four new optional
+  `vendor*` fields. Test-validated when present (types, URL HTTPS,
+  non-empty strings).
 - **Content-Blocker** — NEW concept (initially folded into Service
   via a `placeholderTemplate` + `placeholderVars` map; may split out
   later if multiple Content-Blockers per Service become useful).
 
-**Future normalization path is non-breaking:** add `providerId` as an
-alternative reference, library loader prefers it over embedded
-`provider`. Pre-1.0 cost/benefit doesn't justify normalization given
-the long-tail distribution.
+**Renderer fallback:** L2 modal reads each `vendor*` field
+independently. Missing fields render as "nicht angegeben" or are
+hidden. For long-tail entries with only `vendor` + `vendorCountry`,
+the L2 modal shows the vendor name + country and notes the address
+is unspecified.
+
+**Future normalization path remains non-breaking:** if a BE Provider
+catalog UI later warrants it, add `providerId` as an alternative
+reference; library loader prefers it over flat fields. Pre-1.0
+cost/benefit doesn't justify the normalization given the long-tail
+distribution.
 
 **Rendering surfaces (matching the layered disclosure model):**
 
@@ -267,12 +291,17 @@ click.
 
 ## Open design questions (revised) — all locked 2026-05-27
 
-1. ~~**Provider entity split — normalize or embed?**~~ → **EMBED.**
-   Initial lock 2026-05-27 was "normalize"; revised same day after
-   the vendor-frequency audit (336 distinct vendors / 369 services,
-   long-tail distribution). Provider data is embedded inline on
-   each Service entry. Future normalization is non-breaking when
-   the catalog UI surface eventually warrants it.
+1. ~~**Provider entity split — normalize or embed?**~~ → **FLAT
+   `vendor*` FIELDS** (final). Two revisions on 2026-05-27: initial
+   "normalize" → "embed nested `provider` object" → final "extend
+   existing flat fields." The flat shape matches the library's
+   existing schema convention (already has `vendor`, `vendorCountry`,
+   `privacyPolicyUrl`, `description` as flat fields with test
+   enforcement). Add four new optional flat fields:
+   `vendorAddress`, `vendorOptOutUrl`, `vendorPartner`,
+   `vendorDescription`. Future normalization via `providerId`
+   reference remains non-breaking when a BE Provider catalog UI
+   eventually warrants it.
 
 2. **Add the L2 Provider-Informationen modal to
    `<simplecmp-contextual-notice>`?** → **YES, ship in v1.0.**

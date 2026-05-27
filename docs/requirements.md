@@ -322,20 +322,27 @@ Rechtsanalyse: `docs/research/2026-05-blocked-embed-placeholder-cmp-survey.md`.
 
 **Gesperrte Designentscheidungen (2026-05-27):**
 
-1. **Provider-Daten eingebettet** auf jedem Service-Eintrag, NICHT
-   normalisiert. Initial-Entscheidung war "normalisieren" (separate
-   `providers/<id>.json`-Dateien); revidiert nach einem
-   Vendor-Frequenz-Audit: **336 unterschiedliche `vendor`-Strings
-   bei 369 Service-Einträgen** — nahezu 1:1. Nur ~25-30 Services
-   (Googles 12, Microsofts 4, Adobes 4-5) profitieren überhaupt von
-   Normalisierung; die übrigen ~340 sind 1:1. Pre-1.0
-   Kosten/Nutzen rechtfertigt die Normalisierungs-Migration nicht.
-   Stattdessen: `provider: { name, address, country, description,
-   privacyPolicyUrl, optOutUrl, partner }` als optionales Objekt
-   direkt im Service-JSON. Spätere Normalisierung (via `providerId`
-   als Alternative zur eingebetteten Form) bleibt non-breaking,
-   wenn ein konkreter Bedarf entsteht (z.B. BE-Provider-Katalog-
-   UI).
+1. **Provider-Daten als flache `vendor*`-Felder** auf jedem Service-
+   Eintrag. Initial-Entscheidung 2026-05-27 war "normalisieren"
+   (separate `providers/<id>.json`-Dateien), zweitens revidiert auf
+   "nested `provider`-Objekt", **final auf flache Felder revidiert
+   nach Sichtung der bestehenden Library-Schema**: Service-Einträge
+   haben bereits `vendor`, `vendorCountry`, `privacyPolicyUrl`,
+   `description` als flache Felder mit Test-Enforcement. Statt einen
+   stilistischen Bruch zwischen alten flachen Feldern und neuem
+   genesteten Objekt einzuführen, werden **vier neue flache Felder**
+   ergänzt: `vendorAddress` (Adresse vollständig), `vendorOptOutUrl`
+   (Service-spezifische Opt-Out-URL), `vendorPartner` (gemeinsame
+   Verantwortliche / Partner, Freitext), `vendorDescription`
+   (Provider-Beschreibung, getrennt von der Service-`description`).
+   Spätere Normalisierung (via `providerId`-Referenz) bleibt
+   non-breaking, wenn ein konkreter Bedarf entsteht.
+
+   Vendor-Frequenz-Audit bestätigt diesen Pfad: **336 unterschiedliche
+   `vendor`-Strings bei 369 Service-Einträgen** — nahezu 1:1
+   Long-Tail-Verteilung. Nur ~25-30 Services (Googles 12, Microsofts
+   4, Adobes 4-5) profitieren von Normalisierung; die übrigen ~340
+   sind 1:1, wo flache Felder genauso geeignet sind.
 2. **L2-Provider-Informationen-Modal** zu `<simplecmp-contextual-notice>`
    hinzufügen. Inhalt: Provider-Name, vollständige Adresse,
    Beschreibung, Datenschutz-URL, Opt-Out-URL. Trigger: ein
@@ -353,15 +360,17 @@ Rechtsanalyse: `docs/research/2026-05-blocked-embed-placeholder-cmp-survey.md`.
 
 **Acceptance Criteria (skizziert):**
 
-- [ ] Schema-Erweiterung in `simplecmp/services-library`: optionales
-      `provider`-Objekt direkt im Service-JSON (Felder: name, address,
-      country, description, privacyPolicyUrl, optOutUrl, partner).
+- [ ] Schema-Erweiterung in `simplecmp/services-library`: vier neue
+      optionale flache Felder auf jedem Service-Eintrag —
+      `vendorAddress`, `vendorOptOutUrl`, `vendorPartner`,
+      `vendorDescription`. Ergänzt bestehende flache Felder (`vendor`,
+      `vendorCountry`, `privacyPolicyUrl`, `description`).
 - [ ] Top ~25 Service-Einträge mit eingebetteten Provider-Daten
       kuratiert (Multi-Service-Vendors + Single-Service-Big-N per
       Frequenz-Audit).
-- [ ] Renderer-Verhalten bei fehlendem `provider`-Objekt: L2-Modal
-      synthetisiert minimale Anzeige aus dem `vendor`-String mit
-      "nicht angegeben"-Hinweisen für leere Felder.
+- [ ] Renderer-Verhalten bei fehlenden Feldern: L2-Modal synthetisiert
+      minimale Anzeige aus den vorhandenen flachen Feldern; fehlende
+      Felder werden ausgeblendet oder mit "nicht angegeben" markiert.
 - [ ] Neue `<simplecmp-provider-info-modal>`-Komponente (Lit),
       gemeinsam genutzt von Banner-Services-Tab und Contextual-Notice.
 - [ ] `<simplecmp-contextual-notice>` bekommt einen "Weitere
