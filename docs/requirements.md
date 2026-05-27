@@ -303,6 +303,98 @@ für alle. Klaro ist nicht audited.
   dokumentierter Brand-Exception für `green1` (siehe
   `docs/accessibility.md`).
 
+### REQ-19 — Geschichtete DSGVO-Auskunft für blockierte Embeds
+
+**Status:** ⬜ offen — Designentscheidungen gesperrt 2026-05-27,
+Implementierung steht aus. Notwendig für v1.0-Release-Bereitschaft.
+
+**Warum:** Die aktuelle `<simplecmp-contextual-notice>` (geliefert über
+`1c99f35`/`f148528`/`78a64b0` im Mai 2026) zeigt nur einen
+Platzhalter-Body — keine zweite Ebene mit Empfänger-Identität, voller
+Adresse, Datenschutz-URL. Die im DACH-Markt akzeptierte
+Compliance-Form ist eine **geschichtete Auskunft** (Banner-Erstebene →
+Service-Aufklappung / Platzhalter-Mehr-Informationen-Modal →
+verlinkte Datenschutzerklärung). Borlabs und Real Cookie Banner
+liefern alle drei Ebenen; SimpleCMP nur Ebene 1 + 3. Ohne L2-Ebene
+fehlt die "Same-Layer"-Auskunft, die das DSK-OH Telemedien für die
+Einwilligungs-Klick-Aktion fordert. Vollständige Wettbewerber- und
+Rechtsanalyse: `docs/research/2026-05-blocked-embed-placeholder-cmp-survey.md`.
+
+**Gesperrte Designentscheidungen (2026-05-27):**
+
+1. **Provider-Entität normalisieren** in der services-library:
+   separate `providers/<id>.json`-Dateien, von Service-Einträgen über
+   `providerId` referenziert. Begründet: ein Provider (z.B. "Google
+   Ireland Limited") wird von 8+ Services geteilt; embedded =
+   N-fache Duplizierung mit Drift-Risiko bei Adress-/URL-Updates.
+2. **L2-Provider-Informationen-Modal** zu `<simplecmp-contextual-notice>`
+   hinzufügen. Inhalt: Provider-Name, vollständige Adresse,
+   Beschreibung, Datenschutz-URL, Opt-Out-URL. Trigger: ein
+   "Weitere Informationen ›"-Link im Platzhalter-Body. Wiederverwendbar
+   für die Banner-Services-Tab-Aufklappung.
+3. **Pro-Content-Blocker Roh-HTML-Template-Override** auf v1.x
+   verschoben. Data-Attribut-Primitive auf dem eingebetteten Element
+   decken 90% der Fälle ab; Roh-HTML hat XSS-/CSP-Implikationen, die
+   einen separaten Review verdienen.
+4. **Library-Migration: Top-30 + Fallback.** 30 kanonische Provider-
+   Einträge (Google, Meta, Microsoft, Adobe, Stripe, Vimeo, ...)
+   werden authored; verbleibende Einträge fallen auf den freien
+   `vendor`-String mit einem Renderer-Fallback zurück. Lang-Tail-
+   Kuratierung läuft community-getrieben weiter.
+
+**Acceptance Criteria (skizziert):**
+
+- [ ] Schema-Erweiterung in `simplecmp/services-library`: neue
+      `Provider`-Entität (Felder: id, name, address, description,
+      privacyPolicyUrl, optOutUrl, partner, iabVendorId).
+- [ ] 30 kanonische Provider-JSON-Dateien authored (Top-Vendors per
+      Frequenz-Audit der bestehenden 369 Service-Einträge).
+- [ ] Migrations-Skript: für jeden Service mit bekanntem `vendor`-
+      String setzt `providerId`; unbekannte bleiben mit
+      `vendor`-Fallback.
+- [ ] Renderer-Fallback: wenn `providerId` fehlt, synthetisiert das
+      L2-Modal eine minimale Provider-Anzeige aus dem `vendor`-String
+      mit "Adresse: nicht angegeben"-Hinweis.
+- [ ] Neue `<simplecmp-provider-info-modal>`-Komponente (Lit),
+      gemeinsam genutzt von Banner-Services-Tab und Contextual-Notice.
+- [ ] `<simplecmp-contextual-notice>` bekommt einen "Weitere
+      Informationen ›"-Link, der das Modal öffnet.
+- [ ] Per-Instance-Daten-Attribute auf eingebetteten Elementen
+      werden unterstützt: `data-simplecmp-title`, `-description`,
+      `-preview-image`, `-i18n='{"de":{...}}'`. Auflösungsreihenfolge:
+      Instance > Service-Library-Overlay > Engine-Default.
+- [ ] Ein-Klick-Konsens ist ausreichend (keine zwei-Schritt-
+      Bestätigung) — der Klick auf "Inhalt laden" ist die
+      Einwilligungs-Aktion, sofern L2-Mehr-Infos vor dem Klick
+      erreichbar ist.
+- [ ] i18n-Strings für DE + EN: Modal-Titel, Feldlabels, Schließen-
+      Button. Geschätzt ~8 neue Strings.
+- [ ] Dokumentation in der services-library README aktualisiert
+      (Provider-Schema, Migration, Fallback-Verhalten).
+
+**Hinweise:**
+
+- **Per-Instance-Customization bleibt der echte Unterschied** —
+  kein anderer CMP (kommerziell oder Open-Source) liefert per-
+  Embed-Overrides als First-Class-Feature. Daten-Attribute auf dem
+  eingebetteten Element sind CMS-agnostisch; TYPO3/Gutenberg/Contao-
+  Plugins werden zu dünnen Emittern.
+- **Thumbnail-Fetcher ist kein v1.0-Scope.** Server-seitiger
+  Abruf (privacy-clean) wird in Phase-5-CMS-Plugins implementiert,
+  wenn ein konkreter Bedarf entsteht. Bis dahin: generisches
+  Platzhalter-Bild als Default.
+- **Verschiedene CMS-Plugin-Schemas müssen angepasst werden.**
+  Die TYPO3-Extension (`t3-simplecmp`) konsumiert die Library über
+  `ServicesLibrary::services()`; mit der Provider-Trennung muss
+  die `ClassifierLookup`-Logik die Provider-Referenz mit auflösen.
+  Per Bundle-Sync-Phase-1 wird die Bundle-Änderung automatisch
+  weitergegeben; PHP-seitige Anpassung ist separater Schritt.
+- **Implementierungsphasen:** Phase A = Library-Schema-Split,
+  Phase B = Engine-Rendering (Daten-Attribute + L2-Modal),
+  Phase C = TYPO3-Ext-Anpassung (folgt automatisch + ggf. PHP-
+  Anpassung), Phase D = TYPO3-BE-Provider-Katalog (post-v1.0).
+  Phase A + B = v1.0-Scope.
+
 ---
 
 ## Roadmap-Features (Phase 2–5)
