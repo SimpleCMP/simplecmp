@@ -8,6 +8,7 @@ Kategorien:
 
 - [Must-have für v1.0 (DSGVO/DACH-Markt)](#must-have-für-v10-dsgvodach-markt)
 - [Roadmap-Features (Phase 2–5)](#roadmap-features-phase-2-5)
+- [Release-Härtung für v1.0](#release-härtung-für-v10)
 - [Nice-to-have, später](#nice-to-have-später)
 - [Bewusst nicht in v1.0](#bewusst-nicht-in-v10)
 
@@ -575,6 +576,88 @@ bleibt im Repo als historisches Artefakt.
 Artefakt). Build-Pipeline auf ESM-only Engine + ESM/IIFE UI umgestellt
 (ADR-0008). README-Acknowledgements an Klaro überarbeitet. Bundle-
 Größenmessung dokumentiert (Engine-only Bundle vs. Engine+UI).
+
+---
+
+## Release-Härtung für v1.0
+
+Punkte, die wir bis zum 1.0-Cut wollen, aber die Pre-1.0 (mit kleiner
+Nutzerschaft und schnellem lokalen Entwicklungs-Loop) keinen akuten
+Druck haben. Bewusst hier aufgehoben, damit sie zur 1.0-Vorbereitung
+wieder hochkommen.
+
+### REQ-18 — Bundle-Sync CI Phase 2 (Verhaltens-Gates)
+
+**Status:** ⬜ offen — bewusst auf v1.0-Vorbereitung verschoben 2026-05-27.
+
+**Warum:** Phase 1 des `sync-bundle.yml`-Workflows
+(`SimpleCMP/t3-simplecmp@7f348ea`, geliefert 2026-05-26) gated jeden
+Bundle-Sync von Upstream auf *interne Konsistenz*: Bundle-Integrität
+(Dateigröße, Syntax-Check, Symbol-Präsenz) + PHPUnit Unit + PHPUnit
+Functional. Was Phase 1 NICHT abdeckt, sind *Verhaltens-Regressionen*,
+die ein Besucher sehen würde:
+
+- Banner mountet auf einer echten TYPO3-Seite überhaupt
+- Accept / Decline persistiert (Cookie + Banner unmount)
+- Universal-Blocking server-seitig (`HtmlRewriter`-Middleware)
+- Universal-Blocking Phase 2 Runtime-Patches (JS-injected `src`-Swaps)
+- Click-to-enable contextual-notice neben blockierten Iframes
+- Bridge-POST-Round-Trip (Cookie pflanzen → Webhook empfängt → BE-Tabelle hat Zeile)
+- BE-Modul-State-Derivation gegen ein frisches Bundle
+
+Pre-1.0-Begründung für Defer: Der lokale Dev-Loop
+(`pnpm build` → auto-sync → `cache:flush` → Browser-Refresh) ist
+schnell und effektiv. Upstreams eigene Playwright-Bridge-Suite
+(`SimpleCMP/simplecmp tests/bridge/`, 11 Specs in echtem Chromium)
+exerciert das Bundle bereits in einem Browser, BEVOR der Dispatch in
+diesen Workflow geht. Die *inkrementelle* Abdeckung, die Phase 2 hier
+hinzufügt, ist die TYPO3-seitige Integrations-Klebe — eine schmale
+Scheibe, deren häufigste Bruch-Vektoren (API-Name geändert) bereits
+durch Phase 1's `BUNDLE`-Symbol-Präsenz-Check abgefangen werden.
+
+Eine TYPO3-in-CI-Stack zu pflegen hat laufende Kosten (Schema-
+Migrations, TYPO3-Patch-Updates, Composer-Drift). Pre-1.0 wo APIs
+explizit instabil sind, ist diese Steuer zu teuer für den Gewinn.
+Post-1.0 wenn externe Nutzer auf Stabilität angewiesen sind, dreht
+sich die Rechnung.
+
+**Skizze in Memory:** Phase-2-Plan ist ausgearbeitet in
+`bundle_sync_automation.md` (Memory-File). Drei Lieferungen sind dort
+beschrieben:
+
+- A. **TYPO3 in CI booten.** Empfehlung Compose mit FrankenPHP-on-Alpine
+  (spiegelt Sven's reference-server Dockerfile-Ansatz aus
+  `library.simplecmp.eu`). Alternativen: Service-Containers
+  (eine-Image-pro-Service-Limit) oder ein minimaler `php -S`-basierter
+  Standalone-Install ohne Docker.
+- B. **Bestehende 5 BE-Playwright-Specs in CI:** smoke,
+  classifier-state-derivation, dismiss-flow, library-browser,
+  registry-banner-state. Laufen lokal gegen dev14; brauchen nur
+  Stack-Pointer + Healthcheck-Wait.
+- C. **~7 neue FE-Smoke-Specs in `Tests/Playwright/fe/`:** Banner-Mount,
+  Accept-all → Cookie + unmount, Decline-all → Cookie + unmount,
+  Universal-Blocking server-side rewrite (`Server-Timing: rewriter`
+  Header + `data-name` + `src="about:blank"`), Universal-Blocking
+  Phase-2 Runtime-Patch (JS-injected src swallowed), Contextual-Notice
+  neben blockiertem Iframe, Bridge-POST-Round-Trip.
+
+**Acceptance Criteria (skizziert):**
+
+- [ ] Test-Stack in CI bootbar — Stack-Form (Compose vs. php -S vs.
+      Service-Containers) zu lock vor Start.
+- [ ] Die 5 bestehenden BE-Playwright-Specs laufen in CI auf jedem
+      `bundle-sync`-Dispatch.
+- [ ] ~7 neue FE-Smoke-Specs unter `Tests/Playwright/fe/` decken das
+      oben gelistete Bundle-FE-Verhalten ab.
+- [ ] `fixtures/db.ts` env-aware: lokal `ddev mysql`, in CI direkt
+      gegen den MariaDB-Service-Container.
+- [ ] Phase-2-Gates verdrahtet NACH den existierenden PHPUnit-Gates
+      in `.github/workflows/sync-bundle.yml`.
+- [ ] Stack-README in `Tests/Playwright/ci/README.md` damit ein
+      Entwickler ihn lokal zum Debuggen hochfahren kann.
+
+**Abhängigkeit:** Triggert spätestens dann, wenn ein realer externer
+Nutzer das Bundle konsumiert — also unmittelbar vor v1.0-Release.
 
 ---
 
