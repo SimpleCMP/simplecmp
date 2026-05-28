@@ -322,7 +322,7 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
         .config=${this.config}
         .manager=${this.manager}
         ?open=${this._providerInfoOpen}
-        @provider-info-close=${this._onProviderInfoClose}
+        @simplecmp:provider-info-close=${this._onProviderInfoClose}
       ></simplecmp-provider-info-modal>
     `;
   }

@@ -300,4 +300,50 @@ describe('<simplecmp-contextual-notice>', () => {
     expect(document.activeElement).toBe(input);
     expect(el.shadowRoot?.activeElement).toBeNull();
   });
+
+  it('reopens the provider-info modal after it has been closed once', async () => {
+    // Regression: the close event from <simplecmp-provider-info-modal> is
+    // emitted as `simplecmp:provider-info-close` (via _emit's namespace
+    // prefix). A bare `@provider-info-close=` listener missed it, so
+    // _providerInfoOpen stayed true after the first close and subsequent
+    // link clicks were silent no-ops.
+    const config = {
+      ...baseConfig,
+      services: [
+        {
+          name: 'youtube',
+          purposes: ['marketing'],
+          default: false,
+          vendor: 'Google Ireland Ltd.',
+          privacyPolicyUrl: 'https://policies.google.com/privacy',
+        },
+      ],
+    } as const;
+    resetManagers();
+    const customManager = getManager(config);
+    const el = document.createElement('simplecmp-contextual-notice') as SimpleCmpContextualNotice;
+    el.config = config;
+    el.manager = customManager;
+    el.setAttribute('service-name', 'youtube');
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const link = el.shadowRoot?.querySelector<HTMLAnchorElement>('.provider-info-link a');
+    expect(link, 'provider-info link should render when vendor data is present').toBeTruthy();
+
+    link?.click();
+    await el.updateComplete;
+    expect(el.shadowRoot?.querySelector('simplecmp-provider-info-modal')).toBeTruthy();
+
+    const modal = el.shadowRoot?.querySelector('simplecmp-provider-info-modal');
+    modal?.dispatchEvent(
+      new CustomEvent('simplecmp:provider-info-close', { bubbles: true, composed: true })
+    );
+    await el.updateComplete;
+    expect(el.shadowRoot?.querySelector('simplecmp-provider-info-modal')).toBeFalsy();
+
+    link?.click();
+    await el.updateComplete;
+    expect(el.shadowRoot?.querySelector('simplecmp-provider-info-modal')).toBeTruthy();
+  });
 });
