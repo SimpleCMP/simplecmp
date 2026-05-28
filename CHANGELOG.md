@@ -8,6 +8,18 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+### Added
+
+- **`/v1/health.dataHash` on the reference server** — sha256 over the
+  service JSON files (computed via
+  `simplecmp/services-library@v0.3.1`'s `ServicesLibrary::dataHash()`).
+  Stable across README / CI / docs commits, so downstream consumers
+  can distinguish *content* drift from arbitrary commit churn. The
+  hash lives in the SQLite `meta` table and is populated by
+  `bin/rebuild-from-library.php` + `bin/seed.php`; legacy databases
+  pre-dating the meta entry simply omit the field until the next
+  rebuild backfills it.
+
 ## 0.3.0 — 2026-05-27
 
 First tagged release. Captures the rewrite-track and the
