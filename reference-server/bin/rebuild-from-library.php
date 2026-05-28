@@ -84,6 +84,17 @@ if (!is_dir($libPath . '/.git')) {
 $sha = run(['git', '-C', $libPath, 'rev-parse', 'HEAD']);
 $log("HEAD = {$sha}");
 
+// The reference-server's composer.json doesn't require services-library
+// as a dependency — we pull it from git on every rebuild and load the
+// class directly from the freshly cloned source. This keeps the data
+// pipeline and the schema source in lockstep without a re-deploy
+// every time services-library cuts a release.
+$servicesLibraryClass = $libPath . '/src/ServicesLibrary.php';
+if (!is_file($servicesLibraryClass)) {
+    fail('Cloned services-library is missing src/ServicesLibrary.php at ' . $servicesLibraryClass);
+}
+require_once $servicesLibraryClass;
+
 // --- 2. build fresh SQLite ----------------------------------------------------
 
 $dataDir = $libPath . '/data/services';

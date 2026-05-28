@@ -41,7 +41,13 @@ $count = (new Seeder($db))->seedFromDirectory($source);
 $elapsed = round((microtime(true) - $start) * 1000);
 
 $db->setMeta('lastSyncAt', gmdate('Y-m-d\TH:i:s\Z'));
-$db->setMeta('dataHash', \SimpleCMP\ServicesLibrary\ServicesLibrary::dataHash($source));
+// dataHash is intentionally NOT set here. seed.php is the bootstrap path
+// (just JSON files, no services-library checkout guaranteed), so we can't
+// compute the canonical hash. The first rebuild-from-library tick — which
+// always pulls the upstream repo and has the class available — populates
+// the field. /v1/health omits the field until then; consumers handle that
+// gracefully (BE freshness panel shows "Updates verfügbar" until first
+// rebuild).
 
 fwrite(STDOUT, sprintf(
     "[seed] %d services from %s into %s (%d ms)\n",
