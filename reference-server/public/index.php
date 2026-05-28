@@ -119,13 +119,21 @@ if ($method === 'GET' && $path === '/v1/health') {
     $count = $db->count();
     $lastSync = $db->getMeta('lastSyncAt');
     $sourceSha = $db->getMeta('sourceSha');
-    send_json([
+    $dataHash = $db->getMeta('dataHash');
+    $payload = [
         'status' => $count > 0 ? 'ok' : 'empty',
         'schemaVersion' => 1,
         'serviceCount' => $count,
         'lastSyncAt' => $lastSync,
         'sourceSha' => $sourceSha,
-    ], 200, ['Cache-Control' => 'no-store']);
+    ];
+    // Older databases pre-dating the dataHash meta entry won't carry it
+    // — omit the key rather than emit null so the field shape stays
+    // truthful. Next rebuild backfills it.
+    if (is_string($dataHash) && $dataHash !== '') {
+        $payload['dataHash'] = $dataHash;
+    }
+    send_json($payload, 200, ['Cache-Control' => 'no-store']);
     exit;
 }
 

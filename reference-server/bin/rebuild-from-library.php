@@ -122,6 +122,10 @@ $nowIso = gmdate('Y-m-d\TH:i:s\Z');
 $tmpDb->setMeta('lastSyncAt', $nowIso);
 $tmpDb->setMeta('sourceSha', $sha);
 $tmpDb->setMeta('serviceCount', (string)$count);
+// Content hash over the seed data only — README/CI/scripts don't move it.
+// Consumers compare this against ServicesLibrary::dataHash() on their
+// bundled copy to detect drift without false positives from docs commits.
+$tmpDb->setMeta('dataHash', \SimpleCMP\ServicesLibrary\ServicesLibrary::dataHash($dataDir));
 
 // Force the WAL into the main file so the rename swaps everything at once.
 // VACUUM rewrites the file in a single transaction and effectively

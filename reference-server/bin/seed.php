@@ -41,6 +41,7 @@ $count = (new Seeder($db))->seedFromDirectory($source);
 $elapsed = round((microtime(true) - $start) * 1000);
 
 $db->setMeta('lastSyncAt', gmdate('Y-m-d\TH:i:s\Z'));
+$db->setMeta('dataHash', \SimpleCMP\ServicesLibrary\ServicesLibrary::dataHash($source));
 
 fwrite(STDOUT, sprintf(
     "[seed] %d services from %s into %s (%d ms)\n",
