@@ -851,6 +851,70 @@ Detection-Review). Bis dahin kein Druck.
 - [ ] Doku in `docs/cms-bridge-webhook.md` aktualisiert; "Known
       limitation"-Block entfernt.
 
+### REQ-N8 — Opt-in-Blocking für Drittanbieter-Stylesheets (Google Fonts)
+
+**Status:** offen, zurückgestellt (2026-05-30).
+
+**Hintergrund:** Der Universal-Blocking-Rewriter (ADR-0013) schreibt seit
+2026-05-30 nur noch Resource-Hint-`<link>`-rels um (preconnect / preload / …);
+`rel="stylesheet"` bleibt bewusst unangetastet, damit kein Drittanbieter-CSS
+(Bootstrap-CDN, Font Awesome, **Google Fonts**) zerbricht — Stylesheets sind
+render-kritisch und haben keine Click-to-load-Recovery. Siehe
+`docs/decisions/2026-05-30-link-rewrite-rel-policy.md` im TYPO3-Plugin
+(Part A umgesetzt).
+
+Folge: dynamisch geladene Google Fonts (`<link rel="stylesheet"
+href="fonts.googleapis.com/…">`) werden per Default nicht blockiert — der
+prominenteste DACH-Abmahn-Fall (LG München I, 20.01.2022, Az. 3 O 17493/20).
+Der ehrliche Fix ist Self-Hosting; eine als „compliance-first" positionierte
+CMP sollte aber zumindest etwas anbieten.
+
+**Vorschlag (zwei Teile):**
+
+1. **Per-Site-Opt-in** `universalBlocking.blockStylesheets` (Default **aus**):
+   blockt Drittanbieter-`rel="stylesheet"` **mit Consent-Reinjection** —
+   `href` → `data-src` strippen und das `<link>` bei Accept neu injizieren
+   (Cookiebot-Modell), kein dauerhafter Strip. Docs führen mit „Self-Hosting"
+   und rahmen den Schalter als Best-Effort.
+2. **Drittanbieter-Stylesheet-Hosts** (`fonts.googleapis.com`,
+   `fonts.gstatic.com`, …) im Detection-/Discover-Flow sichtbar machen, mit
+   einem „Self-Hosting empfohlen"-Hinweis — der Recorder hat das Primitive
+   bereits.
+
+**Caveat (muss dokumentiert bleiben):** auch mit Schalter ist serverseitiges
+`<link>`-Rewriting leaky — der Browser-Preload-Scanner kann das Stylesheet vor
+dem Eingriff laden, und `@import url(...)` innerhalb eines Stylesheets entkommt
+komplett. Also Best-Effort, nicht „jetzt compliant".
+
+**Abhängigkeit:** braucht Cross-Repo-FE-Engine-Arbeit in `simplecmp`
+(Stylesheet-Block-and-Reinject — die Engine hat aktuell keinen
+Stylesheet-Recovery-Pfad) plus TYPO3-BE-Schalter + Detection-Hinweis im
+Plugin. Feature, kein Fix — deshalb von Part A (dem reinen `<link>`-rel-Fix)
+entkoppelt.
+
+**Warum zurückgestellt** (Deep-Research 2026-05-30): keine etablierte CMP
+schreibt beliebige `<link>`-Stylesheets automatisch um — Self-Hosting ist der
+Konsens (Complianz, Usercentrics, Google selbst); Default-Blocking zerbricht
+Seiten und liefert wegen Preload-Scanner / `@import` trügerische Sicherheit.
+Daher opt-in und später.
+
+**Acceptance Criteria (skizziert):**
+
+- [ ] Engine: Stylesheet-Block-and-Reinject-Pfad (`href` → `data-src`,
+      `<link>`-Reinjection bei Consent-Erteilung), mit Tests.
+- [ ] TYPO3-Site-Set-Feld `universalBlocking.blockStylesheets` (Default aus);
+      `HtmlRewriter` schreibt Drittanbieter-`rel="stylesheet"` nur bei aktivem
+      Schalter um.
+- [ ] Drittanbieter-Stylesheet-Hosts im Detection-/Discover-Flow mit
+      Self-Hosting-Empfehlung sichtbar.
+- [ ] Docs führen mit „Self-Hosting"; Schalter als Best-Effort gerahmt
+      (Preload-Scanner- / `@import`-Leaks dokumentiert).
+
+**Referenzen:** Decision-Doc
+`docs/decisions/2026-05-30-link-rewrite-rel-policy.md` (Part B = dieses REQ) im
+TYPO3-Plugin; Research-Survey
+`docs/research/2026-05-blocked-embed-placeholder-cmp-survey.md`.
+
 ---
 
 ## Bewusst nicht in v1.0
