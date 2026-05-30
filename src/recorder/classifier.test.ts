@@ -12,6 +12,16 @@ const services: ClassifierServiceConfig[] = [
     name: 'cdn',
     origins: [/^cdn\d*\.example\.com$/],
   },
+  // Slash-bounded regex-source origins (Service-DB protocol form). These
+  // are anchored to a full-host match by originMatches.
+  {
+    name: 'regex-origin',
+    origins: ['/tracker\\.example\\.com/'],
+  },
+  {
+    name: 'alt-origin',
+    origins: ['/a\\.test|b\\.test/'],
+  },
 ];
 
 describe('LocalClassifier — cookies', () => {
@@ -108,5 +118,49 @@ describe('LocalClassifier — origins', () => {
       origin: 'random.cdn',
     });
     expect(result.status).toBe('unknown');
+  });
+
+  it('matches a slash-bounded regex origin on the exact host', () => {
+    const result = classifier.classify({
+      kind: 'script',
+      identifier: 'https://tracker.example.com/x.js',
+      origin: 'tracker.example.com',
+    });
+    expect(result.status).toBe('known');
+    expect(result.matchedService).toBe('regex-origin');
+  });
+
+  it('does NOT let a substring impersonate a slash-regex origin (anchoring guard)', () => {
+    // `/tracker\.example\.com/` must NOT match a longer hostile host that
+    // merely contains the pattern — the unanchored bypass this fix closes.
+    expect(
+      classifier.classify({
+        kind: 'script',
+        identifier: 'https://evil/x',
+        origin: 'eviltracker.example.com.attacker.net',
+      }).status
+    ).toBe('unknown');
+    // ...nor a suffix-confusion host.
+    expect(
+      classifier.classify({
+        kind: 'script',
+        identifier: 'https://evil/x',
+        origin: 'tracker.example.com.evil.test',
+      }).status
+    ).toBe('unknown');
+  });
+
+  it('full-host-anchors each branch of a top-level alternation', () => {
+    expect(
+      classifier.classify({ kind: 'script', identifier: 'x', origin: 'a.test' }).matchedService
+    ).toBe('alt-origin');
+    expect(
+      classifier.classify({ kind: 'script', identifier: 'x', origin: 'b.test' }).matchedService
+    ).toBe('alt-origin');
+    // `a.test.evil` would slip past a naive `^a\.test|b\.test$` (anchors only
+    // the first/last branch); the (?:…) grouping rejects it.
+    expect(
+      classifier.classify({ kind: 'script', identifier: 'x', origin: 'a.test.evil' }).status
+    ).toBe('unknown');
   });
 });

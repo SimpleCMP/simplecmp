@@ -32,6 +32,18 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
   always consent, even under a GPC signal) and uses `??` for the default,
   matching the precedence already used by `changeAll()`.
 
+### Security
+
+- **Slash-bounded regex *origin* matchers are now anchored to a full-host
+  match.** `originMatches` compiled a `"/…/"` origin matcher unanchored,
+  so `/tracker\.com/` would match any host *containing* it — e.g.
+  `eviltracker.com.attacker.net` — letting a hostile host impersonate a
+  known service in the classifier and the universal-blocking host gate.
+  The source is now wrapped as `^(?:…)$`. Cookie-name regexes are
+  deliberately left partial (e.g. `/^_ga/` is a prefix matcher). No
+  bundled service uses the regex-origin form, so this only affects
+  custom/admin-authored configs.
+
 ## 0.3.0 — 2026-05-27
 
 First tagged release. Captures the rewrite-track and the

@@ -90,10 +90,15 @@ export function originMatches(host: string, matcher: OriginMatcher): boolean {
   }
   if (typeof matcher !== 'string') return false;
   // Slash-bounded form per the Service-DB protocol — same convention
-  // as cookies (regex source via a bounding pair).
+  // as cookies (regex source via a bounding pair). Anchored to a FULL-host
+  // match: unlike cookie-name regexes (intentionally partial, e.g.
+  // `/^_ga/`), an unanchored host regex lets a substring impersonate a
+  // service — `/tracker\.com/` would otherwise match
+  // `eviltracker.com.attacker.net`. The `(?:…)` group makes the anchors
+  // wrap any top-level alternation in the source.
   if (matcher.length >= 2 && matcher.startsWith('/') && matcher.endsWith('/')) {
     try {
-      return new RegExp(matcher.slice(1, -1)).test(host);
+      return new RegExp(`^(?:${matcher.slice(1, -1)})$`).test(host);
     } catch {
       return false;
     }
