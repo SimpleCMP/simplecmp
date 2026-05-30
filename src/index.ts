@@ -34,7 +34,7 @@ import { LayeredClassifier } from './service-db/layered-classifier.js';
 import type { ServiceDbAuth } from './service-db/types.js';
 import { initLit as mountUI } from './ui/init.js';
 import type { FloatingTriggerOptions, LitInitHandle } from './ui/init.js';
-import { applyThemeAdapter, type Theme } from './ui/themes/index.js';
+import { type Theme, applyThemeAdapter } from './ui/themes/index.js';
 
 export type { FloatingTriggerOptions, LitInitHandle as InitHandle } from './ui/init.js';
 export type {
