@@ -134,3 +134,101 @@ describe('engine headless surface (REQ-N2)', () => {
     expect(manager.getConsent('marketing')).toBe(true);
   });
 });
+
+describe('getDefaultConsent precedence + GPC (Finding 2)', () => {
+  afterEach(() => {
+    resetManagers();
+    localStorage.clear();
+    // Don't leak the GPC signal into other tests (reads check `=== true`).
+    (navigator as { globalPrivacyControl?: boolean }).globalPrivacyControl = false;
+  });
+
+  it('honors an explicit service.default:false against config.default:true', () => {
+    // Regression: the old `service.default || service.required` swallowed an
+    // explicit `false` and fell through to config.default (→ true).
+    const config: ConsentConfig = {
+      storageName: 'gdc-explicit-false',
+      storageMethod: 'localStorage',
+      default: true,
+      services: [{ name: 'a', purposes: ['analytics'], default: false }],
+    };
+    expect(getManager(config).getConsent('a')).toBe(false);
+  });
+
+  it('falls through to config.default when service.default is unset', () => {
+    const config: ConsentConfig = {
+      storageName: 'gdc-config-default',
+      storageMethod: 'localStorage',
+      default: true,
+      services: [{ name: 'a', purposes: ['analytics'] }],
+    };
+    expect(getManager(config).getConsent('a')).toBe(true);
+  });
+
+  it('defaults to false when neither service nor config sets a default', () => {
+    const config: ConsentConfig = {
+      storageName: 'gdc-no-default',
+      storageMethod: 'localStorage',
+      services: [{ name: 'a', purposes: ['analytics'] }],
+    };
+    expect(getManager(config).getConsent('a')).toBe(false);
+  });
+
+  it('required service always consents, even with default:false', () => {
+    const config: ConsentConfig = {
+      storageName: 'gdc-required-default-false',
+      storageMethod: 'localStorage',
+      services: [{ name: 'a', purposes: ['required'], required: true, default: false }],
+    };
+    expect(getManager(config).getConsent('a')).toBe(true);
+  });
+
+  it('config.required:true makes an otherwise-unset service consent', () => {
+    const config: ConsentConfig = {
+      storageName: 'gdc-config-required',
+      storageMethod: 'localStorage',
+      required: true,
+      services: [{ name: 'a', purposes: ['required'] }],
+    };
+    expect(getManager(config).getConsent('a')).toBe(true);
+  });
+
+  it('per-service required:false overrides config.required:true', () => {
+    const config: ConsentConfig = {
+      storageName: 'gdc-service-required-false',
+      storageMethod: 'localStorage',
+      required: true,
+      services: [{ name: 'a', purposes: ['analytics'], required: false, default: false }],
+    };
+    expect(getManager(config).getConsent('a')).toBe(false);
+  });
+
+  it('suppresses a non-required service under a GPC signal', () => {
+    (navigator as { globalPrivacyControl?: boolean }).globalPrivacyControl = true;
+    const config: ConsentConfig = {
+      storageName: 'gdc-gpc-nonrequired',
+      storageMethod: 'localStorage',
+      default: true,
+      services: [{ name: 'a', purposes: ['analytics'], default: true }],
+    };
+    expect(getManager(config).getConsent('a')).toBe(false);
+  });
+
+  it('keeps required services consented under a GPC signal', () => {
+    (navigator as { globalPrivacyControl?: boolean }).globalPrivacyControl = true;
+    const perService: ConsentConfig = {
+      storageName: 'gdc-gpc-required',
+      storageMethod: 'localStorage',
+      services: [{ name: 'a', purposes: ['required'], required: true }],
+    };
+    expect(getManager(perService).getConsent('a')).toBe(true);
+    // config.required path also stays consented under GPC.
+    const configRequired: ConsentConfig = {
+      storageName: 'gdc-gpc-config-required',
+      storageMethod: 'localStorage',
+      required: true,
+      services: [{ name: 'b', purposes: ['required'] }],
+    };
+    expect(getManager(configRequired).getConsent('b')).toBe(true);
+  });
+});

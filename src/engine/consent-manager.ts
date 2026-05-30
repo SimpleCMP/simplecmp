@@ -313,18 +313,26 @@ export class ConsentManager {
    * and `config.respectGPC !== false`.
    */
   getDefaultConsent(service: Service): boolean {
+    // Per-service `required` overrides `config.required` (`??` preserves an
+    // explicit `service.required: false` against a `config.required: true`
+    // default). Mirrors the resolution in `changeAll()`.
+    const required = service.required ?? this.config.required ?? false;
+    // Required (strictly-necessary) services always consent — including
+    // under a GPC signal, which only governs non-essential processing.
+    if (required) {
+      return true;
+    }
     if (
       this.config.respectGPC !== false &&
-      !service.required &&
       typeof navigator !== 'undefined' &&
       (navigator as { globalPrivacyControl?: boolean }).globalPrivacyControl === true
     ) {
       return false;
     }
-    let consent: boolean | undefined = service.default || service.required;
-    if (consent === undefined) consent = this.config.default;
-    if (consent === undefined) consent = false;
-    return consent;
+    // `??` (not `||`) so an explicit `service.default: false` is honored
+    // against a `config.default: true` instead of being swallowed back to
+    // the config default.
+    return service.default ?? this.config.default ?? false;
   }
 
   changeAll(value: boolean): number {
