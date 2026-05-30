@@ -20,6 +20,18 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
   pre-dating the meta entry simply omit the field until the next
   rebuild backfills it.
 
+### Fixed
+
+- **`getDefaultConsent` honors an explicit `service.default: false`.**
+  It previously used `service.default || service.required`, so an
+  explicit `false` was swallowed (`false || undefined`) and fell through
+  to `config.default` — a service couldn't opt out of a global
+  `default: true`. It also ignored `config.required` and applied the GPC
+  suppression to required services. Now resolves `required` as
+  `service.required ?? config.required ?? false` (required services
+  always consent, even under a GPC signal) and uses `??` for the default,
+  matching the precedence already used by `changeAll()`.
+
 ## 0.3.0 — 2026-05-27
 
 First tagged release. Captures the rewrite-track and the
