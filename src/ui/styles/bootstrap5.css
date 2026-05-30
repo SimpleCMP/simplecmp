@@ -6,14 +6,30 @@
  * the consent UI inherits the host's color scheme, radius, and spacing
  * automatically — no JS, no fork, no theming framework.
  *
- * Usage:
+ * Two ways to apply this adapter:
  *
- *     <link rel="stylesheet" href="path/to/bootstrap.css">
- *     <link rel="stylesheet" href="path/to/simplecmp/styles/bootstrap.css">
- *     <script type="module">
- *       import { initLit } from 'simplecmp';
- *       initLit({ ... });
- *     </script>
+ *   1. **`<link>` it yourself** (light-DOM mode, server-rendered
+ *      previews, or any setup where you'd rather manage stylesheets
+ *      in HTML):
+ *
+ *          <link rel="stylesheet" href="simplecmp/styles/bootstrap5.css">
+ *
+ *   2. **Let the bundle inject it** via the `theme` config field:
+ *
+ *          simplecmp.init({ theme: 'bootstrap5', ... });
+ *
+ *      The bundle ships the same rules as an inline string (see
+ *      `src/ui/themes/bootstrap5.ts`) and writes a
+ *      `<style data-simplecmp-theme="bootstrap5">` into `<head>` at
+ *      init time. No HTTP round-trip for the adapter stylesheet.
+ *
+ * Either way the underlying rules are identical — keep this file in
+ * sync with `src/ui/themes/bootstrap5.ts` (drift causes the inline
+ * vs. linked paths to diverge).
+ *
+ * Naming: the `5` suffix is deliberate. Bootstrap 4 used a different
+ * custom-property scheme (no `--bs-*` prefix); a Bootstrap 4 adapter
+ * would live next to this file as `bootstrap4.css`.
  *
  * The `:where()` wrapper keeps specificity at zero so consumer overrides
  * (`simplecmp-banner { --simplecmp-color-primary: ...; }`) still win.

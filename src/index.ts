@@ -34,6 +34,7 @@ import { LayeredClassifier } from './service-db/layered-classifier.js';
 import type { ServiceDbAuth } from './service-db/types.js';
 import { initLit as mountUI } from './ui/init.js';
 import type { FloatingTriggerOptions, LitInitHandle } from './ui/init.js';
+import { applyThemeAdapter, type Theme } from './ui/themes/index.js';
 
 export type { FloatingTriggerOptions, LitInitHandle as InitHandle } from './ui/init.js';
 export type {
@@ -130,9 +131,33 @@ export interface SimpleCMPConfig extends ConsentConfig {
    * Render components into Shadow DOM (default, encapsulated styles) or
    * Light DOM (host page's CSS applies). REQ-16. With `'light'` you must
    * `<link rel="stylesheet" href="simplecmp/styles/default.css">` (or
-   * `bootstrap.css`, or your own) for the components to be styled.
+   * `bootstrap5.css`, or your own) for the components to be styled.
    */
   domMode?: 'shadow' | 'light';
+
+  /**
+   * Re-bind SimpleCMP's design tokens to the host page's CSS-framework
+   * custom properties so the consent UI inherits the host's color
+   * scheme, radius, spacing, and typography without any manual
+   * stylesheet wiring.
+   *
+   * - `'default'` (default) — the bundle's built-in tokens apply.
+   * - `'bootstrap5'` — map `--simplecmp-*` to Bootstrap 5's `--bs-*`.
+   *   Same effect as `<link rel=stylesheet href=simplecmp/styles/
+   *   bootstrap5.css>` but injected from JS at `init()` time.
+   *
+   * The version suffix on framework names is required so adding a
+   * Bootstrap 4 adapter later (different `--bs-*` scheme) is
+   * unambiguous next to `'bootstrap5'`. Same pattern for
+   * `'tailwind3'` / `'tailwind4'` when those land.
+   *
+   * Adapters work through Shadow DOM: they set `--simplecmp-*`
+   * variables on the component tag selectors only, and custom-
+   * property inheritance carries the values across the shadow
+   * boundary into the component's `static styles`. No selectors
+   * reach inside the shadow root.
+   */
+  theme?: Theme;
 
   /**
    * Enable record mode for development-time tracker detection. `true` uses
@@ -322,6 +347,12 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
     activeRuntimePatchUninstaller();
     activeRuntimePatchUninstaller = null;
   }
+
+  // Theme adapter is a DOM-only side effect — injects (or removes) a
+  // `<style data-simplecmp-theme>` element in `<head>` that re-binds
+  // the `--simplecmp-*` tokens to the host framework's variables.
+  // Idempotent across re-inits; safe to call on every `init()`.
+  applyThemeAdapter(config.theme);
 
   // Phase 1 — set up everything that doesn't need the DOM. Critically,
   // the recorder + runtime patches install BEFORE any inline body script
