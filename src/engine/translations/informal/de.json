@@ -1,0 +1,47 @@
+{
+  "acceptAll": "Alles akzeptieren",
+  "acceptSelected": "Auswahl akzeptieren",
+  "consentModal": {
+    "description": "Hier kannst du die Dienste, die wir auf dieser Website nutzen möchten, bewerten und anpassen. Du hast das Sagen! Aktiviere oder deaktiviere die Dienste, wie du es für richtig hältst.",
+    "privacyPolicy": {
+      "text": "Um mehr zu erfahren, lies bitte unsere {privacyPolicy}."
+    }
+  },
+  "consentNotice": {
+    "changeDescription": "Seit deinem letzten Besuch gab es Änderungen, bitte erneuere deine Zustimmung.",
+    "description": "Hi! Können wir bitte ein paar zusätzliche Dienste für {purposes} aktivieren? Du kannst deine Zustimmung später jederzeit ändern oder zurückziehen.",
+    "learnMore": "Lass mich wählen"
+  },
+  "contextualConsent": {
+    "description": "Möchtest du von {title} bereitgestellte externe Inhalte laden?",
+    "descriptionEmptyStore": "Um diesem Dienst dauerhaft zustimmen zu können, musst du {title} in den {link} zustimmen.",
+    "descriptionUnknownHost": "Blockierter Drittinhalt von {title}. Diese Quelle wurde vom Site-Administrator noch nicht freigegeben — bitte wende dich an die Administratorin oder den Administrator, um diese Inhalte zu aktivieren."
+  },
+  "decline": "Nein danke",
+  "ok": "Passt für mich",
+  "privacyPolicy": {
+    "text": "Um mehr zu erfahren, lies bitte unsere {privacyPolicy}."
+  },
+  "purposes": {
+    "advertising": {
+      "description": "Diese Dienste verarbeiten persönliche Informationen, um dir personalisierte oder interessenbezogene Werbung zu zeigen."
+    },
+    "analytics": {
+      "description": "Diese Dienste erfassen, wie Besucher diese Seite nutzen, damit wir ihre Funktion messen und verbessern können."
+    },
+    "marketing": {
+      "description": "Diese Dienste verarbeiten persönliche Daten, um dir relevante Inhalte über Produkte, Dienstleistungen oder Themen zu zeigen, die dich interessieren könnten."
+    },
+    "personalization": {
+      "description": "Diese Dienste passen die Inhalte dieser Seite an deine Vorlieben und dein bisheriges Verhalten an."
+    }
+  },
+  "service": {
+    "disableAll": {
+      "description": "Mit diesem Schalter kannst du alle Dienste aktivieren oder deaktivieren."
+    },
+    "optOut": {
+      "description": "Diese Dienste werden standardmäßig geladen (du kannst dich jedoch abmelden)"
+    }
+  }
+}

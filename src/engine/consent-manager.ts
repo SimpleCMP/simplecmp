@@ -171,6 +171,23 @@ export interface ConsentConfig {
   languages?: string[];
   fallbackLang?: string;
   translations?: Record<string, unknown>;
+  /**
+   * Per-language tone selector. Languages with a T/V distinction
+   * (du/Sie, tu/vous, …) ship a curated informal overlay alongside the
+   * default formal pack; pass `{ de: 'informal' }` (etc.) to opt that
+   * language into the casual register.
+   *
+   * Tone overlays sit between the bundled defaults and the consumer's
+   * own `translations` — manual entries in `translations` always win
+   * over the tone preset. Languages that don't have an informal pack
+   * silently stay formal; values other than `'informal'` are treated
+   * as `'formal'` (no overlay).
+   *
+   * Currently shipped informal packs: `de`. Add more by dropping a
+   * `<lang>.json` into `src/engine/translations/informal/` and
+   * registering it in that directory's `index.ts`.
+   */
+  tones?: Record<string, 'formal' | 'informal'>;
   // Other custom fields (privacyPolicy, imprint, elementID, noAutoLoad, ...)
   [key: string]: unknown;
 }

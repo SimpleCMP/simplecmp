@@ -12,6 +12,7 @@
  */
 
 import { type ConsentConfig, ConsentManager } from './consent-manager.js';
+import informalPacks from './translations/informal/index.js';
 import { update } from './utils/config.js';
 import { language } from './utils/i18n.js';
 import { convertToMap, update as updateMap } from './utils/maps.js';
@@ -140,16 +141,45 @@ export function validateConfig(config: ConsentConfig): ConsentConfig {
 }
 
 /**
- * Build a Map of translations for a given config — the bundled
- * `defaultTranslations` overlaid with any per-config `translations`
- * provided by the integrator.
+ * Build a Map of translations for a given config.
+ *
+ * Resolution chain (lowest → highest precedence):
+ *   1. bundled `defaultTranslations` (formal register)
+ *   2. informal-tone overlays for any `config.tones[lang] === 'informal'`
+ *   3. consumer-supplied `config.translations` (always wins)
+ *
+ * The tone layer sits between bundle and consumer so that integrators
+ * who opt a language into the informal register get the curated du-form
+ * out of the box, but still keep the ability to override individual
+ * strings via `translations`.
  */
 export function getConfigTranslations(config: ConsentConfig): Map<unknown, unknown> {
   const trans = new Map<unknown, unknown>();
   updateMap(trans, defaultTranslations);
+  applyToneOverlays(trans, config);
   const configTranslations = (config.translations ?? {}) as Record<string, unknown>;
   updateMap(trans, convertToMap(configTranslations));
   return trans;
+}
+
+/**
+ * Overlay informal-tone packs on top of the formal defaults for every
+ * language the config opted in via `tones: { <lang>: 'informal' }`.
+ * Languages without a shipped informal pack are silent no-ops — they
+ * stay formal until somebody contributes a `<lang>.json` to
+ * `src/engine/translations/informal/`.
+ */
+function applyToneOverlays(trans: Map<unknown, unknown>, config: ConsentConfig): void {
+  const tones = config.tones;
+  if (tones === undefined || tones === null) return;
+  for (const [lang, tone] of Object.entries(tones)) {
+    if (tone !== 'informal') continue;
+    const pack = informalPacks[lang];
+    if (pack === undefined) continue;
+    const overlay = new Map<unknown, unknown>();
+    overlay.set(lang, convertToMap(pack));
+    updateMap(trans, overlay);
+  }
 }
 
 /**
