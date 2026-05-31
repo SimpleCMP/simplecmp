@@ -8,6 +8,7 @@
  * @packageDocumentation
  */
 
+import { auditDom as runAuditDom } from './audit/dom.js';
 import { maxSeverity as auditMaxSeverity, audit as runAudit } from './audit/index.js';
 import type { Check as AuditCheck, AuditResult, Severity as AuditSeverity } from './audit/index.js';
 import { CmsBridge } from './cms-bridge/index.js';
@@ -75,6 +76,21 @@ export function audit(config: SimpleCMPConfig): AuditResult[] {
  */
 export function auditWorstSeverity(results: readonly AuditResult[]): AuditSeverity {
   return auditMaxSeverity(results);
+}
+
+/**
+ * Run DOM-level compliance checks against a mounted banner. Pairs
+ * with `audit(config)` — same `AuditResult` shape, different scope:
+ * this one inspects the live DOM (computed styles, element tags,
+ * WCAG contrast) rather than the config object. Call after the
+ * banner has rendered.
+ *
+ * Pass a shadow root to scope the check; default is the global
+ * `document`. Walks `<simplecmp-banner>` shadow roots automatically
+ * to find the actual button elements.
+ */
+export function auditDom(root?: Document | ShadowRoot): AuditResult[] {
+  return runAuditDom(root);
 }
 
 // Seed the engine's translation registry with the bundled language packs at
