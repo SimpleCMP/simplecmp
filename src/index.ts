@@ -8,6 +8,8 @@
  * @packageDocumentation
  */
 
+import { maxSeverity as auditMaxSeverity, audit as runAudit } from './audit/index.js';
+import type { Check as AuditCheck, AuditResult, Severity as AuditSeverity } from './audit/index.js';
 import { CmsBridge } from './cms-bridge/index.js';
 import type { CmsBridgeAuth, CmsBridgeOptions } from './cms-bridge/index.js';
 import {
@@ -49,6 +51,31 @@ export type { BlockInfo } from './runtime-patches/index.js';
 export { ServiceDbClient } from './service-db/client.js';
 export { LayeredClassifier } from './service-db/layered-classifier.js';
 export { CmsBridge } from './cms-bridge/index.js';
+export type { AuditResult, AuditSeverity, AuditCheck };
+export { CHECKS as auditChecks } from './audit/index.js';
+
+/**
+ * Run the compliance audit against a config and return per-check
+ * findings. Pure function, side-effect-free — safe to call in any
+ * environment (browser, Node, CI). Returns the results in a stable
+ * order so server-side mirrors (e.g. the TYPO3 BE module's PHP-side
+ * audit) can match findings by index or by `id` field.
+ *
+ * See `docs/legal-compliance.md` for the legal basis of each check
+ * and the rationale for `severity` assignments.
+ */
+export function audit(config: SimpleCMPConfig): AuditResult[] {
+  return runAudit(config);
+}
+
+/**
+ * Pick the worst severity across an audit result set. Integrators
+ * use this to drive a top-level status badge ("any findings?")
+ * without re-implementing the severity ordering.
+ */
+export function auditWorstSeverity(results: readonly AuditResult[]): AuditSeverity {
+  return auditMaxSeverity(results);
+}
 
 // Seed the engine's translation registry with the bundled language packs at
 // import time. Consumers get sensible defaults out of the box; per-config
