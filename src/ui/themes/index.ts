@@ -30,6 +30,7 @@
  */
 
 import { BOOTSTRAP5_THEME_CSS } from './bootstrap5.js';
+import { TAILWIND4_THEME_CSS } from './tailwind4.js';
 
 /** Identifier on `<style>` so re-init can replace its own injection. */
 const STYLE_ELEMENT_MARKER = 'data-simplecmp-theme';
@@ -39,7 +40,7 @@ const STYLE_ELEMENT_MARKER = 'data-simplecmp-theme';
  * means the component's built-in tokens apply — no adapter needed.
  * Add new framework adapters here as they're contributed.
  */
-export type Theme = 'default' | 'bootstrap5';
+export type Theme = 'default' | 'bootstrap5' | 'tailwind4';
 
 /**
  * Adapter CSS keyed by theme name. `'default'` deliberately has no
@@ -47,6 +48,7 @@ export type Theme = 'default' | 'bootstrap5';
  */
 const THEMES: Partial<Record<Theme, string>> = {
   bootstrap5: BOOTSTRAP5_THEME_CSS,
+  tailwind4: TAILWIND4_THEME_CSS,
 };
 
 /**

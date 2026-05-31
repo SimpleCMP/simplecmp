@@ -145,11 +145,18 @@ export interface SimpleCMPConfig extends ConsentConfig {
    * - `'bootstrap5'` — map `--simplecmp-*` to Bootstrap 5's `--bs-*`.
    *   Same effect as `<link rel=stylesheet href=simplecmp/styles/
    *   bootstrap5.css>` but injected from JS at `init()` time.
+   * - `'tailwind4'` — map to Tailwind 4's `@theme` tokens
+   *   (`--color-*`, `--text-*`, `--radius-*`, `--spacing`, …). Pulls
+   *   semantic names (`--color-primary`, `--color-background`, …)
+   *   first and falls back to the Tailwind palette so sites without
+   *   curated brand tokens still look coherent.
    *
    * The version suffix on framework names is required so adding a
    * Bootstrap 4 adapter later (different `--bs-*` scheme) is
    * unambiguous next to `'bootstrap5'`. Same pattern for
-   * `'tailwind3'` / `'tailwind4'` when those land.
+   * `'tailwind3'`: Tailwind 3 didn't expose CSS custom properties
+   * out of the box, so a v3 adapter would have nothing to bind
+   * against and lives in its own slot if/when contributed.
    *
    * Adapters work through Shadow DOM: they set `--simplecmp-*`
    * variables on the component tag selectors only, and custom-
