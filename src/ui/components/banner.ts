@@ -34,6 +34,7 @@ import type { TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { ifDefined } from 'lit/directives/if-defined.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import type { ConsentConfig } from '../../engine/index.js';
 import { getPurposes } from '../../engine/utils/config.js';
 import { asTitle } from '../../engine/utils/strings.js';
 import { SimpleCmpElement } from '../base.js';
@@ -106,6 +107,15 @@ export class SimpleCmpBanner extends SimpleCmpElement {
         color: var(--simplecmp-color-text-muted);
       }
 
+      /* Layout-independent button row defaults. Per-layout overrides
+         live in the .cn-layout-* selectors below.
+
+         Compliance baseline (legal-compliance.md §1.2 + §2.3): all
+         three buttons share identical styling. Visual hierarchy is
+         carried by label + position, never by color/size/weight.
+         The previous Accept-filled-primary vs. Decline-ghost-outline
+         treatment was a Stirring dark pattern; this rewrite levels
+         the visual playing field. */
       .cn-buttons {
         display: flex;
         flex-wrap: wrap;
@@ -115,31 +125,50 @@ export class SimpleCmpBanner extends SimpleCmpElement {
 
       button {
         font: inherit;
-        border: 1px solid transparent;
+        font-weight: 500;
+        border: 1px solid var(--simplecmp-color-border);
         border-radius: var(--simplecmp-radius);
         padding: var(--simplecmp-spacing-sm) var(--simplecmp-spacing);
         cursor: pointer;
-      }
-
-      button.cn-accept {
-        background: var(--simplecmp-color-primary);
-        color: white;
-      }
-
-      button.cn-accept:hover {
-        background: var(--simplecmp-color-primary-hover);
-      }
-
-      button.cn-decline {
-        background: transparent;
-        color: var(--simplecmp-color-danger);
-        border-color: var(--simplecmp-color-danger);
-      }
-
-      button.cn-configure {
-        background: transparent;
+        background: var(--simplecmp-color-bg-alt);
         color: var(--simplecmp-color-text);
-        border-color: var(--simplecmp-color-border);
+        line-height: var(--simplecmp-line-height);
+      }
+
+      button:hover {
+        background: var(--simplecmp-color-border);
+      }
+
+      button:focus-visible {
+        outline: 2px solid var(--simplecmp-color-primary);
+        outline-offset: 2px;
+      }
+
+      /* Standard layout — horizontal flex row with Configure-Decline-
+         Accept in source order. Wraps on narrow viewports. */
+      .cn-layout-standard {
+        /* Inherits .cn-buttons defaults — explicit name retained for
+           future per-layout tweaks without bloating the base rule. */
+      }
+
+      /* Compact layout — Decline | Accept only, no Configure. The
+         component skips the Configure button in render() when
+         layout === 'compact'; this rule just exists so a
+         downstream theme can target compact-mode if needed. */
+      .cn-layout-compact {
+        /* same as standard for now */
+      }
+
+      /* Stacked layout — vertical column, each button full-width.
+         Optimised for narrow viewports and assistive tech where
+         buttons-of-equal-styling on a row are hard to scan. */
+      .cn-layout-stacked {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .cn-layout-stacked button {
+        width: 100%;
       }
 
       a {
@@ -246,38 +275,85 @@ export class SimpleCmpBanner extends SimpleCmpElement {
             : nothing
         }
         ${this.testing ? html`<p>${this._t(['consentNotice', 'testing'])}</p>` : nothing}
-        <div class="cn-buttons">
-          ${
-            config.hideLearnMore === true
-              ? nothing
-              : html`<button
-                type="button"
-                class="cn-configure"
-                @click=${this._handleConfigure}
-              >
-                ${this._t(['consentNotice', 'learnMore'])}
-              </button>`
-          }
-          ${
-            config.hideDeclineAll === true
-              ? nothing
-              : html`<button
-                type="button"
-                class="cn-decline"
-                @click=${this._handleDecline}
-              >
-                ${this._t(['decline'])}
-              </button>`
-          }
-          <button type="button" class="cn-accept" @click=${this._handleAccept}>
-            ${this._t(['ok'])}
-          </button>
-        </div>
+        ${this._renderButtonRow(config)}
       </div>
     `;
   }
 
   // --- helpers ----------------------------------------------------------
+
+  /**
+   * Render the button row for the active layout.
+   *
+   * Three templates are supported, all of which preserve the
+   * legal-compliance baseline (`docs/legal-compliance.md` §1.2 +
+   * §2.3): equal visual styling across Accept / Decline / Configure,
+   * hierarchy carried by label and position only.
+   *
+   *  - `standard` (default) — three buttons horizontally:
+   *    Configure | Decline | Accept. The recommended posture for
+   *    DACH compliance with a Settings-layer fallback.
+   *
+   *  - `compact` — Decline | Accept only. Configure is hidden so the
+   *    banner is denser; works for sites where the second-layer
+   *    Settings dialog is opened via the persistent footer trigger
+   *    (`floatingTrigger`) instead of a first-layer button.
+   *
+   *  - `stacked` — same three buttons as standard, stacked vertically
+   *    with full-width treatment. Optimised for narrow viewports
+   *    and assistive tech.
+   *
+   * Legacy `config.hideLearnMore` / `config.hideDeclineAll` flags
+   * remain honored on top — they win where set so existing
+   * integrations don't suddenly grow buttons. `hideDeclineAll: true`
+   * is flagged by the audit module as illegal under VG Hannover
+   * 10 A 5385/22; the banner still renders without it for
+   * backward-compat, the warning lives in the audit surface.
+   */
+  private _renderButtonRow(config: ConsentConfig): TemplateResult {
+    const layout = this._resolveLayout(config);
+    const showConfigure = layout !== 'compact' && config.hideLearnMore !== true;
+    const showDecline = config.hideDeclineAll !== true;
+    return html`<div class="cn-buttons cn-layout-${layout}">
+      ${
+        showConfigure
+          ? html`<button
+            type="button"
+            class="cn-configure"
+            @click=${this._handleConfigure}
+          >
+            ${this._t(['consentNotice', 'learnMore'])}
+          </button>`
+          : nothing
+      }
+      ${
+        showDecline
+          ? html`<button
+            type="button"
+            class="cn-decline"
+            @click=${this._handleDecline}
+          >
+            ${this._t(['decline'])}
+          </button>`
+          : nothing
+      }
+      <button type="button" class="cn-accept" @click=${this._handleAccept}>
+        ${this._t(['ok'])}
+      </button>
+    </div>`;
+  }
+
+  /**
+   * Resolve the active layout. Unknown values fall back to `standard`
+   * — silent, because the audit module surfaces misconfiguration
+   * separately. Lower-case-normalised so `'Stacked'` and similar
+   * casing slips don't break the lookup.
+   */
+  private _resolveLayout(config: ConsentConfig): 'standard' | 'compact' | 'stacked' {
+    const raw = (config.layout ?? 'standard').toString().toLowerCase();
+    if (raw === 'compact' || raw === 'stacked') return raw;
+    return 'standard';
+  }
 
   private _activeLang(): string {
     return this.config?.lang ?? document.documentElement.lang ?? 'en';

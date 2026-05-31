@@ -188,6 +188,27 @@ export interface ConsentConfig {
    * registering it in that directory's `index.ts`.
    */
   tones?: Record<string, 'formal' | 'informal'>;
+  /**
+   * Banner button-row template. Picks one of the curated layouts
+   * shipped by the bundle — each preserves the "equal visual
+   * styling across Accept / Decline / Configure" compliance baseline
+   * (`docs/legal-compliance.md` §1.2 + §2.3).
+   *
+   * - `'standard'` (default) — three buttons horizontally: Configure
+   *   | Decline | Accept. The recommended DACH-compliant posture
+   *   with a Settings-layer fallback.
+   * - `'compact'` — Decline | Accept only. Configure is hidden so
+   *   the first layer is denser; the Settings dialog opens via the
+   *   persistent `floatingTrigger` instead.
+   * - `'stacked'` — three buttons stacked vertically with full-
+   *   width treatment. Optimised for narrow viewports / assistive
+   *   tech.
+   *
+   * Legacy `hideLearnMore` / `hideDeclineAll` flags are honored on
+   * top of the layout choice — when set, they hide the respective
+   * button regardless of layout.
+   */
+  layout?: 'standard' | 'compact' | 'stacked';
   // Other custom fields (privacyPolicy, imprint, elementID, noAutoLoad, ...)
   [key: string]: unknown;
 }
