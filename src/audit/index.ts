@@ -27,6 +27,7 @@
  */
 
 import type { SimpleCMPConfig } from '../index.js';
+import { checkDeclineLabelClarity, checkNoMarketingNudgeInDescription } from './heuristics.js';
 
 /** Severity of a single audit finding. */
 export type Severity = 'critical' | 'warning' | 'info';
@@ -224,6 +225,29 @@ export const CHECKS: readonly Check[] = [
           'targeted at DACH visitors.',
       };
     },
+  },
+  {
+    // Heuristic — fuzzy pattern match against weak / deferring
+    // reject labels in `config.translations.<lang>.decline`. Only
+    // fires on overridden labels; the bundle's own defaults are
+    // clean. Warning (never critical) because heuristics can have
+    // false positives — an editor can confirm or revert with a
+    // tone judgement.
+    id: 'heuristic-decline-label-clarity',
+    section: '2.2',
+    title: 'Reject button labels read as clear refusal',
+    failSeverity: 'warning',
+    run: checkDeclineLabelClarity,
+  },
+  {
+    // Heuristic — fuzzy pattern match against marketing nudges in
+    // `config.translations.<lang>.consentNotice.description`. Same
+    // scoping + severity rationale as the decline-label check.
+    id: 'heuristic-no-marketing-nudge-in-description',
+    section: '2.3',
+    title: 'Banner description avoids marketing nudges',
+    failSeverity: 'warning',
+    run: checkNoMarketingNudgeInDescription,
   },
   {
     id: 'services-have-purposes',
