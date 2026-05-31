@@ -18,6 +18,18 @@
  * resolution chain as before, the tone overlay just sits between the
  * bundled defaults and the consumer's `config.translations`.
  *
+ * **Native-speaker review status:**
+ *
+ *   - `de` — reviewed (German is the maintainer's native language).
+ *   - `fr`, `it`, `es`, `nl` — DRAFT. Initial wording mirrors the
+ *     formal pack with pronouns, possessives, verb forms, and a few
+ *     greetings/labels flipped to the informal register following
+ *     conventional T-form patterns. They are likely good enough for
+ *     a consent banner but have not been audited by a native speaker
+ *     against brand-voice norms or regional variants (peninsular vs.
+ *     LatAm Spanish, Belgian vs. French French, etc.). Contributions
+ *     and corrections are welcome — see CONTRIBUTING.md.
+ *
  * Adding a new informal pack:
  *   1. Drop `<lang>.json` here containing only the dotted keys that
  *      differ from the formal register.
@@ -27,9 +39,17 @@
  */
 
 import de from './de.json';
+import es from './es.json';
+import fr from './fr.json';
+import it from './it.json';
+import nl from './nl.json';
 
 const informalPacks: Record<string, Record<string, unknown>> = {
   de,
+  es,
+  fr,
+  it,
+  nl,
 };
 
 export default informalPacks;

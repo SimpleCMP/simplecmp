@@ -1,0 +1,37 @@
+{
+  "consentModal": {
+    "description": "Qui puoi valutare e personalizzare i servizi che vorremmo utilizzare su questo sito web. Sei tu a decidere! Abilita o disabilita i servizi come preferisci.",
+    "privacyPolicy": {
+      "text": "Per saperne di più, leggi la nostra {privacyPolicy}."
+    }
+  },
+  "consentNotice": {
+    "changeDescription": "Ci sono stati dei cambiamenti dalla tua ultima visita, ti chiediamo di rinnovare il tuo consenso.",
+    "description": "Ciao! Possiamo attivare alcuni servizi aggiuntivi per {purposes}? Puoi sempre modificare o ritirare il tuo consenso in un secondo momento.",
+    "learnMore": "Fammi scegliere"
+  },
+  "contextualConsent": {
+    "description": "Vuoi caricare contenuti esterni forniti da {title}?"
+  },
+  "decline": "No, grazie",
+  "ok": "Va bene",
+  "privacyPolicy": {
+    "text": "Per saperne di più, leggi la nostra {privacyPolicy}."
+  },
+  "purposes": {
+    "advertising": {
+      "description": "Questi servizi elaborano le informazioni personali per mostrarti annunci pubblicitari personalizzati o basati sui tuoi interessi."
+    },
+    "marketing": {
+      "description": "Questi servizi elaborano le informazioni personali per mostrarti contenuti rilevanti su prodotti, servizi o argomenti che potrebbero interessarti."
+    }
+  },
+  "service": {
+    "disableAll": {
+      "description": "Usa questo interruttore per attivare o disattivare tutti i servizi."
+    },
+    "optOut": {
+      "description": "Questo servizio è caricato di default (ma puoi scegliere di non usarlo)"
+    }
+  }
+}

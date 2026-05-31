@@ -1,0 +1,40 @@
+{
+  "consentModal": {
+    "description": "Hier kun je de diensten beoordelen en aanpassen die wij op deze website willen gebruiken. Jij hebt de leiding! Schakel de diensten naar eigen inzicht in of uit.",
+    "privacyPolicy": {
+      "text": "Voor meer informatie kun je ons {privacyPolicy} lezen."
+    }
+  },
+  "consentNotice": {
+    "changeDescription": "Er waren veranderingen sinds je laatste bezoek, vernieuw je toestemming alsjeblieft.",
+    "description": "Hoi! Kunnen we een aantal extra diensten voor {purposes} inschakelen? Je kunt je toestemming later altijd nog wijzigen of intrekken.",
+    "learnMore": "Laat me kiezen"
+  },
+  "contextualConsent": {
+    "description": "Wil je externe content laden die door {title} wordt aangeleverd?"
+  },
+  "decline": "Nee, bedankt",
+  "ok": "Klinkt goed",
+  "privacyPolicy": {
+    "text": "Voor meer informatie kun je ons {privacyPolicy} lezen."
+  },
+  "purposes": {
+    "advertising": {
+      "description": "Deze diensten verwerken persoonlijke informatie om je gepersonaliseerde of op interesse gebaseerde advertenties te tonen."
+    },
+    "functional": {
+      "description": "Deze diensten zijn essentieel voor het correct functioneren van deze website. Je kunt ze hier niet uitschakelen omdat de dienst anders niet correct zou werken."
+    },
+    "marketing": {
+      "description": "Deze diensten verwerken persoonlijke informatie om je relevante inhoud te tonen over producten, diensten of onderwerpen waarin je geïnteresseerd zou kunnen zijn."
+    }
+  },
+  "service": {
+    "disableAll": {
+      "description": "Gebruik deze schakelaar om alle diensten in of uit te schakelen."
+    },
+    "optOut": {
+      "description": "Deze diensten worden standaard geladen (maar je kunt je afmelden)"
+    }
+  }
+}
