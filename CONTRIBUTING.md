@@ -73,6 +73,39 @@ modifying it:
 - Log substantial divergences in `docs/upstream-tracking.md`.
 - For substantial divergences, log them in `docs/upstream-tracking.md`
 
+## Translations and informal-tone packs
+
+Two translation surfaces live in `src/engine/translations/`:
+
+- `<lang>.json` — the **formal** register pack for each supported language. Klaro's
+  upstream wording, lightly maintained. Editor changes should be cautious — they
+  affect every formal-tone consumer.
+- `informal/<lang>.json` — sparse **T-form** overlays (du/tu/tú/…) that an
+  integrator opts into via `simplecmp.init({ tones: { de: 'informal' } })`. Only
+  keys that differ from the formal register appear in the overlay; everything
+  else falls through to the formal pack.
+
+**Currently shipped informal packs:**
+
+| Language | Status |
+|---|---|
+| `de` | reviewed |
+| `fr`, `it`, `es`, `nl` | **draft — native-speaker review pending** (see [issue #2](https://github.com/SimpleCMP/simplecmp/issues/2)) |
+
+**Contributing a review.** If you read one of the draft languages natively, the
+pinned issue lists every string with an AI-assisted first-pass verdict and
+concrete suggestions. The lowest-effort contribution is a comment saying "fr
+section X.Y is fine as-drafted" or "swap line `…` for `…`". A PR is also welcome.
+
+**Contributing a new language.** Drop `informal/<lang>.json` containing only the
+dotted keys that differ from the formal register, register it in
+`informal/index.ts`, and open a PR. The engine picks the new code up
+automatically the moment a consumer sets `tones: { <lang>: 'informal' }`.
+
+**Pattern lists for the heuristic audit** (in `src/audit/heuristics.ts`) follow
+the same per-language contribution model — adding patterns for a new locale is
+a data-only change.
+
 ## Reporting bugs
 
 Open a [bug report](https://github.com/simplecmp/simplecmp/issues/new?template=bug_report.yml)
