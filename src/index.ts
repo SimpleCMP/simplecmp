@@ -387,6 +387,18 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
   warnOnConfigInconsistencies(config);
   warnOnComplianceRisks(config);
 
+  // BE-driven live-FE compliance audit (?simplecmp_audit=1): force
+  // the banner visible regardless of stored consent, then post DOM
+  // audit results to the parent window so the BE designer can render
+  // them next to its own preview-iframe findings. The shallow-clone
+  // ensures we don't mutate the caller's config object — same
+  // pattern `validateConfig()` uses for the `apps→services` rename.
+  const auditMode = isAuditMode();
+  const effectiveConfig: SimpleCMPConfig = auditMode ? { ...config, testing: true } : config;
+  if (auditMode) {
+    scheduleAuditPostToParent();
+  }
+
   // Replace any prior handle cleanly — re-init shouldn't leak DOM or
   // leave prototype patches stacked.
   if (activeHandle !== null) {
@@ -411,10 +423,10 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
   // pure JS (the engine's manager cache); the recorder uses
   // `document.documentElement` not `document.body`; patches just swap
   // prototype descriptors. None need a parsed body.
-  const manager = engineGetManager(config);
-  if (config.record) startRecorder(config);
-  if (config.interceptRuntime) {
-    activeRuntimePatchUninstaller = installRuntimePatchesWithManager(config, manager);
+  const manager = engineGetManager(effectiveConfig);
+  if (effectiveConfig.record) startRecorder(effectiveConfig);
+  if (effectiveConfig.interceptRuntime) {
+    activeRuntimePatchUninstaller = installRuntimePatchesWithManager(effectiveConfig, manager);
   }
 
   // Phase 2 — mount the UI. Defer to DOMContentLoaded if body isn't
@@ -424,7 +436,7 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
   type QueuedOp = 'show' | 'hide';
   const queued: QueuedOp[] = [];
   const mountNow = (): void => {
-    mountedHandle = mountUI(config);
+    mountedHandle = mountUI(effectiveConfig);
     for (const op of queued) {
       if (op === 'show') mountedHandle.show();
       else mountedHandle.hide();
@@ -689,6 +701,73 @@ function isDiscoverMode(): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Detect the BE-driven compliance-audit marker
+ * (`?simplecmp_audit=1`). When set:
+ *
+ *   - The banner is force-shown regardless of any stored consent
+ *     decision (same behaviour as `testing: true`), so the audit can
+ *     read the live computed styles even on URLs the visitor has
+ *     already consented from.
+ *   - After the banner mounts, `auditDom()` runs against the actual
+ *     page DOM — picking up any host-page CSS that the BE's own
+ *     preview iframe wouldn't see (global resets, theme bleed,
+ *     framework styles).
+ *   - Results are posted to `window.parent` via
+ *     `{type: 'simplecmp-audit-from-fe', results, location}`.
+ *
+ * The BE designer's "Live-FE-Audit" button mounts a hidden iframe at
+ * the site URL with this parameter appended, listens for the
+ * postMessage, and renders the results next to its own preview-iframe
+ * findings. The two audits then expose the gap between "banner styled
+ * correctly in isolation" and "banner styled correctly under the
+ * host's CSS".
+ */
+function isAuditMode(): boolean {
+  if (typeof window === 'undefined' || typeof URLSearchParams === 'undefined') return false;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('simplecmp_audit') === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Run the DOM-level audit after the banner has mounted and post the
+ * results to `window.parent`. Called only when `isAuditMode()` is
+ * true; on regular site visits the function is never reached. Three
+ * rAF frames buffer the call so the banner's `static styles`, any
+ * shadow-DOM adopted-stylesheet inheritance, and the host page's
+ * cascading rules all settle before the audit reads computed values.
+ */
+function scheduleAuditPostToParent(): void {
+  if (typeof window === 'undefined') return;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const results = runAuditDom();
+        try {
+          window.parent.postMessage(
+            {
+              type: 'simplecmp-audit-from-fe',
+              results,
+              location: {
+                href: window.location.href,
+                host: window.location.host,
+              },
+            },
+            '*'
+          );
+        } catch (_) {
+          // Cross-origin parent or no parent (window.parent === window) —
+          // both are non-fatal; the audit just goes nowhere.
+        }
+      });
+    });
+  });
 }
 
 function warnOnUnimplementedFeatures(_config: SimpleCMPConfig): void {
