@@ -728,8 +728,21 @@ function isDiscoverMode(): boolean {
 function isAuditMode(): boolean {
   if (typeof window === 'undefined' || typeof URLSearchParams === 'undefined') return false;
   try {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('simplecmp_audit') === '1';
+    const search = new URLSearchParams(window.location.search);
+    if (search.get('simplecmp_audit') === '1') return true;
+    // Hash-based fallback: survives server-side redirects that strip
+    // query parameters. TYPO3's language detector redirects
+    // `/?…=…` to `/de/?…=…` but drops the query in the process; a
+    // hash like `#simplecmp_audit=1` rides through the redirect
+    // untouched because hashes are client-only. The BE designer's
+    // FE-audit iframe sets both query AND hash to cover any
+    // downstream that prefers one or the other.
+    const hashFragment = window.location.hash;
+    if (hashFragment.length > 1) {
+      const hash = new URLSearchParams(hashFragment.slice(1));
+      if (hash.get('simplecmp_audit') === '1') return true;
+    }
+    return false;
   } catch {
     return false;
   }
