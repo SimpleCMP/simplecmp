@@ -222,6 +222,66 @@ export function checkDeclineLabelClarity(config: SimpleCMPConfig): CheckOutcome 
 }
 
 /**
+ * Length thresholds for the banner-description heuristic. These are
+ * deliberately wide: descriptions below the floor almost certainly
+ * fail the "informed" prong of valid consent (Art. 6(1)(a) GDPR +
+ * EDPB 05/2020), while descriptions above the ceiling risk EDPB
+ * 03/2022 § Overloading. Editors with edge-case content can read
+ * the matched length in the finding detail and confirm or revert.
+ */
+const DESCRIPTION_MIN_CHARS = 80;
+const DESCRIPTION_MAX_CHARS = 600;
+
+/**
+ * Run the description-length heuristic across every banner
+ * description the config overrides. Flags two failure modes in
+ * one combined finding:
+ *
+ *   - **Too short** (< 80 chars): the description likely can't
+ *     carry both the purpose enumeration AND the controller-
+ *     identification the "informed" prong of valid consent
+ *     requires. Common pattern: an editor reduces the banner to
+ *     a one-liner "Wir nutzen Cookies." — technically truthful,
+ *     legally insufficient.
+ *   - **Too long** (> 600 chars): risks Overloading (EDPB 03/2022).
+ *     Visitors stop reading walls of text, and an audit-banner
+ *     that nobody reads isn't an informed consent prompt.
+ *
+ * `{purposes}` placeholders in the source text expand at runtime;
+ * the heuristic counts the literal override length, not the
+ * post-expansion length. An editor who keeps the placeholder
+ * usually lands well inside the thresholds.
+ */
+export function checkDescriptionLength(config: SimpleCMPConfig): CheckOutcome {
+  const descriptions = collectTranslations(config, ['consentNotice', 'description']);
+  const issues: string[] = [];
+  for (const { lang, text } of descriptions) {
+    const len = text.length;
+    if (len < DESCRIPTION_MIN_CHARS) {
+      issues.push(
+        `[${lang}] ${len} chars — below the ${DESCRIPTION_MIN_CHARS}-char floor; likely doesn’t carry the purpose enumeration + controller info "informed" consent needs.`
+      );
+    } else if (len > DESCRIPTION_MAX_CHARS) {
+      issues.push(
+        `[${lang}] ${len} chars — above the ${DESCRIPTION_MAX_CHARS}-char ceiling; risks EDPB 03/2022 § Overloading. Trim to the essentials or move detail into the modal.`
+      );
+    }
+  }
+  if (issues.length === 0) {
+    return {
+      passed: true,
+      detail: 'Banner descriptions sit in the informative-but-readable range across languages.',
+    };
+  }
+  return {
+    passed: false,
+    detail:
+      `Banner description length is outside the recommended range (${DESCRIPTION_MIN_CHARS}–` +
+      `${DESCRIPTION_MAX_CHARS} chars). Affected language(s):\n  - ${issues.join('\n  - ')}`,
+  };
+}
+
+/**
  * Run the marketing-nudge heuristic across every banner description
  * the config overrides. Same single-outcome shape as the decline
  * check.

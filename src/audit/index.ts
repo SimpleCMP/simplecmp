@@ -27,7 +27,11 @@
  */
 
 import type { SimpleCMPConfig } from '../index.js';
-import { checkDeclineLabelClarity, checkNoMarketingNudgeInDescription } from './heuristics.js';
+import {
+  checkDeclineLabelClarity,
+  checkDescriptionLength,
+  checkNoMarketingNudgeInDescription,
+} from './heuristics.js';
 
 /** Severity of a single audit finding. */
 export type Severity = 'critical' | 'warning' | 'info';
@@ -248,6 +252,16 @@ export const CHECKS: readonly Check[] = [
     title: 'Banner description avoids marketing nudges',
     failSeverity: 'warning',
     run: checkNoMarketingNudgeInDescription,
+  },
+  {
+    // Heuristic — length-band check on `consentNotice.description`
+    // overrides. Below 80 chars likely fails the "informed" prong;
+    // above 600 risks Overloading (EDPB 03/2022 § Overloading).
+    id: 'heuristic-description-length',
+    section: '2.1',
+    title: 'Banner description sits in a readable length range',
+    failSeverity: 'warning',
+    run: checkDescriptionLength,
   },
   {
     id: 'services-have-purposes',
