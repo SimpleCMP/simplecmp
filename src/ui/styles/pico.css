@@ -1,0 +1,67 @@
+/**
+ * SimpleCMP — Pico CSS theme adapter.
+ *
+ * Drop-in stylesheet that maps SimpleCMP's design tokens to Pico's
+ * `--pico-*` custom properties (Pico v2). With Pico loaded on the
+ * page, the consent UI inherits the host's palette, radius and
+ * typography automatically.
+ *
+ * Two ways to apply this adapter:
+ *
+ *   1. **`<link>` it yourself** (light-DOM mode, server-rendered
+ *      previews):
+ *
+ *          <link rel="stylesheet" href="simplecmp/styles/pico.css">
+ *
+ *   2. **Let the bundle inject it** via the `theme` config field:
+ *
+ *          simplecmp.init({ theme: 'pico', ... });
+ *
+ *      The bundle ships the same rules as an inline string (see
+ *      `src/ui/themes/pico.ts`) and writes a
+ *      `<style data-simplecmp-theme="pico">` into `<head>` at init
+ *      time.
+ *
+ * Keep this file in sync with `src/ui/themes/pico.ts`.
+ *
+ * The `:where()` wrapper keeps specificity at zero so consumer
+ * overrides still win. Custom-property inheritance crosses the
+ * Shadow DOM boundary, so this stylesheet doesn't need to be inside
+ * the component's shadow root.
+ */
+
+:where(
+    simplecmp-banner,
+    simplecmp-modal,
+    simplecmp-purpose-group,
+    simplecmp-service-toggle,
+    simplecmp-trigger,
+    simplecmp-policy-links,
+    simplecmp-contextual-notice
+  ) {
+  /* Colors */
+  --simplecmp-color-primary: var(--pico-primary, #0172ad);
+  --simplecmp-color-primary-hover: var(--pico-primary-hover, #015887);
+  --simplecmp-color-secondary: var(--pico-secondary, #5d6b89);
+  --simplecmp-color-danger: var(--pico-del-color, #c62828);
+  --simplecmp-color-bg: var(--pico-card-background-color, var(--pico-background-color, #ffffff));
+  --simplecmp-color-bg-alt: var(--pico-card-sectioning-background-color, #f9f9f9);
+  --simplecmp-color-border: var(--pico-muted-border-color, #e1e6eb);
+  --simplecmp-color-text: var(--pico-color, #373c44);
+  --simplecmp-color-text-muted: var(--pico-muted-color, #646b79);
+
+  /* Geometry */
+  --simplecmp-radius: var(--pico-border-radius, 0.25rem);
+  --simplecmp-spacing: var(--pico-spacing, 1rem);
+  --simplecmp-spacing-sm: calc(var(--pico-spacing, 1rem) * 0.5);
+  --simplecmp-spacing-lg: calc(var(--pico-spacing, 1rem) * 1.5);
+
+  /* Typography */
+  --simplecmp-font-family: var(--pico-font-family, system-ui);
+  --simplecmp-font-size: var(--pico-font-size, 1rem);
+  --simplecmp-font-size-sm: calc(var(--pico-font-size, 1rem) * 0.875);
+  --simplecmp-line-height: var(--pico-line-height, 1.5);
+
+  /* Effects */
+  --simplecmp-shadow: var(--pico-card-box-shadow, 0 0.125rem 1rem rgba(0, 0, 0, 0.04));
+}

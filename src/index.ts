@@ -193,6 +193,10 @@ export interface SimpleCMPConfig extends ConsentConfig {
    *   semantic names (`--color-primary`, `--color-background`, …)
    *   first and falls back to the Tailwind palette so sites without
    *   curated brand tokens still look coherent.
+   * - `'bulma'` — map to Bulma 1.0+'s `--bulma-*` tokens. Stable
+   *   across the v1 series.
+   * - `'pico'` — map to Pico CSS v2's `--pico-*` tokens. Optimised
+   *   for the classless minimal-CSS style Pico encourages.
    *
    * The version suffix on framework names is required so adding a
    * Bootstrap 4 adapter later (different `--bs-*` scheme) is

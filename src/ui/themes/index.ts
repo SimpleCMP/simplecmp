@@ -30,6 +30,8 @@
  */
 
 import { BOOTSTRAP5_THEME_CSS } from './bootstrap5.js';
+import { BULMA_THEME_CSS } from './bulma.js';
+import { PICO_THEME_CSS } from './pico.js';
 import { TAILWIND4_THEME_CSS } from './tailwind4.js';
 
 /** Identifier on `<style>` so re-init can replace its own injection. */
@@ -40,15 +42,24 @@ const STYLE_ELEMENT_MARKER = 'data-simplecmp-theme';
  * means the component's built-in tokens apply — no adapter needed.
  * Add new framework adapters here as they're contributed.
  */
-export type Theme = 'default' | 'bootstrap5' | 'tailwind4';
+export type Theme = 'default' | 'bootstrap5' | 'tailwind4' | 'bulma' | 'pico';
 
 /**
  * Adapter CSS keyed by theme name. `'default'` deliberately has no
  * entry (and falls through to a no-op in `applyThemeAdapter`).
+ *
+ * Versioned names (`bootstrap5`, `tailwind4`) carry a version suffix
+ * because those frameworks have made breaking changes to their
+ * custom-property schemes between majors. Unversioned names
+ * (`bulma`, `pico`) reflect that the framework has kept its
+ * variable surface stable across versions — if that changes, the
+ * adapter splits into `bulma1` / `bulma2` etc. at that point.
  */
 const THEMES: Partial<Record<Theme, string>> = {
   bootstrap5: BOOTSTRAP5_THEME_CSS,
   tailwind4: TAILWIND4_THEME_CSS,
+  bulma: BULMA_THEME_CSS,
+  pico: PICO_THEME_CSS,
 };
 
 /**
