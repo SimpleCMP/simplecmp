@@ -917,6 +917,71 @@ TYPO3-Plugin; Research-Survey
 
 ---
 
+### REQ-N9 — Kompatibilität mit StaticFileCache (Full-Page-HTML-Cache)
+
+**Status:** offen, ungetestet (2026-06-08).
+
+**Hintergrund:** `EXT:staticfilecache` (und ähnliche Full-Page-Caches) liefert
+fertig gerendertes HTML direkt vom Webserver aus, ohne PHP. SimpleCMP hat
+mehrere per-Request-PHP-Mechanismen, die mit eingefrorenem HTML kollidieren
+können. Das TYPO3-Plugin hat aktuell **kein** StaticFileCache-Bewusstsein.
+
+**Befund (analysiert, nicht getestet):**
+
+1. **Client-seitige Teile: kompatibel.** Banner, Modal, Consent-Speicher
+   (Cookie/localStorage), Theme, Click-to-Enable sind reines JS im HTML —
+   statisches Caching ist hier egal. Ebenso die `/api/simplecmp/*`-Routen
+   (dynamische POST-/API-Routen, werden nicht seitengecacht).
+
+2. **Universal Blocking (HtmlRewriter): reihenfolge-abhängig, Compliance-Risiko.**
+   Der Rewriter (PSR-15-Middleware, `after: typo3/cms-frontend/content-length-headers`)
+   schreibt das HTML auf dem Rückweg um. Ob der Full-Page-Cache das
+   **umgeschriebene** (geblockte) HTML speichert, hängt von der relativen
+   Middleware-Reihenfolge ab. Fängt der Cache das HTML **vor** dem Rewriter ab,
+   serviert die statische Datei die **ungeblockten** Drittanbieter-Tags →
+   Pre-Consent-Tracking bei jedem Cache-Hit (Compliance-Bruch). Muss
+   verifiziert und ggf. die Order erzwungen werden.
+
+3. **CMS-Bridge-Nonce: bricht nach der TTL.** `RegisterAssets` backt pro Render
+   einen HMAC-Nonce mit 1h-TTL ins Inline-`init` (`cmsBridgeAuth.token`,
+   `BridgeNonceService::DEFAULT_TTL_SECONDS = 3600`). Eine statisch gecachte
+   Seite friert den Nonce ein → nach 1h liefern alle Besucher der Cache-Datei
+   einen abgelaufenen Nonce → Bridge-POSTs → 401 → Drift-/Detektions-Meldung
+   hört still auf. (Record-Mode / Discover sind admin-getrieben und
+   unbetroffen.)
+
+**Vorschlag:**
+
+1. **Nonce nicht mitcachen** — als nicht-gecachtes `USER_INT`-Fragment rendern
+   oder per winzigem, nicht-gecachtem Endpoint nachladen (entspricht dem
+   `cmsBridgeAuth.getToken`-Callback-Ansatz; siehe Begründung für die
+   1h-TTL-Entscheidung). Dann überlebt die Bridge das Full-Page-Caching.
+   Fallbacks: TTL hochsetzen (schwächt die Auth) oder Bridge-Seiten vom Cache
+   ausnehmen.
+2. **Rewriter-Order verifizieren** — sicherstellen, dass der Full-Page-Cache
+   das post-Rewrite-HTML (geblockte Tags) speichert; sonst Order anpassen bzw.
+   die nötige Konfiguration dokumentieren.
+3. **Doku** — Abschnitt „Betrieb mit StaticFileCache" im Plugin (welche Seiten
+   cachebar, Nonce-Ausnahme, Verifikation des Blockings im Static-File).
+
+**Acceptance Criteria (skizziert):**
+
+- [ ] Cache-Hit einer Seite mit Drittanbieter-Embed enthält `src="about:blank"`
+      (Blocking bleibt im Static-File erhalten) — verifiziert.
+- [ ] Bridge funktioniert auf einer > 1h gecachten Seite (Nonce nicht
+      eingefroren) — eine Detektion landet im BE.
+- [ ] Plugin-Doku-Abschnitt „Betrieb mit StaticFileCache".
+
+**Abhängigkeit:** primär TYPO3-Plugin (`t3-simplecmp`: Nonce-Rendering +
+Middleware-Order + Doku); ggf. kleine FE-Engine-Ergänzung in `simplecmp` für
+einen Token-Refresh-Callback. Reine Hardening/Kompatibilität, kein v1.0-Blocker.
+
+**Referenzen:** ADR-0013 (Universal Blocking / HtmlRewriter);
+`Classes/Service/BridgeNonceService.php` + `Classes/EventListener/RegisterAssets.php`
+im TYPO3-Plugin (Nonce-Erzeugung/-Einbettung).
+
+---
+
 ## Bewusst nicht in v1.0
 
 Diese Punkte sind diskutiert und abgelehnt. Bitte erst neu aufmachen, wenn
