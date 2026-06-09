@@ -419,23 +419,48 @@ export class ConsentManager {
     const consentData = this.store.get();
     if (consentData === null) return this.consents;
 
-    const parsed = JSON.parse(decodeURIComponent(consentData)) as unknown;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(decodeURIComponent(consentData));
+    } catch {
+      // Corrupt / tampered cookie, or malformed percent-encoding. Treat as no
+      // stored consent rather than letting the error escape — loadConsents()
+      // runs in the constructor, so an uncaught throw would abort CMP init
+      // entirely (no banner, no blocking) for that visitor.
+      this.consents = this.defaultConsents;
+      return this.consents;
+    }
 
     // REQ-3: support both legacy and versioned storage shapes.
     // Legacy: `{ [serviceName]: bool }`. Versioned: `{ __v, consents }`.
     let storedVersion: unknown;
+    let storedConsents: unknown;
     if (
       parsed !== null &&
       typeof parsed === 'object' &&
       '__v' in (parsed as object) &&
       'consents' in (parsed as object)
     ) {
-      const wrapper = parsed as { __v: unknown; consents: Record<string, boolean> };
+      const wrapper = parsed as { __v: unknown; consents: unknown };
       storedVersion = wrapper.__v;
-      this.consents = wrapper.consents;
+      storedConsents = wrapper.consents;
     } else {
-      this.consents = parsed as Record<string, boolean>;
+      storedConsents = parsed;
     }
+
+    // Shape guard: a tampered cookie can be valid JSON of the wrong type
+    // (null, number, string, array). Anything but a plain object would make
+    // `this.consents[name]` / `{ ...this.consents }` misbehave or throw, so
+    // fall back to defaults — same outcome as no stored consent.
+    if (
+      typeof storedConsents !== 'object' ||
+      storedConsents === null ||
+      Array.isArray(storedConsents)
+    ) {
+      this.consents = this.defaultConsents;
+      return this.consents;
+    }
+    this.consents = storedConsents as Record<string, boolean>;
 
     // REQ-3: version-mismatch check. Discard stored consent on mismatch and
     // reuse Klaro's existing `changed=true` UX so the existing
