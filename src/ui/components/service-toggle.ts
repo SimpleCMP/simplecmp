@@ -15,7 +15,11 @@ import { customElement, property } from 'lit/decorators.js';
 import type { Service } from '../../engine/index.js';
 import { asTitle } from '../../engine/utils/strings.js';
 import { SimpleCmpElement } from '../base.js';
-import { tokens } from '../styles/tokens.js';
+// baseTokens, not tokens: this component is only ever rendered inside
+// another component's shadow root, so it must NOT re-declare the
+// `--simplecmp-*` defaults — that would block an adapter/host override from
+// inheriting in. See tokens.ts.
+import { baseTokens } from '../styles/tokens.js';
 
 @customElement('simplecmp-service-toggle')
 export class SimpleCmpServiceToggle extends SimpleCmpElement {
@@ -27,7 +31,7 @@ export class SimpleCmpServiceToggle extends SimpleCmpElement {
   visible = true;
 
   static override styles = [
-    tokens,
+    baseTokens,
     css`
       :host {
         display: block;

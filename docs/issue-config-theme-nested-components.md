@@ -2,6 +2,19 @@
 
 > Draft for filing against `SimpleCMP/simplecmp`. Labels: `bug`, `theming`.
 
+> **✅ RESOLVED.** Fixed by splitting the design tokens in
+> `src/ui/styles/tokens.ts` into `tokens` (defaults + base consumption, for
+> top-level / theming-root components) and `baseTokens` (base consumption
+> only, no `--simplecmp-*` declarations). The two nested components
+> (`service-toggle`, `purpose-group`) now use `baseTokens`, so they no longer
+> re-declare the defaults on their own `:host` and instead **inherit** the
+> tokens — including any adapter / host override — from their parent (modal)
+> host across the shadow boundary. A lighter variant of the inline-fallback
+> fix suggested below: it preserves the single source of default values and
+> the `--simplecmp-*` override API. Verified in real Chromium (an override on
+> the `simplecmp-modal` host flows through to the service-toggle two shadow
+> levels down); guarded by `tokens.test.ts`.
+
 ## Summary
 
 The framework adapters in `src/ui/themes/` (`bootstrap5`, `tailwind4`,

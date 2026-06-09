@@ -35,6 +35,18 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Fixed
 
+- **`config.theme` adapters now theme nested components.** A framework
+  adapter (or a per-tag `--simplecmp-*` override) set the tokens on the
+  top-level component hosts, but `<simplecmp-purpose-group>` and
+  `<simplecmp-service-toggle>` — rendered inside the modal's shadow root —
+  re-declared the defaults on their own `:host`, which blocked the override
+  from inheriting across the shadow boundary. So the modal frame adopted the
+  host framework's palette while the per-service toggles inside it stayed on
+  the default green. Tokens are now split into `tokens` (defaults + base, for
+  top-level components) and `baseTokens` (base only); the two nested
+  components use `baseTokens` and inherit every token from their parent host.
+  See `docs/issue-config-theme-nested-components.md`.
+
 - **`getDefaultConsent` honors an explicit `service.default: false`.**
   It previously used `service.default || service.required`, so an
   explicit `false` was swallowed (`false || undefined`) and fell through
