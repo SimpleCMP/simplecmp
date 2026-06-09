@@ -60,6 +60,22 @@ final class WireContractTest extends TestCase
     }
 
     #[Test]
+    public function healthResponseEmitsOkAndCountContractKeys(): void
+    {
+        // GET /v1/health must emit the `ok` (boolean) + `count` keys the JS
+        // HealthResponse type, the protocol doc, and wire-contract-fixture.json
+        // all promise. The server also emits operational extras
+        // (status/serviceCount/sourceSha) — those stay, but the contract keys
+        // must not regress (they were missing before, so a JS client reading
+        // `.ok` / `.count` got undefined against the real server).
+        self::assertStringContainsString("'ok' => \$count > 0", $this->source);
+        self::assertStringContainsString("'count' => \$count", $this->source);
+        self::assertStringContainsString("'schemaVersion' => 1", $this->source);
+        // Operational extras kept (the TYPO3 ext + monitoring read these).
+        self::assertStringContainsString("'serviceCount' => \$count", $this->source);
+    }
+
+    #[Test]
     public function lookupBatchRequestExpectsItemsArray(): void
     {
         // Request body must be { items: [...] } — symmetric with the

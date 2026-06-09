@@ -48,7 +48,7 @@
     }
   },
   "GET /v1/health": {
-    "_doc": "Liveness + schema version probe. The library count is optional — when present, lets an external uptime checker detect 'data dropped to zero' even when HTTP 200 says the server is up.",
+    "_doc": "Liveness + schema version probe. `ok` + `count` are the cross-consumer contract (count optional — when present, lets an external uptime checker detect 'data dropped to zero' even when HTTP 200 says the server is up). A server MAY also emit operational extras (status, serviceCount, lastSyncAt, sourceSha, dataHash) — the reference-server does; consumers must ignore unknown keys, not strip them.",
     "example": {
       "ok": true,
       "schemaVersion": 1,

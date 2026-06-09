@@ -121,8 +121,17 @@ if ($method === 'GET' && $path === '/v1/health') {
     $sourceSha = $db->getMeta('sourceSha');
     $dataHash = $db->getMeta('dataHash');
     $payload = [
+        // `ok` + `count` are the cross-consumer wire contract — the JS
+        // HealthResponse type, docs/service-db-protocol.md, and
+        // wire-contract-fixture.json all key on them. `status` /
+        // `serviceCount` / `sourceSha` are operational extras the TYPO3 ext
+        // + monitoring read. Emitted as a superset so neither side breaks
+        // (previously only the operational keys were sent, so a JS client
+        // reading `.ok` / `.count` against this server got undefined).
+        'ok' => $count > 0,
         'status' => $count > 0 ? 'ok' : 'empty',
         'schemaVersion' => 1,
+        'count' => $count,
         'serviceCount' => $count,
         'lastSyncAt' => $lastSync,
         'sourceSha' => $sourceSha,
