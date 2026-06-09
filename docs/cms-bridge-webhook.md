@@ -33,6 +33,9 @@ Bandwidth-saving layers the bridge applies before POSTing:
 - In-memory dedup per `${source}:${kind}:${identifier}`, default 1h TTL.
 - Cross-session dedup via `localStorage`
   (`simplecmp-reported:${source}:${kind}:${identifier}`), default 7d TTL.
+  Markers are generation-tagged so the receiver can force a re-report after
+  it drops a detection — see [Cross-session dedup &
+  `reportGeneration`](#cross-session-dedup--reportgeneration).
 
 ## Request
 
@@ -168,6 +171,45 @@ being called again.
 by 1000 visitors with the same unknown tracker still produces up to 1000
 webhooks. If you need cross-visitor rate limiting, do it on the receiving
 side.
+
+## Cross-session dedup & `reportGeneration`
+
+A second dedup layer survives reloads: after a successful POST the bridge
+writes a `localStorage` marker
+`simplecmp-reported:${source}:${kind}:${identifier}` and won't re-POST that
+detection while the marker is live (default 7d, `cmsBridge.crossSessionDedupMs`;
+`0` disables the layer).
+
+This is a one-way client decision — the receiver has no channel to say *"I
+dropped that row, resend it."* So if the receiver deletes a detection it
+expects to re-detect, every browser that already reported it would stay
+silent for the whole TTL. **`reportGeneration` closes that gap.**
+
+It is a monotonic integer the receiver supplies **per source** via the init
+config (`cmsBridge.reportGeneration`, default `0`), bumped whenever the
+receiver drops detections it wants re-reported:
+
+```ts
+init({
+  // ...
+  cmsBridgeUrl: 'https://cms.example.com/api/simplecmp/webhook',
+  cmsBridge: { reportGeneration: 3 }, // current value for this source
+});
+```
+
+Each marker records the generation it was written under (`<gen>.<ts>`). When
+the configured generation is **newer** than a marker's, the bridge treats it
+as a miss and re-POSTs (then re-marks under the new generation). Legacy
+markers with no embedded generation read as `0`, so any bump ≥ 1 invalidates
+them.
+
+It travels in the **init config, not the webhook response** — a fully-deduped
+bridge never POSTs, so a response-carried value could never reach it, whereas
+the config is read on every page render. Practically: bump the counter when
+an admin deletes a detection, serve the new value in the page config, and the
+detection re-reports on the visitor's next page load. (The TYPO3 plugin does
+exactly this — it bumps a per-source counter in `sys_registry` on detection
+purge and injects it here.)
 
 ## Coordination with the Service DB
 

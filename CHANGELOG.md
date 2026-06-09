@@ -10,6 +10,19 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Added
 
+- **`cmsBridge.reportGeneration` — server-driven cross-session re-report.**
+  Cross-session dedup was a one-way client decision: once the bridge POSTed a
+  detection it wrote a 7-day `localStorage` marker and refused to re-POST,
+  with no way for the receiver to say "I dropped that row, resend it" — so a
+  detection an admin deleted never resurfaced on already-reporting browsers.
+  The new option carries a per-source monotonic counter (default `0`) in the
+  init config; markers now encode the generation they were written under
+  (`<gen>.<ts>`), and a marker older than the configured generation is treated
+  as a miss → re-POST. Legacy bare-timestamp markers read as generation `0`,
+  so any bump invalidates them. Travels in the config (not the webhook
+  response) so a fully-deduped bridge still learns of a reset on its next page
+  load. See `docs/cms-bridge-webhook.md`.
+
 - **`/v1/health.dataHash` on the reference server** — sha256 over the
   service JSON files (computed via
   `simplecmp/services-library@v0.3.1`'s `ServicesLibrary::dataHash()`).
