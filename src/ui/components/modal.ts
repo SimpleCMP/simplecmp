@@ -28,6 +28,7 @@ import { customElement, property, query } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import type { Service } from '../../engine/index.js';
 import { SimpleCmpElement } from '../base.js';
+import { isSafeHttpUrl } from '../safe-url.js';
 import { tokens } from '../styles/tokens.js';
 import './purpose-group.js';
 import './service-toggle.js';
@@ -387,9 +388,14 @@ export class SimpleCmpModal extends SimpleCmpElement {
   }
 
   private _renderPolicyLinks(
-    ppUrl: string | undefined,
-    imprintUrl: string | undefined
+    rawPpUrl: string | undefined,
+    rawImprintUrl: string | undefined
   ): TemplateResult | typeof nothing {
+    // Drop any non-http(s) URL so a javascript:/data: value can't become a
+    // clickable link.
+    const ppUrl = rawPpUrl !== undefined && isSafeHttpUrl(rawPpUrl) ? rawPpUrl : undefined;
+    const imprintUrl =
+      rawImprintUrl !== undefined && isSafeHttpUrl(rawImprintUrl) ? rawImprintUrl : undefined;
     if (ppUrl === undefined && imprintUrl === undefined) return nothing;
     return html`
       <p class="policy-links">

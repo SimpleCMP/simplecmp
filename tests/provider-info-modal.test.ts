@@ -151,6 +151,22 @@ describe('<simplecmp-provider-info-modal>', () => {
     }
   });
 
+  it('does not render a javascript: URL as a clickable link', async () => {
+    const el = await mount({
+      ...fullProvider,
+      vendorOptOutUrl: 'javascript:alert(document.cookie)',
+    });
+    const anchors = Array.from(el.shadowRoot?.querySelectorAll<HTMLAnchorElement>('dd a') ?? []);
+    // Only the safe privacyPolicyUrl remains a link; the javascript: opt-out
+    // is dropped to plain text.
+    expect(anchors.length).toBe(1);
+    for (const a of anchors) {
+      expect(a.getAttribute('href')?.toLowerCase()).not.toContain('javascript:');
+    }
+    // The value is still shown to the user, just not as an href.
+    expect(el.shadowRoot?.textContent ?? '').toContain('javascript:alert(document.cookie)');
+  });
+
   it('opens / closes via the `open` property', async () => {
     const el = await mount(fullProvider, false);
     const dialog = el.shadowRoot?.querySelector('dialog') as HTMLDialogElement;

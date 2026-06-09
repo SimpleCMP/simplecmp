@@ -18,6 +18,7 @@ import { css, html, nothing } from 'lit';
 import type { TemplateResult } from 'lit';
 import { customElement } from 'lit/decorators.js';
 import { SimpleCmpElement } from '../base.js';
+import { isSafeHttpUrl } from '../safe-url.js';
 import { tokens } from '../styles/tokens.js';
 
 type LocalizedUrl = string | Record<string, string> | undefined;
@@ -51,8 +52,14 @@ export class SimpleCmpPolicyLinks extends SimpleCmpElement {
     if (config === undefined) return nothing;
 
     const lang = config.lang ?? document.documentElement.lang ?? 'en';
-    const ppUrl = this._resolve(config.privacyPolicy as LocalizedUrl, ['privacyPolicyUrl'], lang);
-    const imprintUrl = this._resolve(config.imprint as LocalizedUrl, ['imprintUrl'], lang);
+    const rawPp = this._resolve(config.privacyPolicy as LocalizedUrl, ['privacyPolicyUrl'], lang);
+    const rawImprint = this._resolve(config.imprint as LocalizedUrl, ['imprintUrl'], lang);
+    // Drop any non-http(s) URL so a javascript:/data: value can't become a
+    // clickable link. Done once here so the separator + early-return below
+    // stay consistent.
+    const ppUrl = rawPp !== undefined && isSafeHttpUrl(rawPp) ? rawPp : undefined;
+    const imprintUrl =
+      rawImprint !== undefined && isSafeHttpUrl(rawImprint) ? rawImprint : undefined;
 
     if (ppUrl === undefined && imprintUrl === undefined) return nothing;
 

@@ -30,6 +30,7 @@ import type { PropertyValues, TemplateResult } from 'lit';
 import { customElement, property, query } from 'lit/decorators.js';
 import type { Service } from '../../engine/index.js';
 import { SimpleCmpElement } from '../base.js';
+import { isSafeHttpUrl } from '../safe-url.js';
 import { tokens } from '../styles/tokens.js';
 
 @customElement('simplecmp-provider-info-modal')
@@ -228,9 +229,12 @@ export class SimpleCmpProviderInfoModal extends SimpleCmpElement {
     const push = (key: string, value: string | undefined, isUrl = false): void => {
       if (value === undefined || value === '') return;
       const label = this._tString(['providerInfo', 'field', key]) || key;
-      const valueNode = isUrl
-        ? html`<a href=${value} target="_blank" rel="noopener noreferrer">${value}</a>`
-        : html`${value}`;
+      // Only link out for http(s); an unsafe URL (javascript:/data:/…) is
+      // shown as plain, auto-escaped text instead of a clickable href.
+      const valueNode =
+        isUrl && isSafeHttpUrl(value)
+          ? html`<a href=${value} target="_blank" rel="noopener noreferrer">${value}</a>`
+          : html`${value}`;
       rows.push(html`<dt>${label}</dt><dd>${valueNode}</dd>`);
     };
 
