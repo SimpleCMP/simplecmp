@@ -50,6 +50,24 @@ export interface CmsBridgeOptions {
    */
   crossSessionDedupMs?: number;
   /**
+   * Server-supplied "report generation" for `source`. Monotonic integer
+   * the receiver bumps when its detection set changes in a way that should
+   * make already-reported detections worth re-sending — primarily when an
+   * admin deletes a detection it expects to resurface on next sighting.
+   *
+   * Cross-session markers record the generation they were written under;
+   * a marker whose generation is older than this value is treated as a
+   * miss, so the detection re-POSTs. Without server feedback the bridge
+   * can't otherwise know a row was dropped and would stay silent for the
+   * whole `crossSessionDedupMs` window. Default `0`; legacy markers with no
+   * embedded generation read as `0`, so any bump invalidates them.
+   *
+   * Travels in the injected init config (not the webhook response): a
+   * fully-deduped bridge never POSTs, so a response-carried value could
+   * never reach it — but the config is read on every page render.
+   */
+  reportGeneration?: number;
+  /**
    * Debounce delay before flushing the in-flight batch, in ms.
    * Default `1500`. A `pagehide` event force-flushes via
    * `navigator.sendBeacon` regardless of the debounce.

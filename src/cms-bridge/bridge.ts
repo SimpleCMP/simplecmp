@@ -68,6 +68,7 @@ export class CmsBridge {
   private readonly source: string;
   private readonly dedupTtlMs: number;
   private readonly crossSessionDedupMs: number;
+  private readonly reportGeneration: number;
   private readonly flushDebounceMs: number;
   private readonly maxBatchSize: number;
   private readonly timeoutMs: number;
@@ -106,6 +107,9 @@ export class CmsBridge {
     this.source = options.source ?? 'default';
     this.dedupTtlMs = options.dedupTtlMs ?? DEFAULT_DEDUP_TTL_MS;
     this.crossSessionDedupMs = options.crossSessionDedupMs ?? DEFAULT_CROSS_SESSION_TTL_MS;
+    // Negative/NaN would make every marker look "newer than current" and
+    // wedge re-reporting off; clamp to a sane non-negative integer.
+    this.reportGeneration = Math.max(0, Math.floor(options.reportGeneration ?? 0));
     this.flushDebounceMs = options.flushDebounceMs ?? DEFAULT_FLUSH_DEBOUNCE_MS;
     this.maxBatchSize = Math.max(1, options.maxBatchSize ?? DEFAULT_MAX_BATCH_SIZE);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -188,9 +192,20 @@ export class CmsBridge {
       return false;
     }
     if (raw === null) return false;
-    const ts = Number(raw);
-    if (!Number.isFinite(ts)) return false;
-    if (now - ts < this.crossSessionDedupMs) return true;
+    const marker = this._parseMarker(raw);
+    if (marker === null) return false;
+    // Server bumped the generation since this marker was written (e.g. the
+    // admin deleted the detection): treat as a miss so it re-POSTs, and
+    // drop the stale marker. Legacy markers carry generation 0.
+    if (marker.gen < this.reportGeneration) {
+      try {
+        this.storage.removeItem(storageKey);
+      } catch {
+        // ignore
+      }
+      return false;
+    }
+    if (now - marker.ts < this.crossSessionDedupMs) return true;
     // Expired — clear to keep storage tidy.
     try {
       this.storage.removeItem(storageKey);
@@ -204,10 +219,30 @@ export class CmsBridge {
     if (this.storage === null || this.crossSessionDedupMs <= 0) return;
     const storageKey = `${CROSS_SESSION_PREFIX}${this.source}:${key}`;
     try {
-      this.storage.setItem(storageKey, String(now));
+      // `<generation>.<timestampMs>` — the generation lets a later page
+      // load detect a server-side reset and re-report (see _crossSessionHit).
+      this.storage.setItem(storageKey, `${this.reportGeneration}.${now}`);
     } catch {
       // ignore — local cap behaviour is fine
     }
+  }
+
+  /**
+   * Parse a cross-session marker value into `{ gen, ts }`. New markers are
+   * `<gen>.<ts>`; legacy markers are a bare `<ts>` (read as generation 0,
+   * so a non-zero current generation invalidates them). Returns null when
+   * unparseable.
+   */
+  private _parseMarker(raw: string): { gen: number; ts: number } | null {
+    const dot = raw.indexOf('.');
+    if (dot === -1) {
+      const ts = Number(raw);
+      return Number.isFinite(ts) ? { gen: 0, ts } : null;
+    }
+    const gen = Number(raw.slice(0, dot));
+    const ts = Number(raw.slice(dot + 1));
+    if (!Number.isFinite(gen) || !Number.isFinite(ts)) return null;
+    return { gen, ts };
   }
 
   // --- flush + lifecycle ----------------------------------------------

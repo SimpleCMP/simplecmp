@@ -291,6 +291,7 @@ export interface SimpleCMPConfig extends ConsentConfig {
     | 'sampleRate'
     | 'respectDoNotTrack'
     | 'timeoutMs'
+    | 'reportGeneration'
   >;
 
   /**
@@ -656,6 +657,10 @@ function startRecorder(config: SimpleCMPConfig): void {
       sampleRate: discover ? 1 : config.cmsBridge?.sampleRate,
       respectDoNotTrack: discover ? false : config.cmsBridge?.respectDoNotTrack,
       timeoutMs: config.cmsBridge?.timeoutMs,
+      // Server-supplied reset counter (bumped on BE detection delete) so a
+      // deleted detection re-reports on the next page load instead of being
+      // suppressed by a stale cross-session marker.
+      reportGeneration: config.cmsBridge?.reportGeneration,
     });
     recorder.on('detectionSettled', (d) => bridge.onDetection(d));
   }

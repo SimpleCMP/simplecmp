@@ -242,7 +242,8 @@ describe('CmsBridge — cross-session dedup (localStorage)', () => {
     bridge.onDetection(makeDetection({ identifier: '_ga' }));
     await tick();
 
-    expect(storage.getItem('simplecmp-reported:default:cookie:_ga')).toBe(String(now));
+    // Marker now carries the report generation: `<gen>.<ts>` (gen 0 by default).
+    expect(storage.getItem('simplecmp-reported:default:cookie:_ga')).toBe(`0.${now}`);
   });
 
   it('treats an expired marker as a miss + clears it', async () => {
@@ -289,6 +290,93 @@ describe('CmsBridge — cross-session dedup (localStorage)', () => {
     await tick();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('CmsBridge — report generation (server-side reset / re-detect)', () => {
+  it('re-POSTs when the marker generation is older than the current generation', async () => {
+    // Admin deleted the detection → server bumped generation to 1. A fresh
+    // marker written under gen 0 must NOT suppress the re-report.
+    const storage = memStorage();
+    const now = 1_700_000_000_000;
+    storage.setItem('simplecmp-reported:default:cookie:_ga', `0.${now - 1000}`);
+
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    const bridge = bridgeWith({
+      fetch: fetchMock,
+      now: () => now,
+      storage,
+      crossSessionDedupMs: 7 * 24 * 60 * 60 * 1000,
+      reportGeneration: 1,
+    });
+
+    bridge.onDetection(makeDetection({ identifier: '_ga' }));
+    await tick();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Re-written under the current generation.
+    expect(storage.getItem('simplecmp-reported:default:cookie:_ga')).toBe(`1.${now}`);
+  });
+
+  it('still skips when the marker generation matches the current generation', async () => {
+    const storage = memStorage();
+    const now = 1_700_000_000_000;
+    storage.setItem('simplecmp-reported:default:cookie:_ga', `1.${now - 1000}`);
+
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    const bridge = bridgeWith({
+      fetch: fetchMock,
+      now: () => now,
+      storage,
+      crossSessionDedupMs: 7 * 24 * 60 * 60 * 1000,
+      reportGeneration: 1,
+    });
+
+    bridge.onDetection(makeDetection({ identifier: '_ga' }));
+    await tick();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('invalidates a legacy (generation-less) marker once the generation is bumped', async () => {
+    const storage = memStorage();
+    const now = 1_700_000_000_000;
+    // Pre-generation marker: a bare timestamp, reads as generation 0.
+    storage.setItem('simplecmp-reported:default:cookie:_ga', String(now - 1000));
+
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    const bridge = bridgeWith({
+      fetch: fetchMock,
+      now: () => now,
+      storage,
+      crossSessionDedupMs: 7 * 24 * 60 * 60 * 1000,
+      reportGeneration: 1,
+    });
+
+    bridge.onDetection(makeDetection({ identifier: '_ga' }));
+    await tick();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('a legacy marker is still honoured when the generation is unchanged (0)', async () => {
+    const storage = memStorage();
+    const now = 1_700_000_000_000;
+    storage.setItem('simplecmp-reported:default:cookie:_ga', String(now - 1000));
+
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    const bridge = bridgeWith({
+      fetch: fetchMock,
+      now: () => now,
+      storage,
+      crossSessionDedupMs: 7 * 24 * 60 * 60 * 1000,
+      // reportGeneration defaults to 0 — no reset.
+    });
+
+    bridge.onDetection(makeDetection({ identifier: '_ga' }));
+    await tick();
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
