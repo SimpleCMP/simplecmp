@@ -71,7 +71,14 @@ final class Lookup
                     'exact'  => $row['pattern'] === $host,
                     'suffix' => $host === $row['pattern']
                                  || str_ends_with($host, '.' . $row['pattern']),
-                    'regex'  => @preg_match('#' . $row['pattern'] . '#', $host) === 1,
+                    // Anchored full-host match, mirroring the client's
+                    // `originMatches` (`^(?:source)$`): an unanchored host regex
+                    // lets a substring impersonate a service — `/tracker\.com/`
+                    // would otherwise match `eviltracker.com.attacker.net`. The
+                    // `(?:…)` group wraps any top-level alternation in the source.
+                    // (Cookie regexes above stay partial — intentional prefix
+                    // matchers, matching the client.)
+                    'regex'  => @preg_match('#^(?:' . $row['pattern'] . ')$#', $host) === 1,
                     default  => false,
                 };
                 if ($hit && !isset($seen[$row['id']])) {

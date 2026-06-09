@@ -111,6 +111,27 @@ final class LookupTest extends TestCase
         $this->assertSame(['connect.facebook.net', '*.fbcdn.net'], $svc['matches']['origins']);
     }
 
+    public function testRegexOriginIsAnchoredToFullHost(): void
+    {
+        // Seeded here (not setUp) so testCount / testAll stay at 2.
+        $seeder = new Seeder($this->db);
+        $seeder->upsert([
+            'id' => 'regex-origin',
+            'name' => 'Regex Origin',
+            'purposes' => ['analytics'],
+            'matches' => ['origins' => ['/tracker\\.com/']],
+        ]);
+
+        // Exact host matches.
+        $this->assertSame('regex-origin', $this->lookup->byOrigin('tracker.com')[0]['id']);
+        // Substring / suffix impersonation must NOT match — parity with the
+        // anchored client originMatches (`^(?:source)$`). Was matching pre-fix
+        // because the server regex was unanchored.
+        $this->assertSame([], $this->lookup->byOrigin('eviltracker.com.attacker.net'));
+        $this->assertSame([], $this->lookup->byOrigin('tracker.com.evil.test'));
+        $this->assertSame([], $this->lookup->byOrigin('xtracker.com'));
+    }
+
     public function testGetById(): void
     {
         $svc = $this->lookup->getById('google-analytics');
