@@ -60,6 +60,16 @@ final class Seeder
             throw new \InvalidArgumentException('Service is missing an id');
         }
 
+        // Merge matches.aliasOrigins into matches.origins (first-seen dedup)
+        // and drop the alias key, mirroring
+        // SimpleCMP\ServicesLibrary\ServicesLibrary::services() — the only
+        // other path that flattens them. Both seeding entrypoints (seed.php,
+        // rebuild-from-library.php) feed raw on-disk JSON straight to upsert()
+        // without going through services(), so without this the hosted DB
+        // silently drops alias origins (e.g. Meta's *.fbcdn.net) from both the
+        // stored payload and the matcher tables — lookups against them miss.
+        $service = self::flattenAliasOrigins($service);
+
         // Replace existing row + matchers
         $stmt = $pdo->prepare('DELETE FROM services WHERE id = :id');
         $stmt->execute(['id' => $id]);
@@ -116,5 +126,48 @@ final class Seeder
                 ]);
             }
         }
+    }
+
+    /**
+     * Merge `matches.aliasOrigins` into `matches.origins` (first-seen-wins
+     * dedup, non-strings skipped) and drop the alias key, so a service seeded
+     * from raw JSON ends up identical to what
+     * SimpleCMP\ServicesLibrary\ServicesLibrary::services() yields to
+     * bundled / vendored consumers. Kept in lockstep with that method's
+     * private flattenAliasOrigins().
+     *
+     * @param array<string, mixed> $service
+     * @return array<string, mixed>
+     */
+    private static function flattenAliasOrigins(array $service): array
+    {
+        $matches = $service['matches'] ?? null;
+        if (!is_array($matches)) {
+            return $service;
+        }
+        $aliases = $matches['aliasOrigins'] ?? null;
+        if (!is_array($aliases) || $aliases === []) {
+            // Strip an empty/absent-but-present alias array so consumers
+            // never see the key.
+            if (array_key_exists('aliasOrigins', $matches)) {
+                unset($matches['aliasOrigins']);
+                $service['matches'] = $matches;
+            }
+            return $service;
+        }
+        $origins = (array)($matches['origins'] ?? []);
+        $seen = [];
+        $merged = [];
+        foreach ([...$origins, ...$aliases] as $entry) {
+            if (!is_string($entry) || isset($seen[$entry])) {
+                continue;
+            }
+            $seen[$entry] = true;
+            $merged[] = $entry;
+        }
+        $matches['origins'] = $merged;
+        unset($matches['aliasOrigins']);
+        $service['matches'] = $matches;
+        return $service;
     }
 }

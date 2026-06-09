@@ -81,6 +81,36 @@ final class LookupTest extends TestCase
         $this->assertSame([], $this->lookup->byOrigin('random.example.com'));
     }
 
+    public function testAliasOriginsAreFlattenedIntoOriginsForMatching(): void
+    {
+        // Seeded here (not setUp) so testCount / testAll stay at 2.
+        $seeder = new Seeder($this->db);
+        $seeder->upsert([
+            'id' => 'meta',
+            'name' => 'Meta',
+            'purposes' => ['marketing'],
+            'matches' => [
+                'origins' => ['connect.facebook.net'],
+                // Duplicate canonical origin exercises first-seen dedup.
+                'aliasOrigins' => ['*.fbcdn.net', 'connect.facebook.net'],
+            ],
+        ]);
+
+        // The alias suffix host now matches (the bug: it was dropped).
+        $aliasMatch = $this->lookup->byOrigin('static.xx.fbcdn.net');
+        $this->assertCount(1, $aliasMatch);
+        $this->assertSame('meta', $aliasMatch[0]['id']);
+
+        // The canonical origin still matches.
+        $this->assertSame('meta', $this->lookup->byOrigin('connect.facebook.net')[0]['id']);
+
+        // Stored payload is flattened to match ServicesLibrary::services():
+        // origins merged (dedup), aliasOrigins key gone.
+        $svc = $this->lookup->getById('meta');
+        $this->assertArrayNotHasKey('aliasOrigins', $svc['matches']);
+        $this->assertSame(['connect.facebook.net', '*.fbcdn.net'], $svc['matches']['origins']);
+    }
+
     public function testGetById(): void
     {
         $svc = $this->lookup->getById('google-analytics');
