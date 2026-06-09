@@ -204,6 +204,35 @@ describe('<simplecmp-modal>', () => {
     expect(el.shadowRoot?.querySelector('button.close')).not.toBeNull();
   });
 
+  it('emits simplecmp:modal-close exactly once when the close button is clicked', async () => {
+    const { el } = await mountModal();
+    el.open = true;
+    await el.updateComplete;
+    let count = 0;
+    el.addEventListener('simplecmp:modal-close', () => {
+      count++;
+    });
+    getButton(el, 'button.close').click();
+    await el.updateComplete;
+    expect(count).toBe(1);
+  });
+
+  it('emits simplecmp:modal-close exactly once on a backdrop click', async () => {
+    const { el } = await mountModal();
+    el.open = true;
+    await el.updateComplete;
+    let count = 0;
+    el.addEventListener('simplecmp:modal-close', () => {
+      count++;
+    });
+    const dialog = el.shadowRoot?.querySelector('dialog');
+    if (dialog === null || dialog === undefined) throw new Error('Expected dialog');
+    // Backdrop click = a click whose target is the dialog element itself.
+    dialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await el.updateComplete;
+    expect(count).toBe(1);
+  });
+
   it('mustConsent prevents the cancel event from closing', async () => {
     const { el } = await mountModal({ mustConsent: true });
     el.open = true;

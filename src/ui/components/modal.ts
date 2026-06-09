@@ -208,10 +208,13 @@ export class SimpleCmpModal extends SimpleCmpElement {
     this._emit('modal-close');
   };
 
+  // _onCloseClick / _onBackdropClick only set `open = false`; that drives
+  // `dialog.close()` in willUpdate, whose native `close` event routes through
+  // `_onClose` — the single canonical emitter. Emitting here too would fire
+  // `simplecmp:modal-close` twice per close.
   private _onCloseClick = (): void => {
     if (this.config?.mustConsent === true) return;
     this.open = false;
-    this._emit('modal-close');
   };
 
   private _onBackdropClick = (event: MouseEvent): void => {
@@ -220,7 +223,6 @@ export class SimpleCmpModal extends SimpleCmpElement {
     // detection trick.
     if (event.target === this._dialog && this.config?.mustConsent !== true) {
       this.open = false;
-      this._emit('modal-close');
     }
   };
 

@@ -45,6 +45,12 @@ export function update<T extends Record<string, unknown>>(
 ): T {
   const targetRecord = target as unknown as Record<string, unknown>;
   for (const key of Object.keys(source)) {
+    // Defense-in-depth against prototype pollution: `JSON.parse` materialises
+    // `__proto__` (and `constructor`/`prototype`) as own enumerable keys, so a
+    // crafted config object could otherwise walk into Object.prototype here.
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue;
+    }
     const sourceValue = source[key];
     const targetValue = targetRecord[key];
     if (typeof sourceValue === 'string') {

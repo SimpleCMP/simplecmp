@@ -98,7 +98,11 @@ export class CmsBridge {
     this.url = options.url;
     this.host = (() => {
       try {
-        return new URL(options.url).host;
+        // `hostname`, not `host`: detection origins reaching the recorder are
+        // port-stripped (the watchers use `location.hostname`), so a bridge
+        // URL on a non-default port (`cms.example:8443`) must compare against
+        // the bare hostname or the self-post feedback-loop guard never matches.
+        return new URL(options.url).hostname;
       } catch {
         return '';
       }

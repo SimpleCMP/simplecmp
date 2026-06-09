@@ -120,6 +120,19 @@ describe('CmsBridge — payload (schema v2, batched)', () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('suppresses own-host detections even when the bridge URL has a non-default port', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    // Bridge on :8443; detection origins are port-stripped hostnames, so the
+    // guard must compare against the bare hostname (was `.host` → never matched
+    // → bridge recorded its own POSTs as a feedback loop).
+    const bridge = bridgeWith({ url: 'https://cms.example.test:8443/webhook', fetch: fetchMock });
+
+    bridge.onDetection(makeDetection({ kind: 'request', origin: 'cms.example.test' }));
+    await tick();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('CmsBridge — batching', () => {
