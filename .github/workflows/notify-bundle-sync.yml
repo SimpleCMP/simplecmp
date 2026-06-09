@@ -21,7 +21,12 @@ on:
 
 jobs:
   dispatch:
-    if: github.event.workflow_run.conclusion == 'success'
+    # `branches: [main]` filters on the triggering run's *head branch*, so a
+    # fork PR whose head branch is named `main` would pass it — and this
+    # workflow_run job runs in the trusted base-repo context with the dispatch
+    # secret. Require `event == 'push'` so only real pushes to main (not
+    # PR-triggered CI) can dispatch the build of an upstream SHA.
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Send repository_dispatch to t3-simplecmp
