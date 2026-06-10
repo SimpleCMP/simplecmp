@@ -853,9 +853,10 @@ Detection-Review). Bis dahin kein Druck.
 
 ### REQ-N8 — Opt-in-Blocking für Drittanbieter-Stylesheets (Google Fonts)
 
-**Status:** in Umsetzung (2026-06-10). Phase A (Engine) + Phase B (Rewriter +
-Schalter, Default aus) + Decision-Doc geliefert; Phase C (First-Run-Nudge +
-blockierte-Stylesheets-Review + schnelles Allowlisting) offen.
+**Status:** umgesetzt (2026-06-10). Phase A (Engine) + Phase B (Rewriter +
+Schalter, Default aus) + Phase C (C1 Stylesheet-Kind, C2 stylesheet-scoped
+Per-Host-Allow, C3 First-Run-Nudge + Self-Hosting-Hinweis) + Decision-Doc +
+admin-facing README-Section geliefert.
 
 **Hintergrund:** Der Universal-Blocking-Rewriter (ADR-0013) schreibt seit
 2026-05-30 nur noch Resource-Hint-`<link>`-rels um (preconnect / preload / …);
@@ -912,16 +913,29 @@ Daher opt-in und später.
       schreibt Drittanbieter-`rel="stylesheet"` nur bei aktivem Schalter um
       (`data-href`, `href` gestrippt). Same-Origin + Allowlist bleiben
       ausgenommen. +Tests.
-- [ ] **Phase C (TYPO3):** First-Run-Nudge + „blockierte Stylesheets"-Review.
-      BE-Callout (solange Schalter aus) der zum Aktivieren + sofortigem
-      *Discover* einlädt; Discover macht blockierte Stylesheet-Hosts sichtbar;
-      pro Host **[Host erlauben]** (schnelles Allowlisting) + „Self-Hosting
-      empfohlen"-Hinweis. (Discover-gesteuert → sofort nach Aktivierung sichtbar,
-      keine Wartezeit auf Besuchertraffic.)
-- [x] **Docs (Decision):** Default-aus + Nudge-Begründung dokumentiert in
+- [x] **Phase C1 (TYPO3, `t3-simplecmp@c7e1872`-Reihe):** Blockierte Stylesheets
+      werden als eigener `stylesheet`-Detection-Kind erfasst (statt generischem
+      `link`), damit das BE sie getrennt anzeigen/behandeln kann. +Tests.
+- [x] **Phase C2 (TYPO3, `t3-simplecmp@c7e1872`):** Stylesheet-scoped Per-Host-Allow.
+      Neue Tabelle `tx_t3simplecmp_allowed_stylesheet_host` + Repository, keyed by
+      `source` (= `DiscoverSource::forSite()`), den der Rewriter ebenfalls ableitet.
+      Pro blockierter Stylesheet-Zeile **[Stylesheet erlauben]**; der Rewriter lässt
+      das CSS des Hosts durch — **nur Stylesheets**: Scripts/iframes desselben Hosts
+      bleiben geblockt (bewusst enger als die host-weite `universalBlocking.allowlist`).
+      Rewriter-Precision- + Repository-Functional-Tests. Browser-verifiziert.
+- [x] **Phase C3 (TYPO3, `t3-simplecmp@0fea98f`):** First-Run-Nudge + Self-Hosting-
+      Hinweis. Detection-Listen-Callout, sichtbar nur in der präzisen Lücke (Site hat
+      `universalBlocking.enabled` an, `blockStylesheets` aus) und nur bei vorhandener
+      Drittanbieter-`<link>`-Evidenz; rahmt den IP-Leak, führt mit Self-Hosting, bietet
+      pro Site einen „In den Website-Einstellungen aktivieren"-Deeplink + *Discover*.
+      Self-clearing pro Site beim Aktivieren. Pro Zeile ein „Self-Hosting empfohlen"-
+      Hinweis. Browser-verifiziert (an→aus→an, Per-Site-Self-Clearing).
+- [x] **Docs (Decision + README):** Default-aus + Nudge-Begründung dokumentiert in
       `t3-simplecmp/docs/decisions/2026-06-10-stylesheet-blocking-default-off.md`;
       Feld-Beschreibung führt mit Self-Hosting, rahmt Best-Effort, dokumentiert
-      Preload-Scanner- / `@import`-Leaks. (Phase-C-Docs/Workflow folgen mit C.)
+      Preload-Scanner- / `@import`-Leaks. Admin-facing How-to-Section „Blocking
+      third-party stylesheets (Google Fonts)" + Status-Eintrag #14 in
+      `t3-simplecmp/README.md` (`@fe09222`).
 
 **Default-Entscheidung (2026-06-10):** Schalter bleibt **aus**, NICHT an (trotz
 `universalBlocking.enabled=true`): ein blockiertes Stylesheet scheitert
