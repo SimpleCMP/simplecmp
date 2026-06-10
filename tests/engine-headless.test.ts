@@ -232,3 +232,87 @@ describe('getDefaultConsent precedence + GPC (Finding 2)', () => {
     expect(getManager(configRequired).getConsent('b')).toBe(true);
   });
 });
+
+describe('getManager — config-change cache invalidation', () => {
+  afterEach(() => {
+    resetManagers();
+    localStorage.clear();
+  });
+
+  it('rebuilds when services[] change under the same storageName', () => {
+    const v1: ConsentConfig = {
+      storageName: 'gm-reinit',
+      storageMethod: 'localStorage',
+      services: [{ name: 'analytics', purposes: ['analytics'], default: false }],
+    };
+    const m1 = getManager(v1);
+    expect('analytics' in m1.defaultConsents).toBe(true);
+    expect('newsvc' in m1.defaultConsents).toBe(false);
+
+    // Same storageName, an added service — must NOT return the stale manager.
+    const v2: ConsentConfig = {
+      storageName: 'gm-reinit',
+      storageMethod: 'localStorage',
+      services: [
+        { name: 'analytics', purposes: ['analytics'], default: false },
+        { name: 'newsvc', purposes: ['marketing'], default: false },
+      ],
+    };
+    const m2 = getManager(v2);
+    expect(m2).not.toBe(m1);
+    expect('newsvc' in m2.defaultConsents).toBe(true);
+  });
+
+  it('returns the same instance for an identical config passed as a fresh object', () => {
+    const base: ConsentConfig = {
+      storageName: 'gm-same',
+      storageMethod: 'localStorage',
+      services: [{ name: 'analytics', purposes: ['analytics'], default: false }],
+    };
+    const m1 = getManager(base);
+    // Shallow clone — same content, different object reference.
+    const m2 = getManager({ ...base });
+    expect(m2).toBe(m1);
+  });
+
+  it('keeps distinct managers per storageName', () => {
+    const a = getManager({
+      storageName: 'gm-a',
+      storageMethod: 'localStorage',
+      services: [{ name: 's', purposes: ['analytics'] }],
+    });
+    const b = getManager({
+      storageName: 'gm-b',
+      storageMethod: 'localStorage',
+      services: [{ name: 's', purposes: ['analytics'] }],
+    });
+    expect(b).not.toBe(a);
+  });
+
+  it('rebuilds (does not reuse) when consentVersion changes', () => {
+    const m1 = getManager({
+      storageName: 'gm-ver',
+      storageMethod: 'localStorage',
+      consentVersion: 1,
+      services: [{ name: 's', purposes: ['analytics'] }],
+    });
+    const m2 = getManager({
+      storageName: 'gm-ver',
+      storageMethod: 'localStorage',
+      consentVersion: 2,
+      services: [{ name: 's', purposes: ['analytics'] }],
+    });
+    expect(m2).not.toBe(m1);
+  });
+
+  it('callback-only differences do not force a rebuild (functions are ignored)', () => {
+    const base: ConsentConfig = {
+      storageName: 'gm-fn',
+      storageMethod: 'localStorage',
+      services: [{ name: 's', purposes: ['analytics'] }],
+    };
+    const m1 = getManager({ ...base, callback: () => undefined } as ConsentConfig);
+    const m2 = getManager({ ...base, callback: () => 'different' } as ConsentConfig);
+    expect(m2).toBe(m1);
+  });
+});

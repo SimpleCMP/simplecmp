@@ -35,6 +35,13 @@ export const defaultTranslations = new Map<unknown, unknown>();
 
 /** Manager instances keyed by storageName. */
 const managers: Record<string, ConsentManager> = {};
+/**
+ * Fingerprint of the config each cached manager was built from, keyed by the
+ * same storageName. Lets `getManager` detect a re-`init()` with a changed
+ * config (e.g. an SPA / CMS-preview swapping `services[]` under the same
+ * storageName) and rebuild instead of returning a stale manager.
+ */
+const managerConfigs: Record<string, string> = {};
 
 /** Event-bus state for `addEventListener` / `fireEvent`. */
 const eventHandlers: Record<string, Array<(...args: unknown[]) => unknown>> = {};
@@ -197,10 +204,18 @@ export function getManager(config?: ConsentConfig): ConsentManager {
   }
   const name =
     (cfg.storageName as string | undefined) ?? (cfg.cookieName as string | undefined) ?? 'default';
-  if (managers[name] === undefined) {
+  // Rebuild when there's no manager yet OR the config changed since the cached
+  // one was built — otherwise a re-init with new services[] under the same
+  // storageName silently returns the stale manager. One manager per
+  // storageName is kept (it owns the cookie/localStorage slot); the rebuild
+  // re-reads saved consent from storage, so the visitor's persisted choice
+  // survives, and re-derives defaults from the new services.
+  const fingerprint = configFingerprint(cfg);
+  if (managers[name] === undefined || managerConfigs[name] !== fingerprint) {
     managers[name] = new ConsentManager(validateConfig(cfg));
-    // REQ-3 / ADR-0004 — surface the mismatch through the event bus once,
-    // on first manager creation per session.
+    managerConfigs[name] = fingerprint;
+    // REQ-3 / ADR-0004 — surface the mismatch through the event bus on
+    // (re)build, when the stored consent was discarded due to a version bump.
     if (managers[name].versionMismatch !== undefined) {
       fireEvent('consentVersionMismatch', managers[name].versionMismatch);
     }
@@ -208,12 +223,31 @@ export function getManager(config?: ConsentConfig): ConsentManager {
   return managers[name];
 }
 
+/**
+ * Stable string fingerprint of a config's serialisable surface. Functions
+ * (callbacks like `callback` / `getConsent`) are dropped — they don't affect
+ * the consent state machine and aren't serialisable. A non-serialisable config
+ * (e.g. a cyclic structure) yields a unique sentinel so it always rebuilds
+ * rather than throwing.
+ */
+function configFingerprint(cfg: ConsentConfig): string {
+  try {
+    return JSON.stringify(cfg, (_key, value) => (typeof value === 'function' ? undefined : value));
+  } catch {
+    return `__unserialisable__:${_fingerprintCounter++}`;
+  }
+}
+let _fingerprintCounter = 0;
+
 /** Drop all cached manager instances. */
 export function resetManagers(): void {
   // Klaro upstream had a long-standing bug here (`for...in Object.keys()`
   // iterates over indices, not keys). Fixed as part of the TS migration.
   for (const key of Object.keys(managers)) {
     delete managers[key];
+  }
+  for (const key of Object.keys(managerConfigs)) {
+    delete managerConfigs[key];
   }
 }
 
