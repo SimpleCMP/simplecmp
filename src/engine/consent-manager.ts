@@ -715,9 +715,17 @@ export class ConsentManager {
         this._toggleAutoPlaceholder(newElement, service, consent);
       } else if (element.tagName === 'SCRIPT' || element.tagName === 'LINK') {
         const scripted = element as HTMLScriptElement & HTMLLinkElement;
-        if (consent && scripted.type === (type ?? '') && scripted.src === src) {
+        // `<script>` is keyed by `src`, `<link>` by `href`. Checking only
+        // `src` made a blocked `<link>` (src undefined on both sides) look
+        // "already active", so its `href` was never reinjected on consent.
+        if (
+          consent &&
+          scripted.type === (type ?? '') &&
+          scripted.src === src &&
+          scripted.href === href
+        ) {
           console.debug(
-            `Skipping ${element.tagName} for service ${service.name}, as it already has the correct type or src...`
+            `Skipping ${element.tagName} for service ${service.name}, as it already has the correct type / src / href...`
           );
           continue;
         }
@@ -739,6 +747,20 @@ export class ConsentManager {
           if (href !== undefined) newElement.href = href;
         } else {
           newElement.type = 'text/plain';
+          // `type="text/plain"` keeps a <script> from executing, but a
+          // <link rel="stylesheet"> still loads (the `rel` drives it). So to
+          // actually re-block a stylesheet (e.g. on consent withdrawal after it
+          // was reinjected), strip the live `href` into `data-href` — keeping
+          // the value so a later consent can reinject it.
+          if (element.tagName === 'LINK') {
+            const liveHref = newElement.getAttribute('href');
+            if (liveHref !== null && liveHref !== '') {
+              if (!newElement.hasAttribute('data-href')) {
+                newElement.setAttribute('data-href', liveHref);
+              }
+              newElement.removeAttribute('href');
+            }
+          }
         }
         parent.insertBefore(newElement, element);
         parent.removeChild(element);
