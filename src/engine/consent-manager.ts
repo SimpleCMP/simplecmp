@@ -300,7 +300,7 @@ export class ConsentManager {
 
   get storageName(): string {
     // `cookieName` is the legacy alias; preserved for backwards compatibility
-    return this.config.storageName ?? this.config.cookieName ?? 'klaro';
+    return this.config.storageName ?? this.config.cookieName ?? 'simplecmp';
   }
 
   get cookieDomain(): string | undefined {

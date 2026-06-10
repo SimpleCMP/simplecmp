@@ -8,6 +8,18 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+### Changed
+
+- **Default `storageName` renamed `klaro` → `simplecmp`.** The consent
+  decision was stored under a cookie/`localStorage` key named `klaro` (a
+  leftover from the hard-fork). The default is now `simplecmp`, so the brand
+  no longer leaks into the storage key across integrations (TYPO3, WordPress,
+  Shopify). **Breaking for installs relying on the default:** the old `klaro`
+  value is not migrated, so existing visitors are re-prompted once after
+  upgrade. Pin the old name with `storageName: 'klaro'` to avoid the
+  re-prompt. Configs that already set `storageName`/`cookieName` are
+  unaffected.
+
 ### Added
 
 - **`cmsBridge.reportGeneration` — server-driven cross-session re-report.**
