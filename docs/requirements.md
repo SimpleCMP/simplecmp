@@ -853,7 +853,9 @@ Detection-Review). Bis dahin kein Druck.
 
 ### REQ-N8 — Opt-in-Blocking für Drittanbieter-Stylesheets (Google Fonts)
 
-**Status:** offen, zurückgestellt (2026-05-30).
+**Status:** in Umsetzung (2026-06-10). Phase A (Engine) + Phase B (Rewriter +
+Schalter, Default aus) + Decision-Doc geliefert; Phase C (First-Run-Nudge +
+blockierte-Stylesheets-Review + schnelles Allowlisting) offen.
 
 **Hintergrund:** Der Universal-Blocking-Rewriter (ADR-0013) schreibt seit
 2026-05-30 nur noch Resource-Hint-`<link>`-rels um (preconnect / preload / …);
@@ -898,17 +900,35 @@ Konsens (Complianz, Usercentrics, Google selbst); Default-Blocking zerbricht
 Seiten und liefert wegen Preload-Scanner / `@import` trügerische Sicherheit.
 Daher opt-in und später.
 
-**Acceptance Criteria (skizziert):**
+**Acceptance Criteria:**
 
-- [ ] Engine: Stylesheet-Block-and-Reinject-Pfad (`href` → `data-src`,
-      `<link>`-Reinjection bei Consent-Erteilung), mit Tests.
-- [ ] TYPO3-Site-Set-Feld `universalBlocking.blockStylesheets` (Default aus);
-      `HtmlRewriter` schreibt Drittanbieter-`rel="stylesheet"` nur bei aktivem
-      Schalter um.
-- [ ] Drittanbieter-Stylesheet-Hosts im Detection-/Discover-Flow mit
-      Self-Hosting-Empfehlung sichtbar.
-- [ ] Docs führen mit „Self-Hosting"; Schalter als Best-Effort gerahmt
-      (Preload-Scanner- / `@import`-Leaks dokumentiert).
+- [x] **Phase A (Engine, `simplecmp@d9023a2`):** Stylesheet-Block-and-Reinject —
+      `<link data-name data-href>` bleibt ohne Consent blockiert (kein `href`),
+      Engine reinjiziert `href` aus `data-href` bei Consent und re-blockt bei
+      Widerruf. Fixte zwei latente `<link>`-Bugs (Skip-Guard prüfte nur `src`;
+      No-Consent-Pfad strippte `href` nicht). +Tests.
+- [x] **Phase B (TYPO3, `t3-simplecmp@ad289e1`):** Site-Set-Feld
+      `universalBlocking.blockStylesheets` (**Default aus**); `HtmlRewriter`
+      schreibt Drittanbieter-`rel="stylesheet"` nur bei aktivem Schalter um
+      (`data-href`, `href` gestrippt). Same-Origin + Allowlist bleiben
+      ausgenommen. +Tests.
+- [ ] **Phase C (TYPO3):** First-Run-Nudge + „blockierte Stylesheets"-Review.
+      BE-Callout (solange Schalter aus) der zum Aktivieren + sofortigem
+      *Discover* einlädt; Discover macht blockierte Stylesheet-Hosts sichtbar;
+      pro Host **[Host erlauben]** (schnelles Allowlisting) + „Self-Hosting
+      empfohlen"-Hinweis. (Discover-gesteuert → sofort nach Aktivierung sichtbar,
+      keine Wartezeit auf Besuchertraffic.)
+- [x] **Docs (Decision):** Default-aus + Nudge-Begründung dokumentiert in
+      `t3-simplecmp/docs/decisions/2026-06-10-stylesheet-blocking-default-off.md`;
+      Feld-Beschreibung führt mit Self-Hosting, rahmt Best-Effort, dokumentiert
+      Preload-Scanner- / `@import`-Leaks. (Phase-C-Docs/Workflow folgen mit C.)
+
+**Default-Entscheidung (2026-06-10):** Schalter bleibt **aus**, NICHT an (trotz
+`universalBlocking.enabled=true`): ein blockiertes Stylesheet scheitert
+*sichtbar* und ohne Besucher-Recovery (anders als Script/iframe) → Default-an
+würde Sites beim Upgrade zerlegen. Aktivierung ist ein geführter Opt-in
+(First-Run-Nudge). Ein späterer Flip auf Default-an ist eine geteilte
+Compliance-Entscheidung (wie der `enabled=true`-Flip → Sven). Siehe Decision-Doc.
 
 **Referenzen:** Decision-Doc
 `docs/decisions/2026-05-30-link-rewrite-rel-policy.md` (Part B = dieses REQ) im
