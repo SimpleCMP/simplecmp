@@ -20,7 +20,7 @@ import {
   getManager as engineGetManager,
   updateConfig as engineUpdateConfig,
 } from './engine/index.js';
-import type { ConsentConfig, ConsentManager, Service } from './engine/index.js';
+import type { ConsentConfig, ConsentManager, Regime, Service } from './engine/index.js';
 import bundledTranslations from './engine/translations/index.js';
 import { convertToMap, update } from './engine/utils/maps.js';
 import { LocalClassifier } from './recorder/classifier.js';
@@ -49,6 +49,7 @@ export type {
 export type { LookupQuery, ServiceDbAuth, ServiceMatch } from './service-db/types.js';
 export type { CmsBridgeAuth, CmsBridgeOptions, CmsBridgePayload } from './cms-bridge/index.js';
 export type { BlockInfo } from './runtime-patches/index.js';
+export type { Regime } from './engine/index.js';
 export { ServiceDbClient } from './service-db/client.js';
 export { LayeredClassifier } from './service-db/layered-classifier.js';
 export { CmsBridge } from './cms-bridge/index.js';
@@ -169,6 +170,46 @@ export interface SimpleCMPConfig extends ConsentConfig {
    * non-required services default to opt-out. Required services bypass it.
    */
   respectGPC?: boolean;
+
+  /**
+   * Region-aware consent regime (REQ-N4 / ADR-0015). SimpleCMP supports two
+   * legal models plus a no-op:
+   *
+   * - `'opt-in'` (GDPR / ePrivacy) — non-required services default-deny; the
+   *   banner is a blocking decision wall. **The default.**
+   * - `'opt-out'` (US state laws, CCPA/CPRA, …) — non-required services
+   *   default-*allow*; the banner is a non-blocking notice with a "Do Not Sell
+   *   or Share" control; GPC forces opt-out.
+   * - `'none'` — no applicable regime: allow by default, no auto-banner.
+   *
+   * This is the **baseline** used when `region` is unknown or unmapped. An
+   * EU-established business typically leaves it at `'opt-in'` (everyone gets the
+   * wall); a US-only shop may set `'opt-out'`. Default `'opt-in'` (strictest).
+   */
+  regimeDefault?: Regime;
+
+  /**
+   * The visitor's jurisdiction, e.g. `'DE'`, `'US-CA'`, `'US'` (REQ-N4).
+   *
+   * **Must be supplied by the host server** (CDN/edge geo header, GeoIP, or
+   * Shopify's `getRegion()`) — SimpleCMP deliberately does NOT geo-locate the
+   * client (unreliable, and it would be a pre-consent third-party call). The
+   * value resolves to a regime via `regimes`, then a built-in region table
+   * (EU/EEA/UK/CH → opt-in; US states + `'US'` → opt-out), then `regimeDefault`.
+   * An unknown region falls back to `regimeDefault` (default `'opt-in'`).
+   *
+   * Note: applicable law depends on the controller's establishment and the
+   * visitor's location — not the server's location or the visitor's
+   * citizenship. See `docs/adr/0015-region-aware-consent-regimes.md`.
+   */
+  region?: string;
+
+  /**
+   * Per-region regime override map, e.g. `{ 'US-CA': 'opt-out', 'GB': 'opt-in' }`
+   * (REQ-N4). Takes precedence over the built-in region table; matched
+   * case-insensitively against `region`.
+   */
+  regimes?: Record<string, Regime>;
 
   /**
    * Render components into Shadow DOM (default, encapsulated styles) or
