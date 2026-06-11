@@ -16,6 +16,7 @@
  * banner UI.
  */
 
+import { type Regime, resolveRegime } from './regions.js';
 import stores, {
   type KeyedStore,
   SessionStorageStore,
@@ -144,6 +145,23 @@ export interface ConsentConfig {
   consentVersionPolicy?: 'any' | 'major';
   // REQ-5
   respectGPC?: boolean;
+  // REQ-N4 / ADR-0015 — region-aware consent regimes.
+  /**
+   * Merchant baseline regime when `region` is unknown/unmapped. Default
+   * `'opt-in'` (strictest). An EU-established business typically leaves this
+   * at `'opt-in'` (everyone gets the consent wall); a US-only shop may set
+   * `'opt-out'`.
+   */
+  regimeDefault?: Regime;
+  /**
+   * Visitor jurisdiction, supplied by the host server (CDN/edge geo header,
+   * GeoIP, or Shopify `getRegion()`) — e.g. `'DE'`, `'US-CA'`. The engine does
+   * NOT geo-locate the client. Resolved to a regime via `regimes` then the
+   * built-in region table then `regimeDefault`.
+   */
+  region?: string;
+  /** Per-region regime override map (merchant-supplied), e.g. `{ 'US-CA': 'opt-out' }`. */
+  regimes?: Record<string, Regime>;
   /**
    * Global toggle for the click-to-enable affordance on blocked embeds.
    * When true (default), the engine inserts a
@@ -346,9 +364,34 @@ export class ConsentManager {
   }
 
   /**
-   * Default consent for a service. REQ-5: GPC signal forces non-required
-   * services to default-deny when `navigator.globalPrivacyControl === true`
-   * and `config.respectGPC !== false`.
+   * REQ-N4 / ADR-0015 — the consent regime in effect for this request,
+   * resolved from `config.region` via `config.regimes` then the built-in
+   * region table then `config.regimeDefault` (default `'opt-in'`).
+   */
+  get regime(): Regime {
+    return resolveRegime(this.config.region, this.config.regimes, this.config.regimeDefault);
+  }
+
+  /**
+   * How the banner should present given the regime. `'wall'` = blocking
+   * decision (opt-in); `'notice'` = non-blocking notice + opt-out (opt-out);
+   * `'none'` = don't auto-show. The UI layer consumes this; the engine only
+   * computes it.
+   */
+  get bannerMode(): 'wall' | 'notice' | 'none' {
+    const r = this.regime;
+    return r === 'opt-in' ? 'wall' : r === 'opt-out' ? 'notice' : 'none';
+  }
+
+  /**
+   * Default consent for a service.
+   *
+   * - Required (strictly-necessary) services always consent.
+   * - REQ-5: a GPC signal forces non-required services to default-deny in
+   *   EVERY regime when `config.respectGPC !== false`.
+   * - REQ-N4: otherwise the fallback follows the regime — `opt-in` denies,
+   *   `opt-out`/`none` allow. Explicit `service.default` / `config.default`
+   *   still win over the regime fallback.
    */
   getDefaultConsent(service: Service): boolean {
     // Per-service `required` overrides `config.required` (`??` preserves an
@@ -367,10 +410,11 @@ export class ConsentManager {
     ) {
       return false;
     }
-    // `??` (not `||`) so an explicit `service.default: false` is honored
-    // against a `config.default: true` instead of being swallowed back to
-    // the config default.
-    return service.default ?? this.config.default ?? false;
+    // Regime fallback: opt-in denies by default; opt-out / none allow. An
+    // explicit `service.default` / `config.default` still wins (`??`, not
+    // `||`, so an explicit `false` is honored).
+    const regimeFallback = this.regime !== 'opt-in';
+    return service.default ?? this.config.default ?? regimeFallback;
   }
 
   changeAll(value: boolean): number {

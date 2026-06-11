@@ -83,3 +83,73 @@ describe('ConsentManager.loadConsents — corrupt input handling', () => {
     expect(manager?.getConsent('analytics')).toBe(false);
   });
 });
+
+// --- REQ-N4 / ADR-0015 — region-aware consent regimes ----------------------
+
+const ANALYTICS = { name: 'analytics', purposes: ['analytics'] };
+const ESSENTIAL = { name: 'essential', purposes: ['essential'], required: true };
+
+function regimeManager(over: Partial<ConsentConfig> = {}): ConsentManager {
+  return new ConsentManager(
+    { services: [ANALYTICS, ESSENTIAL], storageName: 'regime-test', ...over },
+    storeReturning(null)
+  );
+}
+
+describe('ConsentManager — region-aware regimes (REQ-N4)', () => {
+  it('defaults to opt-in (deny non-required) with no region config', () => {
+    const m = regimeManager();
+    expect(m.regime).toBe('opt-in');
+    expect(m.bannerMode).toBe('wall');
+    expect(m.getDefaultConsent(ANALYTICS)).toBe(false);
+    expect(m.getDefaultConsent(ESSENTIAL)).toBe(true);
+  });
+
+  it('opt-out regime (US) allows non-required by default; banner is a notice', () => {
+    const m = regimeManager({ region: 'US' });
+    expect(m.regime).toBe('opt-out');
+    expect(m.bannerMode).toBe('notice');
+    expect(m.getDefaultConsent(ANALYTICS)).toBe(true);
+    expect(m.getDefaultConsent(ESSENTIAL)).toBe(true);
+  });
+
+  it('resolves regime from the region (EU -> opt-in, US-CA -> opt-out)', () => {
+    expect(regimeManager({ region: 'DE' }).regime).toBe('opt-in');
+    expect(regimeManager({ region: 'US-CA' }).regime).toBe('opt-out');
+  });
+
+  it('none regime allows by default and does not auto-show', () => {
+    const m = regimeManager({ regimeDefault: 'none' });
+    expect(m.regime).toBe('none');
+    expect(m.bannerMode).toBe('none');
+    expect(m.getDefaultConsent(ANALYTICS)).toBe(true);
+  });
+
+  it('honors an explicit service.default over the regime fallback', () => {
+    const optedOut = { name: 'x', purposes: ['analytics'], default: false };
+    const m = regimeManager({ region: 'US', services: [optedOut, ESSENTIAL] });
+    // opt-out would allow by default, but the explicit `false` wins.
+    expect(m.getDefaultConsent(optedOut)).toBe(false);
+  });
+
+  it('lets the regimes override map win over the built-in table', () => {
+    const m = regimeManager({ region: 'US-CA', regimes: { 'US-CA': 'opt-in' } });
+    expect(m.regime).toBe('opt-in');
+    expect(m.getDefaultConsent(ANALYTICS)).toBe(false);
+  });
+
+  it('GPC forces deny even in the opt-out regime', () => {
+    const nav = navigator as { globalPrivacyControl?: boolean };
+    const prev = nav.globalPrivacyControl;
+    nav.globalPrivacyControl = true;
+    try {
+      const m = regimeManager({ region: 'US' });
+      expect(m.regime).toBe('opt-out');
+      expect(m.getDefaultConsent(ANALYTICS)).toBe(false);
+      // required still consents under GPC
+      expect(m.getDefaultConsent(ESSENTIAL)).toBe(true);
+    } finally {
+      nav.globalPrivacyControl = prev;
+    }
+  });
+});

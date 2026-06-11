@@ -56,6 +56,7 @@ export type {
   ConsentWatcher,
   VersionMismatchInfo,
 } from './consent-manager.js';
+export type { Regime } from './regions.js';
 export { ConsentManager } from './consent-manager.js';
 export { language };
 export { update as updateConfig } from './utils/config.js';
