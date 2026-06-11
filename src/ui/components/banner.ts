@@ -222,6 +222,11 @@ export class SimpleCmpBanner extends SimpleCmpElement {
     if (!this.testing && manager.confirmed) return nothing;
     if (config.noNotice === true) return nothing;
 
+    // REQ-N4 / ADR-0015: opt-out regimes render a non-blocking *notice*
+    // (tracking is allowed by default, the visitor may opt out) rather than
+    // the opt-in decision *wall*.
+    const notice = manager.bannerMode === 'notice';
+
     const lang = this._activeLang();
     const ppUrl = this._resolvePolicyUrl(
       config.privacyPolicy as LocalizedUrl,
@@ -246,12 +251,15 @@ export class SimpleCmpBanner extends SimpleCmpElement {
       >${this._t(['consentNotice', 'learnMore'])}</a
     >`;
 
-    const description = this._t(['consentNotice', 'description'], {
-      purposes: html`<strong>${this._purposesText(config)}</strong>`,
-      privacyPolicy: ppLink,
-      imprint: imprintLink,
-      learnMoreLink: learnMoreInline,
-    });
+    const description = this._t(
+      notice ? ['consentNotice', 'optOutDescription'] : ['consentNotice', 'description'],
+      {
+        purposes: html`<strong>${this._purposesText(config)}</strong>`,
+        privacyPolicy: ppLink,
+        imprint: imprintLink,
+        learnMoreLink: learnMoreInline,
+      }
+    );
 
     // a11y: aria-labelledby only references `#cn-title` when the
     // heading is actually rendered. Sites that hide the heading
@@ -275,9 +283,41 @@ export class SimpleCmpBanner extends SimpleCmpElement {
             : nothing
         }
         ${this.testing ? html`<p>${this._t(['consentNotice', 'testing'])}</p>` : nothing}
-        ${this._renderButtonRow(config)}
+        ${notice ? this._renderNoticeButtons(config) : this._renderButtonRow(config)}
       </div>
     `;
+  }
+
+  /**
+   * Button row for the opt-out *notice* (US-state regimes). Tracking is
+   * allowed by default, so the actions are: opt out ("Do Not Sell or Share"),
+   * manage selectively, or dismiss ("OK", which confirms the allow-by-default
+   * state). Reuses the `.cn-decline` / `.cn-accept` / `.cn-configure` classes
+   * so downstream integrations that drive the banner by those selectors keep
+   * working in both regimes.
+   */
+  private _renderNoticeButtons(config: ConsentConfig): TemplateResult {
+    const layout = this._resolveLayout(config);
+    const showConfigure = config.hideLearnMore !== true;
+    return html`<div class="cn-buttons cn-layout-${layout}">
+      ${
+        showConfigure
+          ? html`<button
+            type="button"
+            class="cn-configure"
+            @click=${this._handleConfigure}
+          >
+            ${this._t(['consentNotice', 'learnMore'])}
+          </button>`
+          : nothing
+      }
+      <button type="button" class="cn-decline" @click=${this._handleDecline}>
+        ${this._t(['doNotSell'])}
+      </button>
+      <button type="button" class="cn-accept" @click=${this._handleAccept}>
+        ${this._t(['ok'])}
+      </button>
+    </div>`;
   }
 
   // --- helpers ----------------------------------------------------------

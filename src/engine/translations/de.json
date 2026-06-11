@@ -1,6 +1,7 @@
 {
   "acceptAll": "Alle akzeptieren",
   "acceptSelected": "Ausgewählte akzeptieren",
+  "doNotSell": "Meine Daten nicht verkaufen oder weitergeben",
   "close": "Schließen",
   "consentModal": {
     "description": "Hier können Sie die Dienste, die wir auf dieser Website nutzen möchten, bewerten und anpassen. Sie haben das Sagen! Aktivieren oder deaktivieren Sie die Dienste, wie Sie es für richtig halten.",
@@ -14,6 +15,7 @@
     "changeDescription": "Seit Ihrem letzten Besuch gab es Änderungen, bitte erneuern Sie Ihre Zustimmung.",
     "title": "Cookie-Einstellungen",
     "description": "Hallo! Könnten wir bitte einige zusätzliche Dienste für {purposes} aktivieren? Sie können Ihre Zustimmung später jederzeit ändern oder zurückziehen.",
+    "optOutDescription": "Wir verwenden Cookies und ähnliche Technologien, unter anderem für {purposes}. Sie sind standardmäßig aktiv — Sie können jederzeit widersprechen.",
     "imprint": {
       "name": "Impressum"
     },

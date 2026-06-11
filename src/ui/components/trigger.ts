@@ -18,6 +18,7 @@
 import { css, html } from 'lit';
 import type { TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { resolveRegime } from '../../engine/regions.js';
 import { SimpleCmpElement } from '../base.js';
 import { tokens } from '../styles/tokens.js';
 
@@ -116,13 +117,31 @@ export class SimpleCmpTrigger extends SimpleCmpElement {
   private _resolveLabel(): string {
     if (this.label !== undefined && this.label !== '') return this.label;
     if (this.config !== undefined) {
-      const translated = this._t(['!', 'floatingTrigger', 'label']);
-      if (typeof translated === 'string' && translated !== '') return translated;
-      if (Array.isArray(translated) && translated.length > 0) {
-        return translated.map((v) => (typeof v === 'string' ? v : '')).join('');
+      // An explicit floatingTrigger label always wins.
+      const trigger = this._tString(['!', 'floatingTrigger', 'label']);
+      if (trigger !== '') return trigger;
+      // REQ-N4: in opt-out regimes the persistent control is the "Do Not Sell
+      // or Share" entry point (CCPA et al.).
+      const regime = resolveRegime(
+        this.config.region,
+        this.config.regimes,
+        this.config.regimeDefault
+      );
+      if (regime === 'opt-out') {
+        const dns = this._tString(['!', 'doNotSell']);
+        if (dns !== '') return dns;
       }
     }
     return 'Cookie settings';
+  }
+
+  private _tString(key: string | string[]): string {
+    const value = this._t(key);
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) {
+      return value.map((v) => (typeof v === 'string' ? v : '')).join('');
+    }
+    return '';
   }
 }
 

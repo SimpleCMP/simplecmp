@@ -77,8 +77,12 @@ export function initLit(config: LitInitConfig): LitInitHandle {
   // --- banner -----------------------------------------------------------
 
   let banner: SimpleCmpBanner | undefined;
+  // REQ-N4 / ADR-0015: the `none` regime allows by default and shows no
+  // auto-banner; opt-in (wall) and opt-out (notice) both show until confirmed.
   const shouldShowBanner =
-    config.noNotice !== true && (!manager.confirmed || config.testing === true);
+    config.noNotice !== true &&
+    manager.bannerMode !== 'none' &&
+    (!manager.confirmed || config.testing === true);
   if (shouldShowBanner) {
     banner = new SimpleCmpBanner();
     banner.config = config;

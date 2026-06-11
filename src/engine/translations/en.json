@@ -10,12 +10,14 @@
     "changeDescription": "There were changes since your last visit, please renew your consent.",
     "title": "Cookie Consent",
     "description": "Hi! Could we please enable some additional services for {purposes}? You can always change or withdraw your consent later.",
+    "optOutDescription": "We use cookies and similar technologies, including for {purposes}. They are on by default — you can opt out at any time.",
     "imprint": {
       "name": "Imprint"
     },
     "learnMore": "Let me choose",
     "testing": "Testing mode!"
   },
+  "doNotSell": "Do Not Sell or Share My Personal Information",
   "contextualConsent": {
     "acceptAlways": "Always",
     "acceptOnce": "Yes",

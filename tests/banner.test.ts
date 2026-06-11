@@ -159,4 +159,39 @@ describe('<simplecmp-banner>', () => {
     expect(el.shadowRoot).toBeNull();
     expect(el.querySelector('.cn-body')).not.toBeNull();
   });
+
+  // REQ-N4 / ADR-0015 — opt-out regime renders a notice, not a wall.
+  it('renders the opt-out notice (Do Not Sell or Share) in the opt-out regime', async () => {
+    const config = {
+      ...baseConfig,
+      region: 'US',
+      translations: {
+        en: {
+          ...baseConfig.translations.en,
+          ok: 'OK',
+          doNotSell: 'Do Not Sell or Share My Personal Information',
+          consentNotice: {
+            ...baseConfig.translations.en.consentNotice,
+            optOutDescription: 'We use cookies; on by default.',
+          },
+        },
+      },
+    };
+    const manager = getManager(config);
+    expect(manager.bannerMode).toBe('notice');
+    const el = document.createElement('simplecmp-banner') as SimpleCmpBanner;
+    el.config = config;
+    el.manager = manager;
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    // The opt-out action reuses .cn-decline, labelled "Do Not Sell or Share".
+    const dns = getButton(el, '.cn-decline');
+    expect(dns.textContent?.trim()).toBe('Do Not Sell or Share My Personal Information');
+    // Dismiss ("OK") reuses .cn-accept; configure still present.
+    expect(getButton(el, '.cn-accept').textContent?.trim()).toBe('OK');
+    expect(el.shadowRoot?.querySelector('.cn-configure')).not.toBeNull();
+    // Notice copy, not the opt-in description.
+    expect(el.shadowRoot?.textContent).toContain('on by default');
+  });
 });
