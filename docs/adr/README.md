@@ -31,6 +31,8 @@ We use [Michael Nygard's template](https://github.com/joelparkerhenderson/archit
 | 0011 | [Browser-based consent signals — GPC primary, ConStand deferred](0011-browser-consent-signals.md) | accepted |
 | 0012 | [Universal pre-consent blocking of third-party requests](0012-universal-pre-consent-blocking.md) | accepted (implementation gated post-1.0) |
 | 0013 | [Implementation plan for universal pre-consent blocking](0013-universal-blocking-implementation-plan.md) | accepted (Phase 0 starts now, in parallel to 1.0) |
+| 0014 | [Library service hosting](0014-library-service-hosting.md)           | accepted |
+| 0015 | [Region-aware consent regimes (opt-in / opt-out)](0015-region-aware-consent-regimes.md) | accepted |
 
 ## Adding a new ADR
 

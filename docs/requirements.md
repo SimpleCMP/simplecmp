@@ -793,10 +793,65 @@ bestätigt, dass der Engine-Import keine UI-Komponenten mountet.
 Built-in `dataLayer.push({ event: 'consent_update', ... })`-Hook für GTM und
 ähnliche.
 
-### REQ-N4 — Geo-aware Defaults
+### REQ-N4 — Geo-aware Defaults (Region-Engine)
 
-DSGVO-Default in EU, CCPA-Default in CA. Geo-Detection clientseitig nicht
-zuverlässig — Config-Flag, das vom Server gesetzt wird.
+**Status:** 🟦 in Arbeit — Design 2026-06-11 (Acceptance Criteria + ADR-0015).
+Vorher: einzeiliger Platzhalter.
+
+**Warum:** Datenschutzregime unterscheiden sich fundamental nach **Aufenthaltsort
+der betroffenen Person** und **Niederlassung des Verantwortlichen** — NICHT nach
+Serverstandort und NICHT nach Staatsangehörigkeit (DSGVO Art. 3). EU/EWR/UK/CH =
+**Opt-in** (DSGVO/ePrivacy: nicht-essentielle Verarbeitung erst nach
+Einwilligung). US-Bundesstaaten (CCPA/CPRA Kalifornien, VCDPA, CPA, CTDPA, UCPA …)
+= **Opt-out**: Verarbeitung per Default erlaubt, Verbraucher hat Widerspruchsrecht
+(„Do Not Sell or Share"), GPC ist als Opt-out-Signal rechtlich anerkannt. Eine
+CMP, die US-Besuchern eine EU-Opt-in-Wand aufzwingt, ist über-konform, aber
+UX-/Conversion-schädlich und für US-/DTC-Händler die schlechtere Wahl. **Beide
+Regimes müssen ab Start unterstützt werden.**
+
+**Designentscheidung (siehe [ADR-0015](adr/0015-region-aware-consent-regimes.md)):**
+
+- Die Engine macht **keine** clientseitige Geo-Erkennung (unzuverlässig + wäre ein
+  Pre-Consent-Drittanbieter-Call). Die **Region wird serverseitig gesetzt**
+  (CDN-/Edge-Header, GeoIP, bei Shopify `getRegion()`).
+- Modell: **Baseline-Regime (händlergesetzt, Default `opt-in`) + optionaler
+  Region-Override (Besucher-Jurisdiktion, serverseitig)**. Ein EU-Händler wählt
+  schlicht Baseline `opt-in` für alle (häufigster, sicherster Fall); Region ist
+  eine optionale Verfeinerung, um US-Besuchern die leichtere Opt-out-Erfahrung zu
+  geben.
+- Unbekannte/nicht gemappte Region → striktestes Regime (`opt-in`).
+
+**Acceptance Criteria:**
+
+- Config: `regimeDefault?: 'opt-in' | 'opt-out' | 'none'` (Default `'opt-in'`);
+  `region?: string` (serverseitig gesetzte Besucher-Jurisdiktion, z. B. `'DE'`,
+  `'GB'`, `'US-CA'`, `'US'`); `regimes?: Record<string, Regime>` (Override der
+  eingebauten Region→Regime-Tabelle).
+- Eingebaute Default-Tabelle: EU/EWR-Codes + `GB` + `CH` → `opt-in`; bekannte
+  US-Opt-out-Staaten (`US-CA`, `US-CO`, `US-CT`, `US-VA`, `US-UT`, …) + Catch-all
+  `US` → `opt-out`; sonst → `regimeDefault`.
+- **opt-in:** nicht-essentielle Services default-deny; Banner ist eine
+  Entscheidungs-Wand (Accept/Decline/Save), `mustConsent`-artig.
+- **opt-out:** nicht-essentielle Services default-**allow**; Banner ist ein
+  *Hinweis* (nicht-blockierend, dismissbar) + dauerhafter „Do Not Sell or
+  Share"-Zugang; GPC erzwingt Opt-out.
+- **none:** default-allow, kein automatisches Banner (nur Einstellungs-Trigger).
+- **GPC (REQ-5) komponiert über das Regime:** GPC=true erzwingt in BEIDEN Regimes
+  default-deny für nicht-essentielle Services (sicheres Verhalten); feinkörnigeres
+  „GPC nur für sale/share" ist eine spätere Verfeinerung.
+- Die Engine exponiert das aufgelöste Regime (`getRegime()` / Feld) und ein
+  „Banner zeigen?"-Signal, damit die UI Opt-in-Modal vs. Opt-out-Hinweis rendern
+  kann.
+- `getDefaultConsent` (`consent-manager.ts`) wird vom Regime gesteuert; der
+  REQ-5-GPC-Pfad wird darin generalisiert (keine Doppel-Logik).
+- Tests (Vitest): Default-Consents je Regime; Region→Regime-Auflösung inkl.
+  Override-Map; GPC-Override in beiden Regimes; unbekannte Region → `opt-in`;
+  `none` → kein Auto-Banner.
+
+**Cross-cutting:** lebt in der Engine, konsumiert von TYPO3 / Shopify / WordPress.
+Bei Shopify liefert `getRegion()` die Region und das `sale_of_data`-Signal bildet
+das US-Opt-out ab. Kein Client-Geo-IP. **Consent Mode v2 bleibt separat**
+(optionales Plugin/Hook, nicht Teil dieser REQ — siehe „Bewusst nicht im Core").
 
 ### REQ-N5 — Server-side Consent Token
 
