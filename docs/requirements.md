@@ -1185,6 +1185,49 @@ Tag Assistant (`default: denied` → `update: granted`), keine GA4-Property nöt
 
 ---
 
+### REQ-N11 — Banner-Barrierefreiheit (WCAG 2.2 AA / BFSG)
+
+**Status:** 🟦 in Arbeit 2026-06-12 (getrieben vom Shopify-Tier-2 / Built-for-Shopify;
+BFSG-relevant). Audit + Live-Pass (Shopify-Dev-Store) durchgeführt.
+
+**Warum:** Der Consent-Banner ist die folgenreichste a11y-Fläche der CMP — kann ein
+Screenreader-/Tastatur-Nutzer ihn nicht wahrnehmen/bedienen, kann er **keine gültige
+Einwilligung** geben (= Compliance-Fehler). BFSG (in Kraft 06/2025) verlangt
+Barrierefreiheit im E-Commerce; ein WCAG-AA-konformer Banner ist DACH-Verkaufsargument.
+
+**Audit-Befund:** Der **Modal** ist solide (natives `<dialog>`+`showModal`,
+Shadow-DOM-bewusster Fokus-Trap, Esc, Fokus-rein, `aria-labelledby`, Close-`aria-label`).
+Der **Banner** war die Lücke: `role="dialog"` **ohne** `aria-modal`, **ohne** Fokus-Move
+(Live-Pass: Fokus blieb auf `body`), **ohne** `aria-live` → für AT nicht angekündigt, und
+`role="dialog"` auf einem nicht-modalen, nicht-fokussierten Balken ist semantisch falsch.
+
+**Designentscheidung (Rollen):** Der Banner ist ein **nicht-modaler Hinweis** → er ist ein
+**`role="region"`-Landmark mit `aria-label` + `aria-live="polite"`** (angekündigt beim
+Erscheinen), **NICHT** `role="dialog"` (ein Dialog behauptet, der Rest der Seite sei
+beiseitegestellt + müsse Fokus erhalten — `aria-modal` auf einem nicht-inertenden Balken
+würde AT belügen). Der **Modal bleibt der echte Dialog** (Trap/Esc/Fokus). Opt-in/Wall =
+Default-Deny-Semantik, kein visueller Trap.
+
+**Acceptance Criteria:**
+
+- Banner-Container: `role="region"` + `aria-live="polite"` + Accessible Name
+  (`aria-labelledby` Überschrift, sonst `aria-label`); `tabindex="-1"` (programmatisches
+  Fokus-Ziel, **kein** Tab-Stopp). Nicht `role="dialog"`.
+- `autoFocus` (opt-in): bewegt Fokus in die Region; **Fokus-Rückgabe** an das vorherige
+  Element beim Schließen (WCAG 2.4.3).
+- Bedienelemente: Mindest-Zielgröße **24×24** (WCAG 2.5.8) via `min-block/inline-size`.
+- Reduced Motion (`prefers-reduced-motion`) + Kontrast AA (1.4.3) bereits erfüllt
+  (`tokens.ts` / frühere Token-Abdunklung).
+- Test (Vitest): Banner ist `region` + `aria-live=polite` + `tabindex=-1` + benannt.
+
+**Offen / später:** `auditDom()` um einen Accessible-Name/Region-Check erweitern
+(Regressions-Guard); Live-Screenreader-Durchlauf.
+
+**Cross-cutting:** Engine-UI (`src/ui/`), konsumiert von allen Hosts (Shopify/TYPO3/WP);
+nach Fix Bundle in Shopify re-vendoren.
+
+---
+
 ## Bewusst nicht in v1.0
 
 Diese Punkte sind diskutiert und abgelehnt. Bitte erst neu aufmachen, wenn

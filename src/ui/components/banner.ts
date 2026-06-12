@@ -18,15 +18,17 @@
  * REQ-1 separation: privacyPolicy and imprint render as distinct links
  * (Klaro upstream conflates them into the description placeholders).
  *
- * **A11y — no focus trap, no Esc handler (REQ-6).** The banner is a
- * non-modal notice — it overlays the page but the user must still be
- * able to read and use the underlying content. A focus trap would block
- * legitimate site interaction, and Esc-to-decline would silently make a
- * destructive decision the user didn't intend. The site-wide consent
- * decision happens through the explicit Accept / Decline / Configure
- * buttons inside the banner; nothing else is wired to keyboard
- * shortcuts at the banner level. The modal (`<simplecmp-modal>`) is
- * where the focus trap and Esc handling live, because it *is* a modal.
+ * **A11y (REQ-6, REQ-N11).** The banner is a NON-MODAL notice — it
+ * overlays the page but the user must still be able to read and use the
+ * underlying content, so no focus trap and no Esc-to-decline (which would
+ * silently make a destructive choice). Because it's non-modal it's a
+ * labelled `role="region"` landmark with `aria-live="polite"` (announced
+ * on appear), NOT a `role="dialog"` — a dialog asserts the rest of the
+ * page is set aside and must take focus, which a notice bar doesn't do.
+ * `autoFocus` (opt-in) moves focus into the region and restores it on
+ * dismiss. The site-wide decision happens through the explicit Accept /
+ * Decline / Configure buttons. The real modal (`<simplecmp-modal>`) is
+ * where the focus trap + Esc handling live, because it *is* a modal.
  */
 
 import { css, html, nothing } from 'lit';
@@ -133,6 +135,9 @@ export class SimpleCmpBanner extends SimpleCmpElement {
         background: var(--simplecmp-color-bg-alt);
         color: var(--simplecmp-color-text);
         line-height: var(--simplecmp-line-height);
+        /* WCAG 2.5.8 (AA) — minimum 24×24 target. */
+        min-block-size: 24px;
+        min-inline-size: 24px;
       }
 
       button:hover {
@@ -183,11 +188,29 @@ export class SimpleCmpBanner extends SimpleCmpElement {
     `,
   ];
 
+  private _previouslyFocused: HTMLElement | null = null;
+
   override connectedCallback(): void {
     super.connectedCallback();
     if (this.config?.autoFocus === true) {
-      // Defer until first render so the host is in the doc & focusable.
-      queueMicrotask(() => this.focus());
+      // Remember what had focus so we can restore it on dismiss (WCAG 2.4.3).
+      this._previouslyFocused =
+        typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
+      // Defer until first render so the region (tabindex=-1) exists & is focusable.
+      queueMicrotask(() => {
+        this.renderRoot?.querySelector<HTMLElement>('.cn-body')?.focus();
+      });
+    }
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    // Return focus to where it was before the banner moved it (only when
+    // autoFocus actually moved it — `_previouslyFocused` is null otherwise).
+    const prev = this._previouslyFocused;
+    this._previouslyFocused = null;
+    if (prev && typeof prev.focus === 'function' && prev.isConnected) {
+      prev.focus();
     }
   }
 
@@ -261,18 +284,23 @@ export class SimpleCmpBanner extends SimpleCmpElement {
       }
     );
 
-    // a11y: aria-labelledby only references `#cn-title` when the
-    // heading is actually rendered. Sites that hide the heading
-    // (`showTitle: false`) fall back to `aria-label` so the dialog
-    // still has an accessible name (WCAG aria-dialog-name).
+    // a11y (REQ-N11): the banner is a NON-MODAL notice, so it's a labelled
+    // landmark `region` — NOT a `dialog` (a dialog asserts the rest of the page
+    // is set aside and must receive focus; this bar does neither, and faking
+    // aria-modal on a non-inerting bar would mislead AT). `aria-live="polite"`
+    // announces its appearance; `tabindex="-1"` makes it a programmatic focus
+    // target (for `autoFocus` / skip-to) without adding a stray Tab stop.
+    // aria-labelledby only references `#cn-title` when the heading is rendered;
+    // otherwise `aria-label` supplies the accessible name (WCAG region-name).
     return html`
       <div
         class="cn-body"
-        role="dialog"
+        role="region"
+        aria-live="polite"
         aria-labelledby=${ifDefined(showTitle ? 'cn-title' : undefined)}
         aria-label=${ifDefined(showTitle ? undefined : titleText)}
         aria-describedby="cn-description"
-        tabindex="0"
+        tabindex="-1"
       >
         ${showTitle ? html`<h2 id="cn-title">${titleText}</h2>` : nothing}
         <p id="cn-description">${useHtml ? renderWithUnsafe(description) : description}</p>

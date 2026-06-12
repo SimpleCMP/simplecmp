@@ -97,6 +97,25 @@ describe('SimpleCMP public API', () => {
     expect(root?.querySelector('button.cn-accept')).not.toBeNull();
   });
 
+  // REQ-N11: the non-modal banner is a labelled, announced `region` — NOT a
+  // `dialog` (which would assert the page is set aside + must take focus).
+  it('banner is a region with a live announcement and an accessible name (REQ-N11)', async () => {
+    init({ storageName: 'simplecmp-test-a11y-banner', services: [] });
+    const banner = document.body.querySelector('simplecmp-banner') as HTMLElement & {
+      updateComplete: Promise<unknown>;
+    };
+    await banner.updateComplete;
+    const container = banner.shadowRoot?.querySelector('.cn-body');
+    expect(container?.getAttribute('role')).toBe('region');
+    expect(container?.getAttribute('aria-live')).toBe('polite');
+    // Programmatic focus target, not a stray Tab stop.
+    expect(container?.getAttribute('tabindex')).toBe('-1');
+    // WCAG region-name: either aria-labelledby (heading) or aria-label.
+    const hasName =
+      !!container?.getAttribute('aria-labelledby') || !!container?.getAttribute('aria-label');
+    expect(hasName).toBe(true);
+  });
+
   it('warns when hideDeclineAll is set (REQ-2 compliance risk)', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
