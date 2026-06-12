@@ -19,8 +19,15 @@ import {
   fireEvent as engineFireEvent,
   getManager as engineGetManager,
   updateConfig as engineUpdateConfig,
+  installConsentMode,
 } from './engine/index.js';
-import type { ConsentConfig, ConsentManager, Regime, Service } from './engine/index.js';
+import type {
+  ConsentConfig,
+  ConsentManager,
+  ConsentModeConfig,
+  Regime,
+  Service,
+} from './engine/index.js';
 import bundledTranslations from './engine/translations/index.js';
 import { convertToMap, update } from './engine/utils/maps.js';
 import { LocalClassifier } from './recorder/classifier.js';
@@ -50,6 +57,7 @@ export type { LookupQuery, ServiceDbAuth, ServiceMatch } from './service-db/type
 export type { CmsBridgeAuth, CmsBridgeOptions, CmsBridgePayload } from './cms-bridge/index.js';
 export type { BlockInfo } from './runtime-patches/index.js';
 export type { Regime } from './engine/index.js';
+export type { ConsentModeConfig, GoogleConsentSignal } from './engine/index.js';
 export { ServiceDbClient } from './service-db/client.js';
 export { LayeredClassifier } from './service-db/layered-classifier.js';
 export { CmsBridge } from './cms-bridge/index.js';
@@ -362,6 +370,31 @@ export interface SimpleCMPConfig extends ConsentConfig {
    * synchronously in `<head>` before any third-party loader.
    */
   interceptRuntime?: boolean | InterceptRuntimeOptions;
+
+  /**
+   * Google Consent Mode v2 emission (REQ-N10 / ADR-0016). Opt-in; off by
+   * default. When set, SimpleCMP **signals** consent to the merchant's
+   * *existing* Google tags — it emits `gtag('consent', 'default'|'update', …)`
+   * and a dataLayer event so GA4 / Google Ads (via gtag or GTM) respect the
+   * visitor's choice. It does **not** load gtag/GTM and does **not** run an
+   * analytics pipe (that's the deliberate CMP posture — see Shopify ADR-0003).
+   *
+   * State is derived from the engine's existing default consent, so it
+   * automatically composes the region regime (REQ-N4) and GPC (REQ-5): no new
+   * policy logic. Pass `true` for the default purpose→signal mapping
+   * (`analytics → analytics_storage`, `marketing → ad_storage + ad_user_data +
+   * ad_personalization`) or a `ConsentModeConfig` to customize.
+   *
+   * **Compliance posture (ADR-0016):** signal-gating loads the Google tag
+   * pre-consent (cookieless pings), which is a different posture from
+   * load-blocking the tag entirely (`interceptRuntime`). A service should be
+   * *either* signal-gated here *or* load-blocked — not both. Hosts must
+   * surface that trade-off to the merchant.
+   *
+   * **`<head>` ordering matters** — the `default` command must run before the
+   * Google tag library loads (same constraint as `interceptRuntime`).
+   */
+  consentMode?: boolean | ConsentModeConfig;
 }
 
 /**
@@ -418,6 +451,13 @@ let activeHandle: LitInitHandle | null = null;
 let activeRuntimePatchUninstaller: (() => void) | null = null;
 
 /**
+ * Uninstaller for the Consent Mode v2 hook installed by the most recent
+ * `init({ consentMode: ... })`. Re-init / destroy unwatches the manager so the
+ * hook doesn't stack across re-inits.
+ */
+let activeConsentModeUninstaller: (() => void) | null = null;
+
+/**
  * Initialize SimpleCMP and mount the consent UI.
  *
  * Returns a handle the caller can keep around for `handle.show()`,
@@ -455,6 +495,10 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
     activeRuntimePatchUninstaller();
     activeRuntimePatchUninstaller = null;
   }
+  if (activeConsentModeUninstaller !== null) {
+    activeConsentModeUninstaller();
+    activeConsentModeUninstaller = null;
+  }
 
   // Theme adapter is a DOM-only side effect — injects (or removes) a
   // `<style data-simplecmp-theme>` element in `<head>` that re-binds
@@ -473,6 +517,16 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
   if (effectiveConfig.record) startRecorder(effectiveConfig);
   if (effectiveConfig.interceptRuntime) {
     activeRuntimePatchUninstaller = installRuntimePatchesWithManager(effectiveConfig, manager);
+  }
+  // REQ-N10 / ADR-0016 — Consent Mode v2 emission. Installs in Phase 1 (before
+  // UI mount) so the `default` command fires early, before the merchant's
+  // Google tag library runs.
+  if (effectiveConfig.consentMode) {
+    activeConsentModeUninstaller = installConsentMode(
+      effectiveConfig.consentMode,
+      manager,
+      effectiveConfig.services
+    );
   }
 
   // Phase 2 — mount the UI. Defer to DOMContentLoaded if body isn't
@@ -514,6 +568,10 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
       if (activeRuntimePatchUninstaller !== null) {
         activeRuntimePatchUninstaller();
         activeRuntimePatchUninstaller = null;
+      }
+      if (activeConsentModeUninstaller !== null) {
+        activeConsentModeUninstaller();
+        activeConsentModeUninstaller = null;
       }
       if (deferredMountListener !== null && typeof document !== 'undefined') {
         document.removeEventListener('DOMContentLoaded', deferredMountListener);
