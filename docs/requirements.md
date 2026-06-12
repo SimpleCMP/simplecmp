@@ -1089,7 +1089,10 @@ im TYPO3-Plugin (Nonce-Erzeugung/-Einbettung).
 
 **Status:** 🟦 in Arbeit — Design 2026-06-12 ([ADR-0016](adr/0016-google-consent-mode-v2-hook.md);
 getrieben von Shopify-ADR-0003). Vorher: als „optionales Plugin/Hook in Phase 5"
-geparkt (siehe „Bewusst nicht in v1.0").
+geparkt (siehe „Bewusst nicht in v1.0"). **AC nachgeschärft 2026-06-12** nach
+Design-Review ([Review-Doc](research/2026-06-req-n10-consent-mode-v2-review.md)):
+Returning-Visitor-Replay, Wechselwirkung mit Universal Blocking, dynamische
+`ads_data_redaction`, Signal-Abdeckung im `default`-Kommando, Shim-Form.
 
 **Warum:** Ein CMP signalisiert Google-Tags die Einwilligung (`gtag('consent', …)` /
 dataLayer), damit das **bestehende** GA4 / Google Ads des Händlers sie respektiert —
@@ -1111,26 +1114,70 @@ den der händlereigene Tag liest.
   Default-Mapping. `ConsentModeConfig`: `purposeSignals?` (purpose-id → Google-Signale;
   Default `analytics → ['analytics_storage']`, `marketing → ['ad_storage',
   'ad_user_data', 'ad_personalization']`), `waitForUpdate?` (ms, Default 500),
-  `dataLayerEvent?` (GTM-Event, Default `'simplecmp_consent_update'`),
-  `redactAdsData?` (Default false).
-- **Bootstrap (vor Consent):** `window.dataLayer` + `gtag`-Shim sicherstellen, dann
+  `dataLayerEvent?` (`boolean | string`; Default **an** mit Event-Name
+  `'simplecmp_consent_update'`, `false` = aus — GTM-Nutzer sind die Hauptzielgruppe,
+  hartkodiertes gtag reagiert ohnehin auf das Consent-Kommando selbst),
+  `redactAdsData?` (Default false, Semantik siehe unten).
+- **Bootstrap (vor Consent):** `window.dataLayer` + `gtag`-Shim sicherstellen — Shim
+  in kanonischer Form `function gtag(){dataLayer.push(arguments)}` (GTM liest
+  `arguments`-Objekte; ein Array-Push bricht dessen Consent-Auswertung) — dann
   `gtag('consent','default', { …Signale, security_storage:'granted', wait_for_update })`.
-  Default-Zustand jedes Signals leitet sich aus dem **bestehenden** Default-Consent ab,
-  der bereits **Regime** (REQ-N4: opt-in → `denied`, opt-out → `granted`) und **GPC**
-  (REQ-5: erzwingt `denied`) zusammenführt. Keine neue Policy-Logik.
+  Das `default`-Kommando enthält **alle im Purpose-Mapping vorkommenden Signale** plus
+  `security_storage:'granted'`; nicht gemappte Signale (z. B. `functionality_storage`)
+  werden bewusst **weggelassen** — unset ≠ denied; wer sie steuern will, mappt sie
+  über `purposeSignals`. Default-Zustand jedes Signals leitet sich aus dem
+  **bestehenden** Default-Consent ab, der bereits **Regime** (REQ-N4: opt-in →
+  `denied`, opt-out → `granted`) und **GPC** (REQ-5: erzwingt `denied`) zusammenführt.
+  Keine neue Policy-Logik.
+- **Replay (Returning Visitor):** Liegt beim Init **gespeicherter Consent** vor,
+  emittiert der Hook unmittelbar nach `default` ein `gtag('consent','update', …)` mit
+  dem gespeicherten Zustand — innerhalb des `waitForUpdate`-Fensters. Ohne Replay
+  hängt jeder wiederkehrende Besucher dauerhaft auf `default: denied` und GA4 verliert
+  sämtlichen Repeat-Traffic (klassischer CMP-Consent-Mode-Bug). Nicht darauf
+  verlassen, dass `notify('consents')` beim Restore zufällig feuert — expliziter
+  Codepfad + Test.
 - **Update (bei jeder Entscheidung):** über `manager.watch`/`notify('consents')`. Ein
   Signal ist `granted`, wenn mindestens ein **eingewilligter** Dienst einen darauf
-  gemappten Zweck trägt, sonst `denied` → `gtag('consent','update', {…})` + optional
-  `dataLayer.push({event, …})`.
+  gemappten Zweck trägt, sonst `denied` → `gtag('consent','update', {…})` + (sofern
+  `dataLayerEvent` nicht `false`) `dataLayer.push({event, …})`.
+- **Redaction:** `redactAdsData: true` aktiviert `ads_data_redaction` **dynamisch**
+  nach Googles Muster — `gtag('set','ads_data_redaction', true)` solange
+  `ad_storage = denied`, `false` sobald granted; emittiert **vor** dem
+  `default`-Kommando und bei jedem Update neu. Kein statischer Passthrough.
+  `url_passthrough` bleibt bewusst außerhalb des Scopes (Tag-/Händler-Konfiguration,
+  keine CMP-Aufgabe).
 - **Reihenfolge:** `default` muss vor der Google-Tag-Bibliothek laufen — nutzt die
   bestehende `<head>`-Priorität (wie Universal Blocking); keine neuen Constraints außer
   „Engine im `<head>` laden".
+- **Wechselwirkung Universal Blocking (ADR-0012) — zwei bewusste Compliance-Haltungen,
+  nicht nur ein Konfig-Konflikt:** Advanced Consent Mode setzt voraus, dass das
+  Google-Tag **pre-consent lädt** und cookielose Pings sendet. Das ist nicht nur
+  technisch unvereinbar mit Load-Blocking, sondern eine **Compliance-Abwägung**: die
+  cookielosen Pings sind ein Netzwerk-Call an Google **vor** der Einwilligung, den
+  mehrere DACH/EU-Aufsichtsbehörden als zustimmungspflichtigen Datentransfer werten.
+  Daher pro signal-relevantem Dienst eine explizite Wahl (kein stilles Defaulting):
+  - **(1) Blockieren** (strikteste Haltung, unser Default/Erbe): kein Call an Google
+    bis Consent; Consent Mode für diesen Dienst aus.
+  - **(2) Signal-Gating** (Consent Mode v2): Tag lädt, cookielose Pings pre-consent,
+    volle Messung nach Consent — bessere Messbarkeit, schwächere Striktheit.
+
+  Ein Dienst darf **nicht gleichzeitig** load-blockiert UND signal-gegated sein
+  (sonst stilles Degradieren zu Basic). Host-Integrationen müssen die Abwägung
+  **sichtbar machen** (die Shopify-„GA4 erkannt"-Karte benennt beide Haltungen +
+  den Pre-Consent-Ping-Trade-off, statt still zu Variante 2 zu lenken) — wir bleiben
+  ehrlich bei genau dem Punkt, den wir kommerziellen CMPs vorwerfen.
 - **Grenzen:** kein Laden von gtag/GTM; nur Google-Signale (Meta o. Ä. außerhalb des
   Scopes); FE-Best-Effort-Reihenfolge (Tag vor Engine = `default` kann verpasst werden,
-  dokumentiert).
+  dokumentiert); keine `region`-Arrays im `default`-Kommando — die Region ist bereits
+  serverseitig pro Besucher aufgelöst (REQ-N4), ein pauschales Region-Mapping im
+  Kommando wäre redundant.
 - Tests (Vitest): Default-Kommando je Regime (opt-in→denied / opt-out→granted); GPC
-  erzwingt denied; Update-Mapping (purpose→Signale, granted nur bei eingewilligtem
-  Dienst); dataLayer-Event optional; aus = keine globalen Schreibzugriffe.
+  erzwingt denied; **Replay: gespeicherter Consent → `default` gefolgt von `update`
+  im selben Init**; Update-Mapping (purpose→Signale, granted nur bei eingewilligtem
+  Dienst); **Shim-Form: `dataLayer`-Einträge sind `arguments`-Objekte, keine Arrays**;
+  **Redaction dynamisch an `ad_storage` gekoppelt**; dataLayer-Event per Default an,
+  `dataLayerEvent: false` deaktiviert; nur gemappte Signale + `security_storage` im
+  `default`; aus = keine globalen Schreibzugriffe.
 
 **Cross-cutting:** Engine-Feature, konsumiert von Shopify (Bridge + Dashboard-Karte +
 Detektions-Hinweis „GA4 erkannt"), später TYPO3/WordPress. Verifikation per Google

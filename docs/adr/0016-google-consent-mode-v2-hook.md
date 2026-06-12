@@ -109,6 +109,41 @@ type GoogleConsentSignal =
 - Server-side analytics forwarding remains a separate, deferred option
   (Shopify ADR-0002/0003), not part of this hook.
 
+## Amendment (2026-06-12, design review)
+
+A same-day review ([review doc](../research/2026-06-req-n10-consent-mode-v2-review.md))
+tightened the acceptance criteria in REQ-N10; the decision itself is unchanged.
+Deltas relevant to this ADR:
+
+- **Stored-consent replay:** on init with saved consent, the hook must emit a
+  `consent update` right after `default` (within the `wait_for_update` window).
+  Without it, returning visitors stay on `default: denied` forever — the classic
+  CMP consent-mode bug. Explicit code path + test, not an assumed side effect
+  of `notify('consents')`.
+- **Universal blocking interaction — two deliberate compliance postures, not just
+  a config conflict:** Advanced Consent Mode requires the Google tag to load
+  pre-consent and send cookieless pings. That's not only technically incompatible
+  with load-blocking — it's a **compliance trade-off**: those cookieless pings are
+  a network call to Google *before* consent, which several DACH/EU regulators treat
+  as a consent-requiring data transfer. So per signal-relevant service it's an
+  explicit choice (no silent defaulting): **(1) Block** (strictest, our heritage —
+  no call to Google until consent; Consent Mode off for that service) or
+  **(2) Signal-gate** (Consent Mode v2 — tag loads, cookieless pings pre-consent,
+  full measurement after; better measurement, weaker strictness). A service must
+  not be *both* load-blocked and signal-gated (silent degrade to Basic). Host
+  integrations must **surface the trade-off** — the Shopify "GA4 detected" card
+  names both postures and the pre-consent-ping cost rather than silently steering
+  to (2) — keeping us honest about the very thing we fault commercial CMPs for.
+- **`redactAdsData` is dynamic**, per Google's pattern: `ads_data_redaction`
+  tracks `ad_storage` (true while denied), emitted before `default` and on each
+  update — not a static passthrough.
+- **`dataLayerEvent` defaults to on** (`'simplecmp_consent_update'`); `false`
+  disables it.
+- **`default` covers only mapped signals** plus `security_storage: 'granted'`;
+  unmapped signals stay unset (unset ≠ denied) and are opt-in via `purposeSignals`.
+- The `gtag` shim must use the canonical `function gtag(){dataLayer.push(arguments)}`
+  form — GTM's consent reading depends on `arguments` objects, not arrays.
+
 ## References
 
 - REQ-N10 (acceptance criteria) — this repo
