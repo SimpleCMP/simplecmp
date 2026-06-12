@@ -795,8 +795,22 @@ Built-in `dataLayer.push({ event: 'consent_update', ... })`-Hook für GTM und
 
 ### REQ-N4 — Geo-aware Defaults (Region-Engine)
 
-**Status:** 🟦 in Arbeit — Design 2026-06-11 (Acceptance Criteria + ADR-0015).
-Vorher: einzeiliger Platzhalter.
+**Status:** ✅ Umgesetzt 2026-06-11 — Engine + alle Konsumenten. Design +
+Acceptance Criteria 2026-06-11 ([ADR-0015](adr/0015-region-aware-consent-regimes.md)).
+
+**Umsetzung (Shipped):**
+
+- **Phase A — Engine-Kern** (`bfa7e35`): `regions.ts` (Regime-Typ,
+  Region→Regime-Tabelle, `resolveRegime`); `getDefaultConsent` regime-gesteuert,
+  GPC-Pfad (REQ-5) darin generalisiert; Vitest-Abdeckung der Acceptance Criteria.
+- **Phase B — Public API** (`db4af78`): `region` / `regimeDefault` / `regimes`
+  als Config-Eingaben, `getRegime()` + „Banner zeigen?"-Signal exponiert.
+- **Phase C — UI** (`a41e003`): Opt-out-Hinweis-Banner (nicht-blockierend) +
+  dauerhafter „Do Not Sell or Share"-Trigger.
+- **Phase D — Konsumenten:** TYPO3 serverseitige Region-Auflösung
+  (`t3-simplecmp@b5e1925`, `regimeDefault` + `regionHeader` Site-Settings);
+  Shopify `getRegion()`-Wiring + `sale_of_data`-Mapping
+  (`simplecmp-shopify@84bb155`).
 
 **Warum:** Datenschutzregime unterscheiden sich fundamental nach **Aufenthaltsort
 der betroffenen Person** und **Niederlassung des Verantwortlichen** — NICHT nach
