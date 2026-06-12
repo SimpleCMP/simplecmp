@@ -37,7 +37,99 @@ export function auditDom(root: Document | ShadowRoot = document): AuditResult[] 
     checkButtonsAreButtons(buttons),
     checkButtonsEqualStyling(buttons),
     checkButtonsWcagContrast(buttons),
+    // Appended (not reordered) so server-side mirrors that match by index
+    // keep working (see src/audit/index.ts).
+    checkAccessibleNames(root),
   ];
+}
+
+/**
+ * Name contributed by `aria-label` / `aria-labelledby` (resolved within the
+ * same root). A `region` derives its name *only* from these — its contents do
+ * not contribute — so this is the correct name source for the banner landmark.
+ * Not the full ARIA accname algorithm; just enough to catch a *missing* name
+ * (WCAG 4.1.2 / 2.4.6 / region-name).
+ */
+function ariaName(el: Element, root: ParentNode): string {
+  const label = el.getAttribute('aria-label');
+  if (label !== null && label.trim() !== '') return label.trim();
+  const labelledby = el.getAttribute('aria-labelledby');
+  if (labelledby !== null && labelledby.trim() !== '') {
+    return labelledby
+      .split(/\s+/)
+      .map((id) => root.querySelector(`[id="${id}"]`)?.textContent?.trim() ?? '')
+      .filter((t) => t !== '')
+      .join(' ')
+      .trim();
+  }
+  return '';
+}
+
+/**
+ * Accessible name for a control (e.g. a `<button>`): an explicit aria name, or
+ * — unlike a region — its visible text content, which buttons name themselves
+ * with.
+ */
+function controlName(el: Element, root: ParentNode): string {
+  const aria = ariaName(el, root);
+  if (aria !== '') return aria;
+  return (el.textContent ?? '').trim();
+}
+
+/**
+ * REQ-N11: the banner is a labelled `region` and every action is a labelled
+ * control. A missing accessible name means screen-reader users can't identify
+ * the consent UI or its buttons — and consent that can't be perceived isn't
+ * valid consent.
+ */
+function checkAccessibleNames(root: Document | ShadowRoot): AuditResult {
+  const id = 'dom-accessible-names';
+  const section = '2.2';
+  const title = 'Banner region and actions have accessible names';
+  const banners = Array.from(root.querySelectorAll('simplecmp-banner'));
+  if (banners.length === 0) {
+    return {
+      id,
+      section,
+      severity: 'info',
+      title,
+      detail: 'No banner is currently mounted — DOM check skipped.',
+      passed: true,
+    };
+  }
+  const missing: string[] = [];
+  for (const banner of banners) {
+    const shadow = (banner as Element & { shadowRoot: ShadowRoot | null }).shadowRoot;
+    if (shadow === null) continue;
+    const region = shadow.querySelector('.cn-body');
+    if (region !== null && ariaName(region, shadow) === '') {
+      missing.push('the banner region has no accessible name (add aria-label or aria-labelledby)');
+    }
+    const actions = Array.from(shadow.querySelectorAll('.cn-buttons > *'));
+    actions.forEach((el, idx) => {
+      if (controlName(el, shadow) === '') {
+        missing.push(`banner action ${idx + 1} has no accessible name`);
+      }
+    });
+  }
+  if (missing.length === 0) {
+    return {
+      id,
+      section,
+      severity: 'info',
+      title,
+      detail: 'The banner region and every action button expose an accessible name.',
+      passed: true,
+    };
+  }
+  return {
+    id,
+    section,
+    severity: 'critical',
+    title,
+    detail: `WCAG 4.1.2 / 2.4.6: assistive tech can't name part of the consent UI, so screen-reader users can't identify or operate it — consent that can't be perceived isn't valid. Unnamed:\n  - ${missing.join('\n  - ')}`,
+    passed: false,
+  };
 }
 
 /**

@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetManagers } from '../src/engine/index.js';
-import { VERSION, addEventListener, getManager, getRecorder, init, show } from '../src/index.js';
+import {
+  VERSION,
+  addEventListener,
+  auditDom,
+  getManager,
+  getRecorder,
+  init,
+  show,
+} from '../src/index.js';
 
 interface ManagerState {
   confirmed: boolean;
@@ -114,6 +122,33 @@ describe('SimpleCMP public API', () => {
     const hasName =
       !!container?.getAttribute('aria-labelledby') || !!container?.getAttribute('aria-label');
     expect(hasName).toBe(true);
+  });
+
+  // REQ-N11: auditDom() guards the accessible-name contract so a future
+  // refactor that strips the region label or a button label is caught.
+  it('auditDom() reports the banner region + actions as named (REQ-N11)', async () => {
+    init({ storageName: 'simplecmp-test-audit-names', services: [], acceptAll: true });
+    const banner = document.body.querySelector('simplecmp-banner') as HTMLElement & {
+      updateComplete: Promise<unknown>;
+    };
+    await banner.updateComplete;
+    const names = auditDom().find((r) => r.id === 'dom-accessible-names');
+    expect(names).toBeDefined();
+    expect(names?.passed).toBe(true);
+  });
+
+  it('auditDom() flags a banner region whose accessible name was stripped', async () => {
+    init({ storageName: 'simplecmp-test-audit-names-fail', services: [], acceptAll: true });
+    const banner = document.body.querySelector('simplecmp-banner') as HTMLElement & {
+      updateComplete: Promise<unknown>;
+    };
+    await banner.updateComplete;
+    const region = banner.shadowRoot?.querySelector('.cn-body');
+    region?.removeAttribute('aria-label');
+    region?.removeAttribute('aria-labelledby');
+    const names = auditDom().find((r) => r.id === 'dom-accessible-names');
+    expect(names?.passed).toBe(false);
+    expect(names?.severity).toBe('critical');
   });
 
   it('warns when hideDeclineAll is set (REQ-2 compliance risk)', () => {

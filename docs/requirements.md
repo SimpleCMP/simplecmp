@@ -1219,9 +1219,14 @@ Default-Deny-Semantik, kein visueller Trap.
 - Reduced Motion (`prefers-reduced-motion`) + Kontrast AA (1.4.3) bereits erfüllt
   (`tokens.ts` / frühere Token-Abdunklung).
 - Test (Vitest): Banner ist `region` + `aria-live=polite` + `tabindex=-1` + benannt.
+- `auditDom()` erweitert um Check **`dom-accessible-names`** (Regressions-Guard):
+  Banner-`region` muss einen Accessible-Name aus `aria-label`/`aria-labelledby`
+  tragen (Inhalt zählt für eine Region **nicht**), jeder Aktions-Button einen Namen
+  aus aria-Attribut **oder** Textinhalt; fehlender Name ⇒ `severity: 'critical'`.
+  Check ist **angehängt** (nicht umsortiert), damit indexbasierte Server-Mirror
+  stabil bleiben. Zwei Vitest-Fälle (pass + gestrippter Region-Name ⇒ fail).
 
-**Offen / später:** `auditDom()` um einen Accessible-Name/Region-Check erweitern
-(Regressions-Guard); Live-Screenreader-Durchlauf.
+**Offen / später:** Live-Screenreader-Durchlauf.
 
 **Cross-cutting:** Engine-UI (`src/ui/`), konsumiert von allen Hosts (Shopify/TYPO3/WP);
 nach Fix Bundle in Shopify re-vendoren.
