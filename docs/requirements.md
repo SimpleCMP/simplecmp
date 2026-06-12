@@ -1226,7 +1226,12 @@ Default-Deny-Semantik, kein visueller Trap.
   Check ist **angehängt** (nicht umsortiert), damit indexbasierte Server-Mirror
   stabil bleiben. Zwei Vitest-Fälle (pass + gestrippter Region-Name ⇒ fail).
 
-**Offen / später:** Live-Screenreader-Durchlauf.
+- **Live-Pass (2026-06-12, Shopify-Dev-Store, deployter Bundle `1dd9504`):**
+  Accessibility-Tree zeigt `region "Cookie settings"` + benannte Buttons; Banner
+  stiehlt keinen Fokus (non-modal); Modal = natives `<dialog>` `:modal` mit
+  `aria-labelledby` → "Cookie settings", Fokus springt beim Öffnen auf *Close*,
+  Esc schließt, Fokus kehrt zum auslösenden Button zurück (2.4.3). Alle Kriterien
+  bestanden. **REQ-N11 vollständig.**
 
 **Cross-cutting:** Engine-UI (`src/ui/`), konsumiert von allen Hosts (Shopify/TYPO3/WP);
 nach Fix Bundle in Shopify re-vendoren.
