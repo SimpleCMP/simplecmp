@@ -1085,6 +1085,59 @@ im TYPO3-Plugin (Nonce-Erzeugung/-Einbettung).
 
 ---
 
+### REQ-N10 — Google Consent Mode v2 (Signal-Hook)
+
+**Status:** 🟦 in Arbeit — Design 2026-06-12 ([ADR-0016](adr/0016-google-consent-mode-v2-hook.md);
+getrieben von Shopify-ADR-0003). Vorher: als „optionales Plugin/Hook in Phase 5"
+geparkt (siehe „Bewusst nicht in v1.0").
+
+**Warum:** Ein CMP signalisiert Google-Tags die Einwilligung (`gtag('consent', …)` /
+dataLayer), damit das **bestehende** GA4 / Google Ads des Händlers sie respektiert —
+es betreibt KEINE eigene Daten-Pipeline (das ist Analytics-App-Territorium, doppelte
+Zählung, Datenhoheit beim Anbieter). Shopifys nativer Banner sendet nur **Basic**
+Consent Mode und erreicht GTM / hartkodiertes gtag nicht; **Advanced Consent Mode v2**
+zu senden ist die eigentliche CMP-Lücke. Gilt für ALLE Hosts (Shopify/TYPO3/WordPress)
+→ Engine-Feature, nicht Host-spezifisch.
+
+**Designentscheidung:** Opt-in-Hook in der Engine, Default aus, keine
+Verhaltensänderung ohne Konfiguration. Mapping **purpose-basiert** (`Service.purposes`),
+damit beliebige Händler-Dienste ohne Google-spezifisches Feld pro Dienst funktionieren.
+Die Engine **lädt kein** gtag/GTM — sie pusht nur Consent-Kommandos in den dataLayer,
+den der händlereigene Tag liest.
+
+**Acceptance Criteria:**
+
+- Config: `consentMode?: boolean | ConsentModeConfig`. `true` = aktiviert mit
+  Default-Mapping. `ConsentModeConfig`: `purposeSignals?` (purpose-id → Google-Signale;
+  Default `analytics → ['analytics_storage']`, `marketing → ['ad_storage',
+  'ad_user_data', 'ad_personalization']`), `waitForUpdate?` (ms, Default 500),
+  `dataLayerEvent?` (GTM-Event, Default `'simplecmp_consent_update'`),
+  `redactAdsData?` (Default false).
+- **Bootstrap (vor Consent):** `window.dataLayer` + `gtag`-Shim sicherstellen, dann
+  `gtag('consent','default', { …Signale, security_storage:'granted', wait_for_update })`.
+  Default-Zustand jedes Signals leitet sich aus dem **bestehenden** Default-Consent ab,
+  der bereits **Regime** (REQ-N4: opt-in → `denied`, opt-out → `granted`) und **GPC**
+  (REQ-5: erzwingt `denied`) zusammenführt. Keine neue Policy-Logik.
+- **Update (bei jeder Entscheidung):** über `manager.watch`/`notify('consents')`. Ein
+  Signal ist `granted`, wenn mindestens ein **eingewilligter** Dienst einen darauf
+  gemappten Zweck trägt, sonst `denied` → `gtag('consent','update', {…})` + optional
+  `dataLayer.push({event, …})`.
+- **Reihenfolge:** `default` muss vor der Google-Tag-Bibliothek laufen — nutzt die
+  bestehende `<head>`-Priorität (wie Universal Blocking); keine neuen Constraints außer
+  „Engine im `<head>` laden".
+- **Grenzen:** kein Laden von gtag/GTM; nur Google-Signale (Meta o. Ä. außerhalb des
+  Scopes); FE-Best-Effort-Reihenfolge (Tag vor Engine = `default` kann verpasst werden,
+  dokumentiert).
+- Tests (Vitest): Default-Kommando je Regime (opt-in→denied / opt-out→granted); GPC
+  erzwingt denied; Update-Mapping (purpose→Signale, granted nur bei eingewilligtem
+  Dienst); dataLayer-Event optional; aus = keine globalen Schreibzugriffe.
+
+**Cross-cutting:** Engine-Feature, konsumiert von Shopify (Bridge + Dashboard-Karte +
+Detektions-Hinweis „GA4 erkannt"), später TYPO3/WordPress. Verifikation per Google
+Tag Assistant (`default: denied` → `update: granted`), keine GA4-Property nötig.
+
+---
+
 ## Bewusst nicht in v1.0
 
 Diese Punkte sind diskutiert und abgelehnt. Bitte erst neu aufmachen, wenn
@@ -1093,7 +1146,7 @@ sich die Begründung ändert.
 | Was | Warum nicht |
 |---|---|
 | **IAB TCF v2.x** | Eigene Welt: Vendor-Liste, GVL-Updates, Encoding-Spec, Dutzende Edge Cases. Wenn Ad-Tech-Kunden das brauchen, eigenes Plugin/Phase. |
-| **Google Consent Mode v2** | Klein, aber Google-spezifisch. Als optionales Plugin in Phase 5 oder als Config-Hook, nicht im Core. |
+| **Google Consent Mode v2** | ~~Als optionales Plugin/Hook in Phase 5, nicht im Core.~~ **Aktiviert 2026-06-12 als Opt-in-Config-Hook → [REQ-N10](#req-n10--google-consent-mode-v2-signal-hook) / [ADR-0016](adr/0016-google-consent-mode-v2-hook.md).** Bleibt aus per Default; kein Core-Verhalten ohne Konfiguration. |
 | **Cross-Domain-Consent-Sync** | Komplex (iframe-postMessage), Nische. |
 | **A/B-Testing der Banner-Variante** | Sinnvoll, aber außerhalb des Compliance-Cores. Kann Drittanbieter-Tool machen. |
 | **Eigenes Backend-as-a-Service** | SimpleCMP ist eine Library. Service-DB ist ein lesbarer Endpoint, mehr nicht. Kein Account-System, kein Dashboard. |
