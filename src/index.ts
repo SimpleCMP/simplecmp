@@ -57,7 +57,7 @@ export type { LookupQuery, ServiceDbAuth, ServiceMatch } from './service-db/type
 export type { CmsBridgeAuth, CmsBridgeOptions, CmsBridgePayload } from './cms-bridge/index.js';
 export type { BlockInfo } from './runtime-patches/index.js';
 export type { Regime } from './engine/index.js';
-export type { ConsentModeConfig, GoogleConsentSignal } from './engine/index.js';
+export type { ConsentModeConfig, ConsentVendorId, GoogleConsentSignal } from './engine/index.js';
 export { ServiceDbClient } from './service-db/client.js';
 export { LayeredClassifier } from './service-db/layered-classifier.js';
 export { CmsBridge } from './cms-bridge/index.js';

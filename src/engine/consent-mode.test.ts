@@ -56,11 +56,20 @@ function setCommands(): { key: unknown; value: unknown }[] {
 }
 
 beforeEach(() => {
-  const w = window as unknown as { dataLayer?: unknown; gtag?: unknown };
+  const w = window as unknown as {
+    dataLayer?: unknown;
+    gtag?: unknown;
+    fbq?: unknown;
+    uetq?: unknown;
+  };
   // biome-ignore lint/performance/noDelete: test isolation — reset the global shim between cases.
   delete w.dataLayer;
   // biome-ignore lint/performance/noDelete: test isolation.
   delete w.gtag;
+  // biome-ignore lint/performance/noDelete: test isolation.
+  delete w.fbq;
+  // biome-ignore lint/performance/noDelete: test isolation.
+  delete w.uetq;
 });
 
 afterEach(() => {
@@ -224,5 +233,97 @@ describe('ads_data_redaction (dynamic)', () => {
       SERVICES
     );
     expect(setCommands()).toHaveLength(0);
+  });
+});
+
+// --- ADR-0017: additional vendors ------------------------------------------
+
+describe('meta adapter (fbq)', () => {
+  function installFbq(): unknown[][] {
+    const calls: unknown[][] = [];
+    (window as unknown as { fbq: (...a: unknown[]) => void }).fbq = (...a: unknown[]) => {
+      calls.push(a);
+    };
+    return calls;
+  }
+
+  it('revokes on default (opt-in) then grants after marketing consent', () => {
+    const calls = installFbq();
+    const manager = makeManager({ regimeDefault: 'opt-in' });
+    installConsentMode({ vendors: ['meta'] }, manager, SERVICES);
+    expect(calls[0]).toEqual(['consent', 'revoke']);
+    manager.changeAll(true);
+    manager.saveConsents();
+    expect(calls.at(-1)).toEqual(['consent', 'grant']);
+  });
+
+  it('grants on default when the regime is opt-out', () => {
+    const calls = installFbq();
+    installConsentMode({ vendors: ['meta'] }, makeManager({ regimeDefault: 'opt-out' }), SERVICES);
+    expect(calls[0]).toEqual(['consent', 'grant']);
+  });
+
+  it('does nothing (no throw) when no pixel is present, and creates no gtag shim', () => {
+    const manager = makeManager();
+    expect(() => installConsentMode({ vendors: ['meta'] }, manager, SERVICES)).not.toThrow();
+    expect((window as unknown as { gtag?: unknown }).gtag).toBeUndefined();
+  });
+});
+
+describe('microsoftUet adapter (uetq)', () => {
+  function consentPushes(): { mode: unknown; obj: Record<string, unknown> }[] {
+    const q = (window as unknown as { uetq?: unknown[] }).uetq ?? [];
+    const out: { mode: unknown; obj: Record<string, unknown> }[] = [];
+    for (let i = 0; i < q.length; i++) {
+      if (q[i] === 'consent')
+        out.push({ mode: q[i + 1], obj: q[i + 2] as Record<string, unknown> });
+    }
+    return out;
+  }
+
+  it('pushes default denied (opt-in) then update granted on ad_storage', () => {
+    const manager = makeManager({ regimeDefault: 'opt-in' });
+    installConsentMode({ vendors: ['microsoftUet'] }, manager, SERVICES);
+    expect(consentPushes()[0]).toMatchObject({ mode: 'default', obj: { ad_storage: 'denied' } });
+    manager.changeAll(true);
+    manager.saveConsents();
+    expect(consentPushes().at(-1)).toMatchObject({
+      mode: 'update',
+      obj: { ad_storage: 'granted' },
+    });
+  });
+
+  it('reuses a pre-existing uetq queue', () => {
+    (window as unknown as { uetq: unknown[] }).uetq = ['preexisting'];
+    installConsentMode({ vendors: ['microsoftUet'] }, makeManager(), SERVICES);
+    expect((window as unknown as { uetq: unknown[] }).uetq[0]).toBe('preexisting');
+  });
+});
+
+describe('multiple vendors', () => {
+  it('signals google, meta and microsoftUet together', () => {
+    const calls: unknown[][] = [];
+    (window as unknown as { fbq: (...a: unknown[]) => void }).fbq = (...a: unknown[]) => {
+      calls.push(a);
+    };
+    installConsentMode(
+      { vendors: ['google', 'meta', 'microsoftUet'] },
+      makeManager({ regimeDefault: 'opt-in' }),
+      SERVICES
+    );
+    expect(consentCommands()[0]?.mode).toBe('default'); // google
+    expect(calls[0]).toEqual(['consent', 'revoke']); // meta
+    expect(Array.isArray((window as unknown as { uetq?: unknown[] }).uetq)).toBe(true); // uet
+  });
+
+  it('default vendors is google only (back-compat)', () => {
+    const calls: unknown[][] = [];
+    (window as unknown as { fbq: (...a: unknown[]) => void }).fbq = (...a: unknown[]) => {
+      calls.push(a);
+    };
+    installConsentMode(true, makeManager(), SERVICES);
+    expect(consentCommands().length).toBeGreaterThan(0); // google fired
+    expect(calls).toHaveLength(0); // meta did not
+    expect((window as unknown as { uetq?: unknown[] }).uetq).toBeUndefined(); // uet did not
   });
 });

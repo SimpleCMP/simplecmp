@@ -59,7 +59,7 @@ export type {
 export type { Regime } from './regions.js';
 export { ConsentManager } from './consent-manager.js';
 export { installConsentMode } from './consent-mode.js';
-export type { ConsentModeConfig, GoogleConsentSignal } from './consent-mode.js';
+export type { ConsentModeConfig, ConsentVendorId, GoogleConsentSignal } from './consent-mode.js';
 export { language };
 export { update as updateConfig } from './utils/config.js';
 
