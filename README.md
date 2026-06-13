@@ -39,6 +39,36 @@ lightweight banners (Klaro!, vanilla-cookieconsent). What's missing in the open-
 
 SimpleCMP provides all of this on top of a battle-tested consent UI.
 
+## What it does
+
+Beyond the four differentiators above, SimpleCMP ships a complete consent layer:
+
+- **Accessible consent UI** — Lit Web Components: a banner, a full preferences
+  modal, a floating re-open trigger, and contextual notices on blocked embeds.
+  WCAG 2.2 AA (labelled `region`, focus management, ≥24px targets, reduced-motion).
+- **Region-aware regimes (REQ-N4 / ADR-0015)** — drive opt-in (GDPR), opt-out
+  (US / CCPA "Do Not Sell"), or no-banner behaviour from a `region` input. Honours
+  **Global Privacy Control** (GPC; ADR-0011).
+- **Google Consent Mode v2 (REQ-N10 / ADR-0016)** — an optional `consentMode`
+  hook emits `gtag('consent', …)` plus a GTM dataLayer event from the consent
+  state. It *signals* the merchant's existing Google tags; it never loads
+  gtag/GTM itself.
+- **Universal pre-consent blocking (ADR-0012/0013)** — blocks third-party
+  scripts / iframes / pixels before consent, with click-to-enable placeholders;
+  plus opt-in **stylesheet blocking** for third-party CSS such as Google Fonts
+  (REQ-N8).
+- **Compliance audit (`src/audit/`)** — config-level and DOM-level DSGVO /
+  ePrivacy checks (equal-prominence buttons, WCAG contrast, accessible names)
+  driven by [`docs/legal-compliance.md`](docs/legal-compliance.md). Run
+  `auditDom()` from the console against a live banner.
+- **Theme framework adapters** — `config.theme` rebinds the design tokens onto
+  Bootstrap 5 / Tailwind 4 / Bulma / Pico host variables, alongside the default
+  hand-authored theme.
+- **Informal tone (Sie/Du)** — an optional `tones` overlay for informal address
+  (German reviewed; fr/it/es/nl draft).
+- **Internationalization** — 26 bundled language packs, auto-detected from
+  `<html lang="…">`.
+
 ## Architecture
 
 SimpleCMP began as a fork of [Klaro!](https://github.com/KIProtect/klaro) 0.7.22 in
@@ -124,7 +154,7 @@ Or as a browser global:
 
 ### Localization
 
-SimpleCMP ships with 27 bundled language packs; the consent UI auto-detects
+SimpleCMP ships with 26 bundled language packs; the consent UI auto-detects
 the language from `<html lang="…">`. One string is **not** taken from the
 bundled packs and must be passed by integrators of non-English sites: the
 floating "cookie settings" button's accessible label. Override it via
@@ -205,23 +235,29 @@ pnpm ci             # full pipeline (typecheck + check + test + build)
 
 - ✅ **Phase 1** — Core: TypeScript engine, Lit-based UI (REQ-11–17), build pipeline, default + Bootstrap themes
 - ✅ **Phase 2** — Recorder: cookie / DOM / network detection (REQ-7)
-- ✅ **Phase 3** — Service DB: client + protocol + 23-service PHP+SQLite reference backend (REQ-8)
+- ✅ **Phase 3** — Service DB: client + protocol + a PHP+SQLite reference backend that rebuilds from [`services-library`](https://github.com/SimpleCMP/services-library) (REQ-8)
 - ✅ **Phase 4** — CMS Bridge: webhook for production alerts on unknown trackers (REQ-9)
-- 🚧 **Phase 5** — CMS plugins: WordPress, TYPO3, Contao (separate repos) (REQ-10)
-  - 🚧 [TYPO3 v14 plugin (`SimpleCMP/t3-simplecmp`)](https://github.com/SimpleCMP/t3-simplecmp)
-    — v0.5.0 shipped (FE bundle integration, service-DB endpoint,
-    CMS-bridge receiver, BE module for detection review + service
-    curation, three-state model with library-aware approve flow, Banner
-    Design module with live preview, 3-table architecture with
-    `ClassifierLookup` unioning registry + bundled library + upstream
-    library service, webhook schema v2 with batched detections,
-    four-state detection model adding *Verworfen* (durable
-    cross-visitor dismissal), full registry *Dienste* tab with source
-    tagging and Verwaist orphan handling, REQ-19 L2 Provider-
-    Informationen modal with `libraryFallback` forwarding +
-    registry-side persistence).
+- 🚧 **Phase 5** — Platform integrations (separate repos):
+  - 🚧 [**TYPO3 v14** (`SimpleCMP/t3-simplecmp`)](https://github.com/SimpleCMP/t3-simplecmp)
+    — the most complete integration (v0.6.0+). FE bundle + engine integration,
+    service-DB endpoint, CMS-bridge receiver, a backend detection-triage module
+    (four-state model: *kuratiert / erkannt / unbekannt / verworfen*), the
+    *Dienste* registry tab, a *Bibliothek* browser over the vendored
+    services-library (adopt / bulk-adopt / unadopt / recommendations), a
+    *Discover trackers* sitemap sweep, a **Theme Designer** module (framework
+    picker, position, tone, text overrides, compliance audit), managed
+    **GA4 / GTM / Matomo trackers** with Consent Mode v2, region-aware regimes,
+    and universal pre-consent + stylesheet blocking.
+  - 🚧 [**Shopify app** (`SimpleCMP/simplecmp-shopify`)](https://github.com/SimpleCMP/simplecmp-shopify)
+    — the monetized integration. Storefront banner via Theme App Extension,
+    consent-gated Web Pixel, Google Consent Mode v2, region engine, drift
+    detection, and an embedded admin. Tier-1 (MVP) complete.
   - ⬜ WordPress plugin
   - ⬜ Contao plugin
+
+Several engine capabilities (region-aware regimes, GPC, Consent Mode v2,
+universal blocking, the compliance audit) are **cross-cutting** — built in this
+core repo so every platform integration inherits them.
 
 The API surface is still pre-1.0 and may change. For granular feature status and
 acceptance criteria, see [docs/requirements.md](docs/requirements.md).
