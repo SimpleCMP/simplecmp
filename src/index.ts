@@ -29,7 +29,15 @@ import type {
   Service,
 } from './engine/index.js';
 import bundledTranslations from './engine/translations/index.js';
+import en from './engine/translations/en.json';
 import { convertToMap, update } from './engine/utils/maps.js';
+
+// Build-time flag (esbuild `define`, ADR-0018). In the "core"/slim build it is
+// `true` and ONLY English (the fallback) is bundled — hosts inject the active
+// locale via `config.translations`. In the default/full build it is `false` and
+// all packs ship for zero-config drop-in use. The unused branch is tree-shaken,
+// so the slim build drops the other 25 packs.
+declare const SLIM_BUILD: boolean;
 import { LocalClassifier } from './recorder/classifier.js';
 import { Recorder } from './recorder/recorder.js';
 import type { ClassifierServiceConfig, Detection, RecorderOptions } from './recorder/types.js';
@@ -102,10 +110,16 @@ export function auditDom(root?: Document | ShadowRoot): AuditResult[] {
   return runAuditDom(root);
 }
 
-// Seed the engine's translation registry with the bundled language packs at
-// import time. Consumers get sensible defaults out of the box; per-config
-// `translations` still override or extend.
-update(defaultTranslations, convertToMap(bundledTranslations));
+// Seed the engine's translation registry at import time. Consumers get sensible
+// defaults out of the box; per-config `translations` still override or extend.
+// The full build seeds all bundled packs; the slim "core" build seeds only
+// English (the fallback) and relies on the host injecting the active locale
+// (ADR-0018). `SLIM_BUILD` is a compile-time constant, so the unused branch — and
+// with it the 25 non-English packs — is dropped from the slim bundle.
+update(
+  defaultTranslations,
+  convertToMap(SLIM_BUILD ? { en } : bundledTranslations),
+);
 
 export const VERSION = '0.0.1';
 

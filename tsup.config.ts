@@ -25,6 +25,9 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 
 const sharedDefine = {
   VERSION: JSON.stringify(pkg.version),
+  // Default/full builds bundle all locale packs (ADR-0018). The slim "core"
+  // IIFE target overrides this to 'true' so only English is bundled.
+  SLIM_BUILD: 'false',
 } as const;
 
 export default defineConfig([
@@ -69,6 +72,30 @@ export default defineConfig([
     platform: 'browser',
     esbuildOptions(options) {
       options.define = { ...(options.define ?? {}), ...sharedDefine };
+    },
+  },
+  // Browser global (IIFE), slim "core" build — English-only translations
+  // (ADR-0018). Same global (`SimpleCMP`); hosts that know the active locale at
+  // render time (Shopify Liquid, TYPO3) inject it via `config.translations` and
+  // ship ~the other 25 packs lighter. `SLIM_BUILD` is defined `true` so the
+  // non-English packs are tree-shaken out.
+  {
+    entry: { 'simplecmp.core': 'src/index.ts' },
+    format: ['iife'],
+    outDir: 'dist',
+    outExtension: () => ({ js: '.global.js' }),
+    globalName: 'SimpleCMP',
+    sourcemap: true,
+    clean: false,
+    minify: true,
+    target: 'es2020',
+    platform: 'browser',
+    esbuildOptions(options) {
+      options.define = {
+        ...(options.define ?? {}),
+        ...sharedDefine,
+        SLIM_BUILD: 'true',
+      };
     },
   },
 ]);
