@@ -118,3 +118,22 @@ The full IIFE remains the zero-config story; managed integrations move to
   `config.translations`; TYPO3 feeds the site language. Re-measure the Shopify
   Lighthouse delta.
 - Docs: README distribution section + the host integration notes.
+
+## Future considerations
+
+- **Zero-locale core (drop even English).** The logical endpoint: the engine
+  bundles *no* packs and the host injects every locale, English included
+  (translation files / metafield / etc.). Upside is architectural purity (engine
+  = pure logic + UI shell, zero copy); the byte win is small (the `en` pack is
+  ~1 KB gzip against a ~44 KB Lit/UI engine), and English-only hosts would then
+  have to inject `en` (losing today's "inline nothing"). The real caveat is
+  **robustness**: English-as-bundled is the fallback safety net — if injection
+  ever fails (missing metafield, older install, sync bug), the banner still
+  renders instead of showing blank keys on a compliance-critical surface. Only
+  pursue this if paired with a **tiny hardcoded last-resort fallback** in the
+  engine (the critical buttons: accept / decline / save) so a failed injection
+  can never produce an empty banner.
+- **Subset packs to the rendered key set.** Hosts inject only the keys their UI
+  shows (e.g. the Shopify bridge already drops `purposes`, which it overrides).
+  Formalize the storefront key set in the engine so every host reuses it rather
+  than re-deriving the allow/deny list.
