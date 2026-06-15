@@ -110,7 +110,11 @@ export default defineConfig([
     entry: { core: 'src/core.ts' },
     format: ['esm'],
     outDir: 'dist',
-    outExtension: () => ({ js: '.mjs' }),
+    // `.js` (not `.mjs`): the package is `type: module`, so `.js` is still ESM,
+    // and Shopify theme-app-extension assets reject `.mjs`. Emitting `.js` keeps
+    // core.js + its split chunks' internal import specifiers consistent and
+    // vendorable straight into the extension's assets/.
+    outExtension: () => ({ js: '.js' }),
     splitting: true,
     dts: true,
     sourcemap: true,
