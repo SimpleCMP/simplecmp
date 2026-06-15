@@ -11,12 +11,10 @@
 import { auditDom as runAuditDom } from './audit/dom.js';
 import { maxSeverity as auditMaxSeverity, audit as runAudit } from './audit/index.js';
 import type { Check as AuditCheck, AuditResult, Severity as AuditSeverity } from './audit/index.js';
-import { CmsBridge } from './cms-bridge/index.js';
 import type { CmsBridgeAuth, CmsBridgeOptions } from './cms-bridge/index.js';
 import {
   defaultTranslations,
   addEventListener as engineAddEventListener,
-  fireEvent as engineFireEvent,
   getManager as engineGetManager,
   updateConfig as engineUpdateConfig,
   installConsentMode,
@@ -28,8 +26,8 @@ import type {
   Regime,
   Service,
 } from './engine/index.js';
-import bundledTranslations from './engine/translations/index.js';
 import en from './engine/translations/en.json';
+import bundledTranslations from './engine/translations/index.js';
 import { convertToMap, update } from './engine/utils/maps.js';
 
 // Build-time flag (esbuild `define`, ADR-0018). In the "core"/slim build it is
@@ -38,17 +36,13 @@ import { convertToMap, update } from './engine/utils/maps.js';
 // all packs ship for zero-config drop-in use. The unused branch is tree-shaken,
 // so the slim build drops the other 25 packs.
 declare const SLIM_BUILD: boolean;
-import { LocalClassifier } from './recorder/classifier.js';
-import { Recorder } from './recorder/recorder.js';
-import type { ClassifierServiceConfig, Detection, RecorderOptions } from './recorder/types.js';
-import { CookieWatcher } from './recorder/watchers/cookie-watcher.js';
-import { DomWatcher } from './recorder/watchers/dom-watcher.js';
-import { NetworkWatcher } from './recorder/watchers/network-watcher.js';
+import type { Recorder } from './recorder/recorder.js';
+import { createRecorder } from './recorder/start.js';
+import type { RecorderOptions } from './recorder/types.js';
+import { detectionKindForMechanism, hostFromUrl } from './runtime-patches/detection-map.js';
 import { installRuntimePatches } from './runtime-patches/index.js';
 import type { BlockInfo } from './runtime-patches/index.js';
 import { buildHostMatcher } from './runtime-patches/matcher.js';
-import { ServiceDbClient } from './service-db/client.js';
-import { LayeredClassifier } from './service-db/layered-classifier.js';
 import type { ServiceDbAuth } from './service-db/types.js';
 import { initLit as mountUI } from './ui/init.js';
 import type { FloatingTriggerOptions, LitInitHandle } from './ui/init.js';
@@ -116,10 +110,7 @@ export function auditDom(root?: Document | ShadowRoot): AuditResult[] {
 // English (the fallback) and relies on the host injecting the active locale
 // (ADR-0018). `SLIM_BUILD` is a compile-time constant, so the unused branch — and
 // with it the 25 non-English packs — is dropped from the slim bundle.
-update(
-  defaultTranslations,
-  convertToMap(SLIM_BUILD ? { en } : bundledTranslations),
-);
+update(defaultTranslations, convertToMap(SLIM_BUILD ? { en } : bundledTranslations));
 
 export const VERSION = '0.0.1';
 
@@ -713,41 +704,6 @@ function installRuntimePatchesWithManager(
 }
 
 /**
- * Maps the patch's `mechanism` field onto the recorder's
- * `DetectionKind` taxonomy. Stable contract — the bridge + BE
- * detection table read this kind directly.
- */
-function detectionKindForMechanism(mechanism: BlockInfo['mechanism']): Detection['kind'] {
-  switch (mechanism) {
-    case 'script-src':
-      return 'script';
-    case 'iframe-src':
-      return 'iframe';
-    case 'img-src':
-      return 'image';
-    case 'fetch':
-    case 'xhr':
-    case 'sendBeacon':
-      return 'request';
-  }
-}
-
-function hostFromUrl(url: string): string | undefined {
-  try {
-    // `hostname` (port-stripped) — consistent with the recorder watchers
-    // and `decideBlock` so consent decisions apply per-host, not
-    // per-host-port. Closes the cosmetic gap where universal-block
-    // synthetic detections of a port-mismatched URL like
-    // `https://tracker.com:8443/x` surfaced in the BE detection log as
-    // origin `tracker.com:8443` rather than matching the bare library
-    // entry for `tracker.com`.
-    return new URL(url, window.location.href).hostname || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
  * Open the preferences modal of the most recently mounted SimpleCMP.
  * Equivalent to `handle.show()` from the `init()` return value — kept
  * as a global convenience for inline `onclick` handlers in templates.
@@ -766,92 +722,17 @@ let activeRecorder: Recorder | null = null;
 
 function startRecorder(config: SimpleCMPConfig): void {
   // Replace any prior recorder so re-init doesn't leak watchers. The CMS
-  // bridge lives only as a closure captured by `recorder.on('detection',
-  // ...)` below — replacing the recorder drops the listener, which drops
-  // the bridge reference (and its dedup map) on the next GC.
+  // bridge lives only as a closure captured by the recorder's detection
+  // listener — replacing the recorder drops the listener, which drops the
+  // bridge reference (and its dedup map) on the next GC.
   if (activeRecorder) {
     activeRecorder.stop();
     activeRecorder = null;
   }
-  const options: RecorderOptions =
-    typeof config.record === 'object' && config.record !== null ? { ...config.record } : {};
-  if (!options.storageName && typeof config.storageName === 'string') {
-    options.storageName = config.storageName;
-  }
-  // The recorder would otherwise detect its own consent cookie as an unknown
-  // tracker on every page. Pre-populate `ignoreCookies` with whatever the
-  // consent storageName resolves to (cookie + sessionStorage entry share the
-  // name). Caller-supplied entries are preserved.
-  if (options.storageName) {
-    const userIgnored = options.ignoreCookies ?? [];
-    options.ignoreCookies = userIgnored.includes(options.storageName)
-      ? userIgnored
-      : [options.storageName, ...userIgnored];
-  }
-  const services = (config.services as ClassifierServiceConfig[] | undefined) ?? [];
-  // REQ-8 / ADR-0005: when serviceDbUrl is configured, the recorder uses a
-  // LayeredClassifier that consults the DB after the local services list.
-  const layered = config.serviceDbUrl
-    ? new LayeredClassifier(
-        new ServiceDbClient({ url: config.serviceDbUrl, auth: config.serviceDbAuth }),
-        services
-      )
-    : null;
-  const classifier = layered ?? new LocalClassifier(services);
-  const recorder = new Recorder({
-    options,
-    classifier,
-    services,
-    watcherFactories: [
-      (sink) => new CookieWatcher(sink, { intervalMs: options.cookieIntervalMs }),
-      (sink) => new DomWatcher(sink),
-      (sink) => new NetworkWatcher(sink),
-    ],
-    onDetectionForLibEvent: (d: Detection) => {
-      // Channel #1 (ADR-0004 section F): surface detections through the
-      // engine's event bus so consumers can subscribe via
-      // `simplecmp.addEventListener('recorderDetection', handler)`.
-      engineFireEvent('recorderDetection', d);
-    },
-  });
-  if (layered) {
-    layered.onEnrichment((raw, enrichment) => {
-      recorder.enrichDetection(raw, enrichment);
-    });
-  }
-  // REQ-9: when cmsBridgeUrl is configured, subscribe the bridge to the
-  // recorder's detection stream. The bridge filters for status: 'unknown'
-  // and dedupes by `${kind}:${identifier}` with a TTL window.
-  //
-  // REQ-N7: subscribe to `'detectionSettled'` rather than `'detection'`.
-  // The first emission of a detection is always `status: 'unknown'` even
-  // when the Service-DB lookup would have classified it as known — the
-  // bridge would race the lookup and POST before enrichment finalises
-  // the status. The settled event fires once per detection, after any
-  // async classification finishes, with the final status.
-  if (config.cmsBridgeUrl) {
-    const discover = isDiscoverMode();
-    const bridge = new CmsBridge({
-      url: config.cmsBridgeUrl,
-      auth: config.cmsBridgeAuth,
-      source: config.cmsBridge?.source ?? options.storageName ?? 'default',
-      // Discover mode (?simplecmp_discover=1) is an admin-driven sitemap
-      // sweep run from the BE: every page load should POST regardless of
-      // the bandwidth controls that normally suppress repeat visits.
-      dedupTtlMs: config.cmsBridge?.dedupTtlMs,
-      crossSessionDedupMs: discover ? 0 : config.cmsBridge?.crossSessionDedupMs,
-      flushDebounceMs: config.cmsBridge?.flushDebounceMs,
-      maxBatchSize: config.cmsBridge?.maxBatchSize,
-      sampleRate: discover ? 1 : config.cmsBridge?.sampleRate,
-      respectDoNotTrack: discover ? false : config.cmsBridge?.respectDoNotTrack,
-      timeoutMs: config.cmsBridge?.timeoutMs,
-      // Server-supplied reset counter (bumped on BE detection delete) so a
-      // deleted detection re-reports on the next page load instead of being
-      // suppressed by a stale cross-session marker.
-      reportGeneration: config.cmsBridge?.reportGeneration,
-    });
-    recorder.on('detectionSettled', (d) => bridge.onDetection(d));
-  }
+  // ADR-0019: the wiring (classifier, watchers, lib-event + CMS bridge) lives in
+  // the shared `createRecorder` factory, reused by the critical-core deferred
+  // tier. This wrapper owns only the singleton lifecycle.
+  const recorder = createRecorder(config);
   activeRecorder = recorder;
   activeRecorder.start();
 }
@@ -875,30 +756,6 @@ export const getManager = engineGetManager;
 
 /** Update a config object in place. */
 export const updateConfig = engineUpdateConfig;
-
-/**
- * Detect the BE-driven discovery sweep marker (`?simplecmp_discover=1`).
- *
- * The TYPO3 (or any CMS) backend can run a discovery pass by loading each
- * sitemap URL in a hidden iframe with this query parameter appended. The
- * recorder and bridge then behave as for a real visitor *except* that the
- * bandwidth controls designed to suppress repeat visits are turned off —
- * cross-session localStorage markers, sample rate, and Do-Not-Track all
- * skip — so the sweep populates the receiver's detection table reliably.
- *
- * Treat the param as opt-in for the *current page load only*. It does
- * not persist anywhere, doesn't affect future visits, and never reaches
- * the bridge payload — it's a runtime hint to the local recorder.
- */
-function isDiscoverMode(): boolean {
-  if (typeof window === 'undefined' || typeof URLSearchParams === 'undefined') return false;
-  try {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('simplecmp_discover') === '1';
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Detect the BE-driven compliance-audit marker

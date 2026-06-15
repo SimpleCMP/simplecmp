@@ -36,6 +36,10 @@
       "types": "./dist/engine.d.ts",
       "import": "./dist/engine.mjs"
     },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.mjs"
+    },
     "./styles/*": "./dist/styles/*",
     "./package.json": "./package.json"
   },

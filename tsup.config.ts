@@ -98,4 +98,33 @@ export default defineConfig([
       };
     },
   },
+  // Critical-core ESM build with code-splitting (ADR-0019). `src/core.ts` arms
+  // pre-consent blocking + Consent Mode synchronously and dynamic-imports
+  // `src/deferred.ts` (the Lit UI + recorder) at idle; esbuild `splitting`
+  // emits that deferred tier as a separate chunk fetched/parsed off the
+  // critical path, so the synchronous on-load parse stays small (recovers the
+  // mobile LCP the full bundle's parse was blocking). English-only
+  // (`SLIM_BUILD`). Managed hosts load `dist/core.mjs` as an ES module; the
+  // browser resolves the deferred chunk relatively — no host-supplied URL.
+  {
+    entry: { core: 'src/core.ts' },
+    format: ['esm'],
+    outDir: 'dist',
+    outExtension: () => ({ js: '.mjs' }),
+    splitting: true,
+    dts: true,
+    sourcemap: true,
+    clean: false,
+    treeshake: true,
+    minify: true,
+    target: 'es2020',
+    platform: 'browser',
+    esbuildOptions(options) {
+      options.define = {
+        ...(options.define ?? {}),
+        ...sharedDefine,
+        SLIM_BUILD: 'true',
+      };
+    },
+  },
 ]);
