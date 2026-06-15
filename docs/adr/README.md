@@ -33,6 +33,9 @@ We use [Michael Nygard's template](https://github.com/joelparkerhenderson/archit
 | 0013 | [Implementation plan for universal pre-consent blocking](0013-universal-blocking-implementation-plan.md) | accepted (Phase 0 starts now, in parallel to 1.0) |
 | 0014 | [Library service hosting](0014-library-service-hosting.md)           | accepted |
 | 0015 | [Region-aware consent regimes (opt-in / opt-out)](0015-region-aware-consent-regimes.md) | accepted |
+| 0016 | [Google Consent Mode v2 emission hook](0016-google-consent-mode-v2-hook.md) | accepted |
+| 0017 | [Multi-vendor consent signals (vendor-adapter registry)](0017-multi-vendor-consent-signals.md) | accepted |
+| 0018 | [Localization distribution — sliceable locale packs](0018-localization-distribution.md) | proposed |
 
 ## Adding a new ADR
 
