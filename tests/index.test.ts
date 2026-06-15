@@ -48,6 +48,40 @@ describe('SimpleCMP public API', () => {
     expect(document.body.querySelector('simplecmp-modal')).not.toBeNull();
   });
 
+  it('deferRender mounts the UI at idle, not synchronously', () => {
+    const ric = vi.fn();
+    vi.stubGlobal('requestIdleCallback', ric);
+    try {
+      init({ storageName: 'simplecmp-test-defer-render', services: [], deferRender: true });
+      // Scheduled to idle — nothing in the DOM yet.
+      expect(ric).toHaveBeenCalledTimes(1);
+      expect(document.body.querySelector('simplecmp-banner')).toBeNull();
+      // Running the idle callback mounts the UI.
+      (ric.mock.calls[0][0] as () => void)();
+      expect(document.body.querySelector('simplecmp-banner')).not.toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a deferRender mount is cancelled by destroy() before idle fires', () => {
+    const ric = vi.fn();
+    vi.stubGlobal('requestIdleCallback', ric);
+    try {
+      const handle = init({
+        storageName: 'simplecmp-test-defer-render-destroy',
+        services: [],
+        deferRender: true,
+      });
+      handle.destroy();
+      // Idle fires after teardown → must not mount a leaked banner.
+      (ric.mock.calls[0][0] as () => void)();
+      expect(document.body.querySelector('simplecmp-banner')).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   // REQ-9: misconfig warning fires when cmsBridgeUrl is set without `record`.
   it('warns when cmsBridgeUrl is set without record: true', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});

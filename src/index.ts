@@ -306,6 +306,24 @@ export interface SimpleCMPConfig extends ConsentConfig {
    */
   deferRecorder?: boolean;
   /**
+   * Defer mounting the consent UI (banner/modal/trigger) to browser idle
+   * (`requestIdleCallback`, falling back to a short timeout) instead of rendering
+   * it synchronously during `init()` / on `DOMContentLoaded`. Off by default.
+   *
+   * The UI render — instantiating the Lit components — is the largest single
+   * cost in `init()`'s critical path. Deferring it moves that cost out of the
+   * load/TBT window so the banner appears a beat after first paint instead of
+   * blocking it. **Pre-consent blocking is unaffected**: `interceptRuntime`
+   * installs synchronously in Phase 1, so the pre-consent state (everything
+   * blocked) holds from page load — the deferred banner only delays the *visual
+   * prompt*, never the enforcement. Safe for a compliance surface because the
+   * gap is strictly more conservative (blocked + not-yet-prompted).
+   *
+   * Ignored in audit mode (`?simplecmp_audit=1`), which needs the DOM rendered
+   * synchronously to scan it.
+   */
+  deferRender?: boolean;
+  /**
    * Base URL of a Service DB endpoint that implements the SimpleCMP
    * protocol (`docs/service-db-protocol.md`). When set together with
    * `record`, the recorder uses a `LayeredClassifier` that consults the
@@ -593,9 +611,13 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
   // ready yet so callers can wire init() into <head> without breaking
   // the banner/modal/trigger mount path.
   let mountedHandle: LitInitHandle | null = null;
+  let destroyed = false;
   type QueuedOp = 'show' | 'hide';
   const queued: QueuedOp[] = [];
   const mountNow = (): void => {
+    // A teardown or superseding init() between schedule and run cancels the
+    // mount (deferRender schedules this onto idle — see below).
+    if (destroyed || myToken !== initToken) return;
     mountedHandle = mountUI(effectiveConfig);
     for (const op of queued) {
       if (op === 'show') mountedHandle.show();
@@ -603,11 +625,17 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
     }
     queued.length = 0;
   };
+  // `deferRender` moves the (expensive) Lit mount off the critical path to idle.
+  // Blocking already installed synchronously in Phase 1, so the deferred banner
+  // only delays the visual prompt, not enforcement. Audit mode opts out — it
+  // needs the DOM rendered synchronously to scan it.
+  const wantDeferRender = effectiveConfig.deferRender === true && !auditMode;
+  const triggerMount = wantDeferRender ? () => scheduleIdle(mountNow) : mountNow;
   let deferredMountListener: (() => void) | null = null;
   if (typeof document !== 'undefined' && document.body !== null) {
-    mountNow();
+    triggerMount();
   } else if (typeof document !== 'undefined') {
-    deferredMountListener = mountNow;
+    deferredMountListener = triggerMount;
     document.addEventListener('DOMContentLoaded', deferredMountListener, { once: true });
   }
 
@@ -625,6 +653,7 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
     },
     manager,
     destroy: () => {
+      destroyed = true;
       if (activeRuntimePatchUninstaller !== null) {
         activeRuntimePatchUninstaller();
         activeRuntimePatchUninstaller = null;
