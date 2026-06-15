@@ -11,12 +11,10 @@
 import { auditDom as runAuditDom } from './audit/dom.js';
 import { maxSeverity as auditMaxSeverity, audit as runAudit } from './audit/index.js';
 import type { Check as AuditCheck, AuditResult, Severity as AuditSeverity } from './audit/index.js';
-import { CmsBridge } from './cms-bridge/index.js';
 import type { CmsBridgeAuth, CmsBridgeOptions } from './cms-bridge/index.js';
 import {
   defaultTranslations,
   addEventListener as engineAddEventListener,
-  fireEvent as engineFireEvent,
   getManager as engineGetManager,
   updateConfig as engineUpdateConfig,
   installConsentMode,
@@ -28,19 +26,23 @@ import type {
   Regime,
   Service,
 } from './engine/index.js';
+import en from './engine/translations/en.json';
 import bundledTranslations from './engine/translations/index.js';
 import { convertToMap, update } from './engine/utils/maps.js';
-import { LocalClassifier } from './recorder/classifier.js';
-import { Recorder } from './recorder/recorder.js';
-import type { ClassifierServiceConfig, Detection, RecorderOptions } from './recorder/types.js';
-import { CookieWatcher } from './recorder/watchers/cookie-watcher.js';
-import { DomWatcher } from './recorder/watchers/dom-watcher.js';
-import { NetworkWatcher } from './recorder/watchers/network-watcher.js';
+
+// Build-time flag (esbuild `define`, ADR-0018). In the "core"/slim build it is
+// `true` and ONLY English (the fallback) is bundled — hosts inject the active
+// locale via `config.translations`. In the default/full build it is `false` and
+// all packs ship for zero-config drop-in use. The unused branch is tree-shaken,
+// so the slim build drops the other 25 packs.
+declare const SLIM_BUILD: boolean;
+import type { Recorder } from './recorder/recorder.js';
+import { createRecorder } from './recorder/start.js';
+import type { RecorderOptions } from './recorder/types.js';
+import { detectionKindForMechanism, hostFromUrl } from './runtime-patches/detection-map.js';
 import { installRuntimePatches } from './runtime-patches/index.js';
 import type { BlockInfo } from './runtime-patches/index.js';
 import { buildHostMatcher } from './runtime-patches/matcher.js';
-import { ServiceDbClient } from './service-db/client.js';
-import { LayeredClassifier } from './service-db/layered-classifier.js';
 import type { ServiceDbAuth } from './service-db/types.js';
 import { initLit as mountUI } from './ui/init.js';
 import type { FloatingTriggerOptions, LitInitHandle } from './ui/init.js';
@@ -102,10 +104,13 @@ export function auditDom(root?: Document | ShadowRoot): AuditResult[] {
   return runAuditDom(root);
 }
 
-// Seed the engine's translation registry with the bundled language packs at
-// import time. Consumers get sensible defaults out of the box; per-config
-// `translations` still override or extend.
-update(defaultTranslations, convertToMap(bundledTranslations));
+// Seed the engine's translation registry at import time. Consumers get sensible
+// defaults out of the box; per-config `translations` still override or extend.
+// The full build seeds all bundled packs; the slim "core" build seeds only
+// English (the fallback) and relies on the host injecting the active locale
+// (ADR-0018). `SLIM_BUILD` is a compile-time constant, so the unused branch — and
+// with it the 25 non-English packs — is dropped from the slim bundle.
+update(defaultTranslations, convertToMap(SLIM_BUILD ? { en } : bundledTranslations));
 
 export const VERSION = '0.0.1';
 
@@ -278,6 +283,38 @@ export interface SimpleCMPConfig extends ConsentConfig {
    */
   record?: boolean | RecorderOptions;
   /**
+   * Defer the recorder's boot to browser idle (`requestIdleCallback`, falling
+   * back to a short timeout) instead of installing it synchronously during
+   * `init()`. Off by default, which preserves the early-catch guarantee (the
+   * recorder patches `fetch`/XHR before body scripts run — see `init()`).
+   *
+   * Opt in when detection is *drift monitoring* rather than a per-page audit and
+   * keeping `init()` off the critical path matters (e.g. a high-traffic
+   * storefront): it moves the recorder's setup cost out of the load/TBT window
+   * at the price of missing requests that fire before idle — acceptable when
+   * coverage is statistical across sessions. Pre-consent blocking
+   * (`interceptRuntime`) is unaffected; it always installs synchronously.
+   */
+  deferRecorder?: boolean;
+  /**
+   * Defer mounting the consent UI (banner/modal/trigger) to browser idle
+   * (`requestIdleCallback`, falling back to a short timeout) instead of rendering
+   * it synchronously during `init()` / on `DOMContentLoaded`. Off by default.
+   *
+   * The UI render — instantiating the Lit components — is the largest single
+   * cost in `init()`'s critical path. Deferring it moves that cost out of the
+   * load/TBT window so the banner appears a beat after first paint instead of
+   * blocking it. **Pre-consent blocking is unaffected**: `interceptRuntime`
+   * installs synchronously in Phase 1, so the pre-consent state (everything
+   * blocked) holds from page load — the deferred banner only delays the *visual
+   * prompt*, never the enforcement. Safe for a compliance surface because the
+   * gap is strictly more conservative (blocked + not-yet-prompted).
+   *
+   * Ignored in audit mode (`?simplecmp_audit=1`), which needs the DOM rendered
+   * synchronously to scan it.
+   */
+  deferRender?: boolean;
+  /**
    * Base URL of a Service DB endpoint that implements the SimpleCMP
    * protocol (`docs/service-db-protocol.md`). When set together with
    * `record`, the recorder uses a `LayeredClassifier` that consults the
@@ -443,6 +480,22 @@ export interface InterceptRuntimeOptions {
  */
 let activeHandle: LitInitHandle | null = null;
 
+// Monotonic init counter — lets deferred work (a deferred recorder boot) bail if
+// a later init() has superseded the config it was scheduled for.
+let initToken = 0;
+
+/**
+ * Run `fn` when the browser is idle (`requestIdleCallback`), falling back to a
+ * short timeout where it's unavailable (Safari / non-browser).
+ */
+function scheduleIdle(fn: () => void): void {
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(fn, { timeout: 2000 });
+  } else {
+    setTimeout(fn, 200);
+  }
+}
+
 /**
  * Uninstaller for the runtime patches installed by the most recent
  * `init({ interceptRuntime: ... })` call. Re-init / destroy chains
@@ -472,6 +525,9 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
   warnOnUnimplementedFeatures(config);
   warnOnConfigInconsistencies(config);
   warnOnComplianceRisks(config);
+
+  // Each init supersedes prior deferred work (e.g. a deferred recorder boot).
+  const myToken = ++initToken;
 
   // BE-driven live-FE compliance audit (?simplecmp_audit=1): force
   // the banner visible regardless of stored consent, then post DOM
@@ -514,7 +570,20 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
   // `document.documentElement` not `document.body`; patches just swap
   // prototype descriptors. None need a parsed body.
   const manager = engineGetManager(effectiveConfig);
-  if (effectiveConfig.record) startRecorder(effectiveConfig);
+  if (effectiveConfig.record) {
+    // `deferRecorder` moves the recorder's setup off the critical path to idle
+    // (drift-monitoring trade-off; see the config field). Default stays
+    // synchronous so the early-catch guarantee holds. Blocking is installed
+    // synchronously below regardless.
+    if (effectiveConfig.deferRecorder) {
+      scheduleIdle(() => {
+        // Re-check: a later init()/destroy() may have superseded this config.
+        if (myToken === initToken) startRecorder(effectiveConfig);
+      });
+    } else {
+      startRecorder(effectiveConfig);
+    }
+  }
   if (effectiveConfig.interceptRuntime) {
     activeRuntimePatchUninstaller = installRuntimePatchesWithManager(effectiveConfig, manager);
   }
@@ -533,9 +602,13 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
   // ready yet so callers can wire init() into <head> without breaking
   // the banner/modal/trigger mount path.
   let mountedHandle: LitInitHandle | null = null;
+  let destroyed = false;
   type QueuedOp = 'show' | 'hide';
   const queued: QueuedOp[] = [];
   const mountNow = (): void => {
+    // A teardown or superseding init() between schedule and run cancels the
+    // mount (deferRender schedules this onto idle — see below).
+    if (destroyed || myToken !== initToken) return;
     mountedHandle = mountUI(effectiveConfig);
     for (const op of queued) {
       if (op === 'show') mountedHandle.show();
@@ -543,11 +616,17 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
     }
     queued.length = 0;
   };
+  // `deferRender` moves the (expensive) Lit mount off the critical path to idle.
+  // Blocking already installed synchronously in Phase 1, so the deferred banner
+  // only delays the visual prompt, not enforcement. Audit mode opts out — it
+  // needs the DOM rendered synchronously to scan it.
+  const wantDeferRender = effectiveConfig.deferRender === true && !auditMode;
+  const triggerMount = wantDeferRender ? () => scheduleIdle(mountNow) : mountNow;
   let deferredMountListener: (() => void) | null = null;
   if (typeof document !== 'undefined' && document.body !== null) {
-    mountNow();
+    triggerMount();
   } else if (typeof document !== 'undefined') {
-    deferredMountListener = mountNow;
+    deferredMountListener = triggerMount;
     document.addEventListener('DOMContentLoaded', deferredMountListener, { once: true });
   }
 
@@ -565,6 +644,7 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
     },
     manager,
     destroy: () => {
+      destroyed = true;
       if (activeRuntimePatchUninstaller !== null) {
         activeRuntimePatchUninstaller();
         activeRuntimePatchUninstaller = null;
@@ -624,41 +704,6 @@ function installRuntimePatchesWithManager(
 }
 
 /**
- * Maps the patch's `mechanism` field onto the recorder's
- * `DetectionKind` taxonomy. Stable contract — the bridge + BE
- * detection table read this kind directly.
- */
-function detectionKindForMechanism(mechanism: BlockInfo['mechanism']): Detection['kind'] {
-  switch (mechanism) {
-    case 'script-src':
-      return 'script';
-    case 'iframe-src':
-      return 'iframe';
-    case 'img-src':
-      return 'image';
-    case 'fetch':
-    case 'xhr':
-    case 'sendBeacon':
-      return 'request';
-  }
-}
-
-function hostFromUrl(url: string): string | undefined {
-  try {
-    // `hostname` (port-stripped) — consistent with the recorder watchers
-    // and `decideBlock` so consent decisions apply per-host, not
-    // per-host-port. Closes the cosmetic gap where universal-block
-    // synthetic detections of a port-mismatched URL like
-    // `https://tracker.com:8443/x` surfaced in the BE detection log as
-    // origin `tracker.com:8443` rather than matching the bare library
-    // entry for `tracker.com`.
-    return new URL(url, window.location.href).hostname || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
  * Open the preferences modal of the most recently mounted SimpleCMP.
  * Equivalent to `handle.show()` from the `init()` return value — kept
  * as a global convenience for inline `onclick` handlers in templates.
@@ -677,92 +722,17 @@ let activeRecorder: Recorder | null = null;
 
 function startRecorder(config: SimpleCMPConfig): void {
   // Replace any prior recorder so re-init doesn't leak watchers. The CMS
-  // bridge lives only as a closure captured by `recorder.on('detection',
-  // ...)` below — replacing the recorder drops the listener, which drops
-  // the bridge reference (and its dedup map) on the next GC.
+  // bridge lives only as a closure captured by the recorder's detection
+  // listener — replacing the recorder drops the listener, which drops the
+  // bridge reference (and its dedup map) on the next GC.
   if (activeRecorder) {
     activeRecorder.stop();
     activeRecorder = null;
   }
-  const options: RecorderOptions =
-    typeof config.record === 'object' && config.record !== null ? { ...config.record } : {};
-  if (!options.storageName && typeof config.storageName === 'string') {
-    options.storageName = config.storageName;
-  }
-  // The recorder would otherwise detect its own consent cookie as an unknown
-  // tracker on every page. Pre-populate `ignoreCookies` with whatever the
-  // consent storageName resolves to (cookie + sessionStorage entry share the
-  // name). Caller-supplied entries are preserved.
-  if (options.storageName) {
-    const userIgnored = options.ignoreCookies ?? [];
-    options.ignoreCookies = userIgnored.includes(options.storageName)
-      ? userIgnored
-      : [options.storageName, ...userIgnored];
-  }
-  const services = (config.services as ClassifierServiceConfig[] | undefined) ?? [];
-  // REQ-8 / ADR-0005: when serviceDbUrl is configured, the recorder uses a
-  // LayeredClassifier that consults the DB after the local services list.
-  const layered = config.serviceDbUrl
-    ? new LayeredClassifier(
-        new ServiceDbClient({ url: config.serviceDbUrl, auth: config.serviceDbAuth }),
-        services
-      )
-    : null;
-  const classifier = layered ?? new LocalClassifier(services);
-  const recorder = new Recorder({
-    options,
-    classifier,
-    services,
-    watcherFactories: [
-      (sink) => new CookieWatcher(sink, { intervalMs: options.cookieIntervalMs }),
-      (sink) => new DomWatcher(sink),
-      (sink) => new NetworkWatcher(sink),
-    ],
-    onDetectionForLibEvent: (d: Detection) => {
-      // Channel #1 (ADR-0004 section F): surface detections through the
-      // engine's event bus so consumers can subscribe via
-      // `simplecmp.addEventListener('recorderDetection', handler)`.
-      engineFireEvent('recorderDetection', d);
-    },
-  });
-  if (layered) {
-    layered.onEnrichment((raw, enrichment) => {
-      recorder.enrichDetection(raw, enrichment);
-    });
-  }
-  // REQ-9: when cmsBridgeUrl is configured, subscribe the bridge to the
-  // recorder's detection stream. The bridge filters for status: 'unknown'
-  // and dedupes by `${kind}:${identifier}` with a TTL window.
-  //
-  // REQ-N7: subscribe to `'detectionSettled'` rather than `'detection'`.
-  // The first emission of a detection is always `status: 'unknown'` even
-  // when the Service-DB lookup would have classified it as known — the
-  // bridge would race the lookup and POST before enrichment finalises
-  // the status. The settled event fires once per detection, after any
-  // async classification finishes, with the final status.
-  if (config.cmsBridgeUrl) {
-    const discover = isDiscoverMode();
-    const bridge = new CmsBridge({
-      url: config.cmsBridgeUrl,
-      auth: config.cmsBridgeAuth,
-      source: config.cmsBridge?.source ?? options.storageName ?? 'default',
-      // Discover mode (?simplecmp_discover=1) is an admin-driven sitemap
-      // sweep run from the BE: every page load should POST regardless of
-      // the bandwidth controls that normally suppress repeat visits.
-      dedupTtlMs: config.cmsBridge?.dedupTtlMs,
-      crossSessionDedupMs: discover ? 0 : config.cmsBridge?.crossSessionDedupMs,
-      flushDebounceMs: config.cmsBridge?.flushDebounceMs,
-      maxBatchSize: config.cmsBridge?.maxBatchSize,
-      sampleRate: discover ? 1 : config.cmsBridge?.sampleRate,
-      respectDoNotTrack: discover ? false : config.cmsBridge?.respectDoNotTrack,
-      timeoutMs: config.cmsBridge?.timeoutMs,
-      // Server-supplied reset counter (bumped on BE detection delete) so a
-      // deleted detection re-reports on the next page load instead of being
-      // suppressed by a stale cross-session marker.
-      reportGeneration: config.cmsBridge?.reportGeneration,
-    });
-    recorder.on('detectionSettled', (d) => bridge.onDetection(d));
-  }
+  // ADR-0019: the wiring (classifier, watchers, lib-event + CMS bridge) lives in
+  // the shared `createRecorder` factory, reused by the critical-core deferred
+  // tier. This wrapper owns only the singleton lifecycle.
+  const recorder = createRecorder(config);
   activeRecorder = recorder;
   activeRecorder.start();
 }
@@ -786,30 +756,6 @@ export const getManager = engineGetManager;
 
 /** Update a config object in place. */
 export const updateConfig = engineUpdateConfig;
-
-/**
- * Detect the BE-driven discovery sweep marker (`?simplecmp_discover=1`).
- *
- * The TYPO3 (or any CMS) backend can run a discovery pass by loading each
- * sitemap URL in a hidden iframe with this query parameter appended. The
- * recorder and bridge then behave as for a real visitor *except* that the
- * bandwidth controls designed to suppress repeat visits are turned off —
- * cross-session localStorage markers, sample rate, and Do-Not-Track all
- * skip — so the sweep populates the receiver's detection table reliably.
- *
- * Treat the param as opt-in for the *current page load only*. It does
- * not persist anywhere, doesn't affect future visits, and never reaches
- * the bridge payload — it's a runtime hint to the local recorder.
- */
-function isDiscoverMode(): boolean {
-  if (typeof window === 'undefined' || typeof URLSearchParams === 'undefined') return false;
-  try {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('simplecmp_discover') === '1';
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Detect the BE-driven compliance-audit marker

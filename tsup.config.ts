@@ -25,6 +25,9 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 
 const sharedDefine = {
   VERSION: JSON.stringify(pkg.version),
+  // Default/full builds bundle all locale packs (ADR-0018). The slim "core"
+  // IIFE target overrides this to 'true' so only English is bundled.
+  SLIM_BUILD: 'false',
 } as const;
 
 export default defineConfig([
@@ -69,6 +72,76 @@ export default defineConfig([
     platform: 'browser',
     esbuildOptions(options) {
       options.define = { ...(options.define ?? {}), ...sharedDefine };
+    },
+  },
+  // Browser global (IIFE), slim "core" build — English-only translations
+  // (ADR-0018). Same global (`SimpleCMP`); hosts that know the active locale at
+  // render time (Shopify Liquid, TYPO3) inject it via `config.translations` and
+  // ship ~the other 25 packs lighter. `SLIM_BUILD` is defined `true` so the
+  // non-English packs are tree-shaken out.
+  {
+    entry: { 'simplecmp.core': 'src/index.ts' },
+    format: ['iife'],
+    outDir: 'dist',
+    outExtension: () => ({ js: '.global.js' }),
+    globalName: 'SimpleCMP',
+    sourcemap: true,
+    clean: false,
+    minify: true,
+    target: 'es2020',
+    platform: 'browser',
+    esbuildOptions(options) {
+      options.define = {
+        ...(options.define ?? {}),
+        ...sharedDefine,
+        SLIM_BUILD: 'true',
+      };
+    },
+  },
+  // Critical-core ESM build with code-splitting (ADR-0019). `src/core.ts` arms
+  // pre-consent blocking + Consent Mode synchronously and dynamic-imports
+  // `src/deferred.ts` (the Lit UI + recorder) at idle; esbuild `splitting`
+  // emits that deferred tier as a separate chunk fetched/parsed off the
+  // critical path, so the synchronous on-load parse stays small (recovers the
+  // mobile LCP the full bundle's parse was blocking). English-only
+  // (`SLIM_BUILD`). Managed hosts load `dist/simplecmp-core.js` as an ES module;
+  // the browser resolves the split chunks relatively — no host-supplied URL.
+  {
+    entry: { 'simplecmp-core': 'src/core.ts' },
+    format: ['esm'],
+    // Bundle ALL deps (lit, etc.) into the chunks — this artifact loads directly
+    // in the browser with no import map, so bare specifiers like `lit` must not
+    // survive. (tsup externalizes node_modules deps by default for ESM.)
+    noExternal: [/.*/],
+    outDir: 'dist',
+    // `.js` (not `.mjs`): the package is `type: module`, so `.js` is still ESM,
+    // and Shopify theme-app-extension assets reject `.mjs`. Emitting `.js` keeps
+    // the entry + its split chunks' internal import specifiers consistent and
+    // vendorable straight into the extension's assets/.
+    outExtension: () => ({ js: '.js' }),
+    splitting: true,
+    dts: true,
+    sourcemap: true,
+    clean: false,
+    treeshake: true,
+    minify: true,
+    target: 'es2020',
+    platform: 'browser',
+    esbuildOptions(options) {
+      options.define = {
+        ...(options.define ?? {}),
+        ...sharedDefine,
+        SLIM_BUILD: 'true',
+      };
+      // STABLE chunk names (no content hash): `simplecmp-chunk.js`,
+      // `simplecmp-deferred.js`. Two reasons: (1) lets the Shopify Liquid
+      // `modulepreload` the critical files by a fixed href (collapses the
+      // dependent-fetch waterfall — bridge/core/chunk fetch in parallel instead
+      // of serially); (2) cache-busting is handled by the host's per-deploy
+      // asset path (Shopify versions the whole assets/ URL), so the in-filename
+      // hash is redundant there. The `simplecmp-` prefix still lets hosts
+      // recognise SimpleCMP's own scripts in detection (OWN_SCRIPT_MARKERS).
+      options.chunkNames = 'simplecmp-[name]';
     },
   },
 ]);

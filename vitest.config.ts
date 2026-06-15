@@ -11,6 +11,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   define: {
     VERSION: JSON.stringify('0.0.1'),
+    // Mirror the build-time define (ADR-0018) so `src/index.ts` resolves it at
+    // test runtime. Tests exercise the full (all-locales) build path.
+    SLIM_BUILD: 'false',
   },
   test: {
     environment: 'happy-dom',
