@@ -8,6 +8,65 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-06-15
+
+The first feature release since the initial tagged cut (v0.3.0) — roughly a
+summer of work. Headlines: a performance/architecture pass (English-only slim
+core, idle defers, and the critical-core bundle split), region-aware consent
+regimes, Google Consent Mode v2, multi-vendor signals, opt-in stylesheet
+blocking, the compliance-audit engine, and the theme framework adapters.
+Pre-1.0, so the `storageName` rename below is a documented breaking change in a
+minor bump. (This release also reconciles the `package.json` / `VERSION` drift
+that had been left at the `0.0.1` scaffold value through v0.3.0.)
+
+### Added — performance & distribution
+
+- **Critical-core bundle split (ADR-0019).** New additive `simplecmp/core` ESM
+  entry that splits the engine into a tiny synchronous critical path (consent
+  manager + `interceptRuntime` blocking + Consent Mode) and a lazy `deferred`
+  chunk (Lit UI + recorder) loaded at idle via dynamic `import()`. Managed hosts
+  adopt it as a module + `modulepreload` to keep the on-load parse small
+  (recovers mobile LCP the full bundle's parse was blocking). The full/slim IIFE
+  drop-ins are unchanged.
+- **Slim English-only "core" build + sliceable locale distribution (ADR-0018).**
+  `SLIM_BUILD` IIFE (`simplecmp.core.global.js`) and the ESM `core` entry bundle
+  only the English fallback; managed hosts inject the active locale via
+  `config.translations`, dropping ~25 unused packs. The full artifacts still
+  ship all locales for the zero-config drop-in.
+- **`deferRecorder` + `deferRender` config flags.** Opt-in: boot the recorder
+  (`deferRecorder`) and/or mount the consent UI (`deferRender`) at
+  `requestIdleCallback` instead of synchronously, moving them off the load/TBT
+  critical path. Pre-consent blocking always stays synchronous. Off by default.
+
+### Added — consent regimes & signals
+
+- **Region-aware consent regimes (REQ-N4, ADR-0015).** `region` input drives an
+  opt-in vs opt-out `regime`; `regimeDefault` / `regimes` / `useGeoRegion`
+  surfaced in the public API (Phase B), plus an opt-out notice banner +
+  Do-Not-Sell trigger UI (Phase C).
+- **Google Consent Mode v2 emission hook (REQ-N10, ADR-0016).** `consentMode`
+  config emits the `default`/`update` consent signals to the Google tag layer,
+  installed early (before the merchant's tag library).
+- **Multi-vendor consent signals — Meta + Microsoft UET (ADR-0017).** Beyond
+  Google: maps consent onto Meta Pixel + Microsoft UET vendor signals.
+
+### Added — blocking, audit, UI
+
+- **Opt-in third-party stylesheet blocking for `<link>` (REQ-N8).** Blocks and
+  re-injects third-party stylesheets (e.g. Google Fonts) on consent. Default
+  off.
+- **Compliance-audit engine.** Config-level `audit(config)` + DOM-level
+  `auditDom()` (incl. an accessible-name check, REQ-N11) driven by
+  `docs/legal-compliance.md`; deterministic + `heuristic-*` checks; live-FE audit
+  mode via `?simplecmp_audit=1`.
+- **Theme framework adapters.** `config.theme` rebinds `--simplecmp-*` to host
+  vars for `bootstrap5` / `tailwind4` / `bulma` / `pico` (version-suffixed),
+  including nested components.
+- **Banner: layout templates, token-driven corner placement, and a11y (REQ-N11)**
+  — region role + `aria-live` + target-size; equal-prominence button styling.
+- **Tone overlays (formal/informal).** Per-language `tones` overlay; de reviewed,
+  fr/it/es/nl draft.
+
 ### Changed
 
 - **Default `storageName` renamed `klaro` → `simplecmp`.** The consent
@@ -703,4 +762,5 @@ research: `docs/research/2026-05-blocked-embed-placeholder-cmp-survey.md`.
   vitest configs simplified — no JSX-in-JS transform, no React aliases,
   no SCSS pipeline. IIFE bundle: 268 KB → 133 KB; ESM: 226 KB → 161 KB.
 
-[Unreleased]: https://github.com/simplecmp/simplecmp/compare/HEAD
+[Unreleased]: https://github.com/SimpleCMP/simplecmp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/SimpleCMP/simplecmp/compare/v0.3.0...v0.4.0

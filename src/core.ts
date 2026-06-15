@@ -44,7 +44,7 @@ import { applyThemeAdapter } from './ui/themes/index.js';
 // hosts inject the active locale through `config.translations` (ADR-0018).
 update(defaultTranslations, convertToMap({ en }));
 
-export const VERSION = '0.0.1';
+export const VERSION = '0.4.0';
 
 /** Subscribe to lifecycle events (`recorderDetection`, `consentVersionMismatch`). */
 export const addEventListener = engineAddEventListener;
