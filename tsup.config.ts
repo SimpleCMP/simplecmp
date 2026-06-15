@@ -104,15 +104,15 @@ export default defineConfig([
   // emits that deferred tier as a separate chunk fetched/parsed off the
   // critical path, so the synchronous on-load parse stays small (recovers the
   // mobile LCP the full bundle's parse was blocking). English-only
-  // (`SLIM_BUILD`). Managed hosts load `dist/core.mjs` as an ES module; the
-  // browser resolves the deferred chunk relatively — no host-supplied URL.
+  // (`SLIM_BUILD`). Managed hosts load `dist/simplecmp-core.js` as an ES module;
+  // the browser resolves the split chunks relatively — no host-supplied URL.
   {
-    entry: { core: 'src/core.ts' },
+    entry: { 'simplecmp-core': 'src/core.ts' },
     format: ['esm'],
     outDir: 'dist',
     // `.js` (not `.mjs`): the package is `type: module`, so `.js` is still ESM,
     // and Shopify theme-app-extension assets reject `.mjs`. Emitting `.js` keeps
-    // core.js + its split chunks' internal import specifiers consistent and
+    // the entry + its split chunks' internal import specifiers consistent and
     // vendorable straight into the extension's assets/.
     outExtension: () => ({ js: '.js' }),
     splitting: true,
@@ -129,6 +129,11 @@ export default defineConfig([
         ...sharedDefine,
         SLIM_BUILD: 'true',
       };
+      // Brand the split chunks (`simplecmp-chunk-*`, `simplecmp-deferred-*`) so
+      // every vendored core asset shares the `simplecmp-` prefix — lets hosts
+      // recognise SimpleCMP's own scripts in detection (Shopify's
+      // OWN_SCRIPT_MARKERS) by a stable prefix despite the content hashes.
+      options.chunkNames = 'simplecmp-[name]-[hash]';
     },
   },
 ]);
