@@ -109,6 +109,10 @@ export default defineConfig([
   {
     entry: { 'simplecmp-core': 'src/core.ts' },
     format: ['esm'],
+    // Bundle ALL deps (lit, etc.) into the chunks — this artifact loads directly
+    // in the browser with no import map, so bare specifiers like `lit` must not
+    // survive. (tsup externalizes node_modules deps by default for ESM.)
+    noExternal: [/.*/],
     outDir: 'dist',
     // `.js` (not `.mjs`): the package is `type: module`, so `.js` is still ESM,
     // and Shopify theme-app-extension assets reject `.mjs`. Emitting `.js` keeps
