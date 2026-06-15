@@ -11,8 +11,9 @@ and external connections that need consent. Originally hard-forked from
 [Klaro!](https://github.com/KIProtect/klaro) 0.7.22, since rewritten in TypeScript with
 a Lit-based UI; the original BSD-3-Clause notice is preserved in `LICENSE-KLARO`.
 
-> ⚠️ **Status: Early development.** SimpleCMP is in the initial design phase. APIs, file
-> structures, and features will change without notice. Not ready for production use.
+> ⚠️ **Status: Early development (pre-1.0 — latest `v0.4.0`).** APIs, file
+> structures, and features may change in minor versions until 1.0. It already
+> powers the TYPO3 and Shopify integrations, but is not yet npm-published.
 
 ## Why SimpleCMP?
 
@@ -49,10 +50,11 @@ Beyond the four differentiators above, SimpleCMP ships a complete consent layer:
 - **Region-aware regimes (REQ-N4 / ADR-0015)** — drive opt-in (GDPR), opt-out
   (US / CCPA "Do Not Sell"), or no-banner behaviour from a `region` input. Honours
   **Global Privacy Control** (GPC; ADR-0011).
-- **Google Consent Mode v2 (REQ-N10 / ADR-0016)** — an optional `consentMode`
-  hook emits `gtag('consent', …)` plus a GTM dataLayer event from the consent
-  state. It *signals* the merchant's existing Google tags; it never loads
-  gtag/GTM itself.
+- **Consent Mode v2 + multi-vendor signals (REQ-N10 / ADR-0016, ADR-0017)** — an
+  optional `consentMode` hook emits Google's `gtag('consent', …)` plus a GTM
+  dataLayer event, and (ADR-0017) Meta Pixel + Microsoft UET vendor signals, from
+  the consent state. It *signals* the merchant's existing tags; it never loads
+  them itself.
 - **Universal pre-consent blocking (ADR-0012/0013)** — blocks third-party
   scripts / iframes / pixels before consent, with click-to-enable placeholders;
   plus opt-in **stylesheet blocking** for third-party CSS such as Google Fonts
@@ -67,7 +69,8 @@ Beyond the four differentiators above, SimpleCMP ships a complete consent layer:
 - **Informal tone (Sie/Du)** — an optional `tones` overlay for informal address
   (German reviewed; fr/it/es/nl draft).
 - **Internationalization** — 26 bundled language packs, auto-detected from
-  `<html lang="…">`.
+  `<html lang="…">`. Managed hosts can instead ship the English-only slim core
+  and inject the active locale at render time (ADR-0018).
 
 ## Architecture
 
@@ -104,8 +107,21 @@ import { getManager, addEventListener } from 'simplecmp/engine';
 
 That subpath ships the engine without the Lit UI, recorder, or service-DB client.
 
+**Critical-core split (ADR-0019).** Managed hosts (Shopify, TYPO3) that want the
+smallest synchronous footprint can import `simplecmp/core`. It arms the consent
+manager + pre-consent blocking + Consent Mode **synchronously**, then lazy-loads
+the Lit UI and recorder at browser idle via dynamic `import()` — so the on-load
+parse stays small and the late banner never delays enforcement. Paired with the
+English-only slim build (ADR-0018) + a host-injected locale, this is what keeps
+the consent layer's measured mobile cost negligible. The zero-config `<script>`
+drop-in keeps using the full IIFE, unchanged.
+
+So there are three entry points: `simplecmp` (full drop-in), `simplecmp/engine`
+(headless state machine), and `simplecmp/core` (managed-host critical-core split).
+
 See [docs/adr/](docs/adr/) for architecture decision records, including ADR-0006
-(hard-fork rationale) and ADR-0007 (Lit Web Components).
+(hard-fork rationale), ADR-0007 (Lit Web Components), ADR-0018 (localization
+distribution), and ADR-0019 (critical-core bundle split).
 
 ## Installation
 
