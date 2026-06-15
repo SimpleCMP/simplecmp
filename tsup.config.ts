@@ -133,11 +133,15 @@ export default defineConfig([
         ...sharedDefine,
         SLIM_BUILD: 'true',
       };
-      // Brand the split chunks (`simplecmp-chunk-*`, `simplecmp-deferred-*`) so
-      // every vendored core asset shares the `simplecmp-` prefix — lets hosts
-      // recognise SimpleCMP's own scripts in detection (Shopify's
-      // OWN_SCRIPT_MARKERS) by a stable prefix despite the content hashes.
-      options.chunkNames = 'simplecmp-[name]-[hash]';
+      // STABLE chunk names (no content hash): `simplecmp-chunk.js`,
+      // `simplecmp-deferred.js`. Two reasons: (1) lets the Shopify Liquid
+      // `modulepreload` the critical files by a fixed href (collapses the
+      // dependent-fetch waterfall — bridge/core/chunk fetch in parallel instead
+      // of serially); (2) cache-busting is handled by the host's per-deploy
+      // asset path (Shopify versions the whole assets/ URL), so the in-filename
+      // hash is redundant there. The `simplecmp-` prefix still lets hosts
+      // recognise SimpleCMP's own scripts in detection (OWN_SCRIPT_MARKERS).
+      options.chunkNames = 'simplecmp-[name]';
     },
   },
 ]);
