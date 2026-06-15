@@ -292,6 +292,20 @@ export interface SimpleCMPConfig extends ConsentConfig {
    */
   record?: boolean | RecorderOptions;
   /**
+   * Defer the recorder's boot to browser idle (`requestIdleCallback`, falling
+   * back to a short timeout) instead of installing it synchronously during
+   * `init()`. Off by default, which preserves the early-catch guarantee (the
+   * recorder patches `fetch`/XHR before body scripts run — see `init()`).
+   *
+   * Opt in when detection is *drift monitoring* rather than a per-page audit and
+   * keeping `init()` off the critical path matters (e.g. a high-traffic
+   * storefront): it moves the recorder's setup cost out of the load/TBT window
+   * at the price of missing requests that fire before idle — acceptable when
+   * coverage is statistical across sessions. Pre-consent blocking
+   * (`interceptRuntime`) is unaffected; it always installs synchronously.
+   */
+  deferRecorder?: boolean;
+  /**
    * Base URL of a Service DB endpoint that implements the SimpleCMP
    * protocol (`docs/service-db-protocol.md`). When set together with
    * `record`, the recorder uses a `LayeredClassifier` that consults the
@@ -457,6 +471,22 @@ export interface InterceptRuntimeOptions {
  */
 let activeHandle: LitInitHandle | null = null;
 
+// Monotonic init counter — lets deferred work (a deferred recorder boot) bail if
+// a later init() has superseded the config it was scheduled for.
+let initToken = 0;
+
+/**
+ * Run `fn` when the browser is idle (`requestIdleCallback`), falling back to a
+ * short timeout where it's unavailable (Safari / non-browser).
+ */
+function scheduleIdle(fn: () => void): void {
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(fn, { timeout: 2000 });
+  } else {
+    setTimeout(fn, 200);
+  }
+}
+
 /**
  * Uninstaller for the runtime patches installed by the most recent
  * `init({ interceptRuntime: ... })` call. Re-init / destroy chains
@@ -486,6 +516,9 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
   warnOnUnimplementedFeatures(config);
   warnOnConfigInconsistencies(config);
   warnOnComplianceRisks(config);
+
+  // Each init supersedes prior deferred work (e.g. a deferred recorder boot).
+  const myToken = ++initToken;
 
   // BE-driven live-FE compliance audit (?simplecmp_audit=1): force
   // the banner visible regardless of stored consent, then post DOM
@@ -528,7 +561,20 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
   // `document.documentElement` not `document.body`; patches just swap
   // prototype descriptors. None need a parsed body.
   const manager = engineGetManager(effectiveConfig);
-  if (effectiveConfig.record) startRecorder(effectiveConfig);
+  if (effectiveConfig.record) {
+    // `deferRecorder` moves the recorder's setup off the critical path to idle
+    // (drift-monitoring trade-off; see the config field). Default stays
+    // synchronous so the early-catch guarantee holds. Blocking is installed
+    // synchronously below regardless.
+    if (effectiveConfig.deferRecorder) {
+      scheduleIdle(() => {
+        // Re-check: a later init()/destroy() may have superseded this config.
+        if (myToken === initToken) startRecorder(effectiveConfig);
+      });
+    } else {
+      startRecorder(effectiveConfig);
+    }
+  }
   if (effectiveConfig.interceptRuntime) {
     activeRuntimePatchUninstaller = installRuntimePatchesWithManager(effectiveConfig, manager);
   }

@@ -408,6 +408,26 @@ describe('SimpleCMP public API', () => {
       expect(typeof recorder?.assertNoUnknown).toBe('function');
     });
 
+    it('defers the recorder boot to idle with deferRecorder (ADR-0018)', () => {
+      const ric = vi.fn();
+      vi.stubGlobal('requestIdleCallback', ric);
+      try {
+        init({
+          storageName: 'simplecmp-test-defer',
+          services: [],
+          record: true,
+          deferRecorder: true,
+        });
+        // Scheduled, not run synchronously, during init().
+        expect(ric).toHaveBeenCalledTimes(1);
+        // Running the scheduled callback boots the recorder.
+        (ric.mock.calls[0][0] as () => void)();
+        expect(getRecorder()).toBeDefined();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it('classifies a configured cookie as known (REQ-7)', () => {
       init({
         storageName: 'simplecmp-test-req7-classify',
