@@ -43,13 +43,7 @@
     "./styles/*": "./dist/styles/*",
     "./package.json": "./package.json"
   },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE",
-    "LICENSE-KLARO",
-    "CHANGELOG.md"
-  ],
+  "files": ["dist", "README.md", "LICENSE", "LICENSE-KLARO", "CHANGELOG.md"],
   "scripts": {
     "build": "pnpm build:js && pnpm build:themes && pnpm build:sync",
     "build:js": "tsup",
