@@ -161,6 +161,15 @@ on the TYPO3 plugin side; WordPress + Contao not started.
   - ⬜ WordPress plugin
   - ⬜ Contao plugin
 
+### Core compliance increments (post-v0.4, ongoing)
+
+- ✅ **REQ-N12 — Time-based consent expiry / re-consent cadence:** `consentExpiryDays`
+  config; stored consent older than the limit is discarded and the banner re-shows.
+  Default off, no-`ts` records grandfathered, zero PII (age stamped in the visitor's
+  own cookie). Complements material-change re-consent (`consentVersion` / REQ-3). The
+  ~6mo (CNIL/ICO) … 24mo (AEPD) range; no statutory clock (EDPB 05/2020 §110).
+  Cross-cutting — Shopify wired; TYPO3 wiring pending.
+
 ## Useful resources
 
 - Klaro! upstream: https://github.com/KIProtect/klaro
