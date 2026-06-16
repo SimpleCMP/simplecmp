@@ -165,6 +165,19 @@ export interface SimpleCMPConfig extends ConsentConfig {
   consentVersionPolicy?: 'any' | 'major';
 
   /**
+   * Time-based consent expiry in days (§6). When set (> 0), a returning visitor
+   * whose stored consent is older than this is re-asked — the stored decision is
+   * discarded and the banner re-shows. There is no statutory expiry; regulator
+   * best practice is ~6 months (CNIL/ICO) up to 24 months (AEPD). Default off
+   * (`undefined`/`0`). The age is stamped in the visitor's own stored record
+   * (`ts`) — nothing is stored server-side. Material-change re-consent is handled
+   * separately by `consentVersion` / the services-list reconciliation.
+   *
+   * SimpleCMP-specific (REQ-N12).
+   */
+  consentExpiryDays?: number;
+
+  /**
    * Show a persistent "cookie settings" floating button so users can re-open
    * the consent preferences from any page. Required for DSGVO Art. 7(3)
    * (withdrawing consent must be as easy as giving it). REQ-4.

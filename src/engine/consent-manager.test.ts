@@ -153,3 +153,76 @@ describe('ConsentManager — region-aware regimes (REQ-N4)', () => {
     }
   });
 });
+
+describe('ConsentManager — time-based consent expiry (§6)', () => {
+  const DAY = 86_400_000;
+  const expiryConfig: ConsentConfig = {
+    storageName: 'simplecmp-expiry-test',
+    storageMethod: 'localStorage',
+    consentExpiryDays: 180,
+    services: [
+      { name: 'analytics', purposes: ['analytics'], default: false },
+      { name: 'required', purposes: ['required'], required: true, default: true },
+    ],
+  };
+  const enc = (o: unknown) => encodeURIComponent(JSON.stringify(o));
+  const stored = (tsOffsetMs: number) =>
+    enc({ ts: Date.now() + tsOffsetMs, consents: { analytics: true, required: true } });
+
+  function capturingStore(initial: string | null): Store & { value: string | null } {
+    return {
+      value: initial,
+      get() {
+        return this.value;
+      },
+      set(v: string) {
+        this.value = v;
+      },
+      delete() {
+        this.value = null;
+      },
+    };
+  }
+
+  it('honors fresh consent (within the window)', () => {
+    const m = new ConsentManager(expiryConfig, storeReturning(stored(-10 * DAY)));
+    expect(m.getConsent('analytics')).toBe(true);
+    expect(m.confirmed).toBe(true);
+    expect(m.consentExpired).toBeUndefined();
+  });
+
+  it('discards stale consent and re-prompts (older than the window)', () => {
+    const m = new ConsentManager(expiryConfig, storeReturning(stored(-200 * DAY)));
+    expect(m.getConsent('analytics')).toBe(false); // reset to default
+    expect(m.confirmed).toBe(false);
+    expect(m.changed).toBe(true);
+    expect(m.consentExpired?.expiryDays).toBe(180);
+  });
+
+  it('ignores age when expiry is off (no consentExpiryDays)', () => {
+    const noExpiry: ConsentConfig = { ...expiryConfig, consentExpiryDays: undefined };
+    const m = new ConsentManager(noExpiry, storeReturning(stored(-500 * DAY)));
+    expect(m.getConsent('analytics')).toBe(true);
+    expect(m.consentExpired).toBeUndefined();
+  });
+
+  it('grandfathers a stored record with no ts (legacy shape) — never force-expires', () => {
+    const legacy = encodeURIComponent(JSON.stringify({ analytics: true, required: true }));
+    const m = new ConsentManager(expiryConfig, storeReturning(legacy));
+    expect(m.getConsent('analytics')).toBe(true);
+    expect(m.consentExpired).toBeUndefined();
+  });
+
+  it('stamps a numeric ts into the stored record on save when expiry is on', () => {
+    const store = capturingStore(null);
+    const m = new ConsentManager(expiryConfig, store);
+    m.updateConsent('analytics', true);
+    m.saveConsents();
+    const written = JSON.parse(decodeURIComponent(store.value as string)) as {
+      ts?: unknown;
+      consents?: unknown;
+    };
+    expect(typeof written.ts).toBe('number');
+    expect(written.consents).toMatchObject({ analytics: true });
+  });
+});
