@@ -21,11 +21,32 @@ import type { Detection } from '../recorder/types.js';
 import type { ServiceDbAuth } from '../service-db/types.js';
 
 /**
- * Auth header configuration. Structurally identical to `ServiceDbAuth` —
- * Bearer-by-default with optional custom header name and scheme. Aliased
- * here so the CMS-bridge surface reads as its own type in editor tooltips.
+ * Auth header configuration. Bearer-by-default with optional custom
+ * header name and scheme. Extends `ServiceDbAuth` with a bridge-only
+ * `refreshUrl` for full-page-cached hosts where the initial token may
+ * be frozen past its TTL (TYPO3 `EXT:staticfilecache`, Varnish, …).
  */
-export type CmsBridgeAuth = ServiceDbAuth;
+export type CmsBridgeAuth = ServiceDbAuth & {
+  /**
+   * Optional. URL the bridge GETs when a POST is rejected with 401.
+   * Expected response: JSON `{ token: string }`. On success the bridge
+   * updates its in-memory token and retries the original POST once.
+   *
+   * Concurrent batches share a single in-flight refresh so a stale-token
+   * page produces only one refresh roundtrip even with multiple queued
+   * detections. If the refresh itself fails (network error, 4xx, 5xx)
+   * the original 401 is re-thrown and the detection is dropped per the
+   * usual 4xx-keeps-dedup rule.
+   *
+   * Designed for host integrations where the init payload is cached in
+   * static HTML (TYPO3 `EXT:staticfilecache`, Varnish full-page cache,
+   * Cloudflare cache rules) and the baked-in HMAC nonce expires while
+   * the HTML is still served. Same-origin endpoint recommended so it
+   * stays under the page's CSP / mixed-content rules without extra
+   * config.
+   */
+  refreshUrl?: string;
+};
 
 /** CmsBridge construction options. */
 export interface CmsBridgeOptions {

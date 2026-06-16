@@ -1079,6 +1079,20 @@ können. Das TYPO3-Plugin hat aktuell **kein** StaticFileCache-Bewusstsein.
 Middleware-Order + Doku); ggf. kleine FE-Engine-Ergänzung in `simplecmp` für
 einen Token-Refresh-Callback. Reine Hardening/Kompatibilität, kein v1.0-Blocker.
 
+**Stand 2026-06-16:**
+
+- ✅ **Engine-Seite (`simplecmp/simplecmp`, Unreleased):** `CmsBridgeAuth.refreshUrl`
+  ergänzt — bei 401-Response `GET`tet die Bridge den `refreshUrl`, aktualisiert den
+  In-Memory-Token mit dem `{token: …}` aus der JSON-Antwort und retried den POST
+  genau einmal. Concurrent-Batch in-flight-Guard verhindert Stampedes, `retried`-Flag
+  verhindert Loops, Refresh-Fetch ist Timeout-bounded (≤ 2 s). Tests:
+  `tests/bridge-refresh.test.ts` (6 Cases). Doku: `docs/cms-bridge-webhook.md`
+  § "auth.refreshUrl".
+- ⏳ **TYPO3-Plugin-Seite (`t3-simplecmp`):** Endpoint `/api/simplecmp/v1/bridge-nonce`,
+  `RegisterAssets` setzt `cmsBridgeAuth.refreshUrl` aufs neue Feld, Middleware-Order-Pin
+  vor `lochmueller/staticfilecache/persist`, README-Abschnitt "Betrieb mit
+  StaticFileCache".
+
 **Referenzen:** ADR-0013 (Universal Blocking / HtmlRewriter);
 `Classes/Service/BridgeNonceService.php` + `Classes/EventListener/RegisterAssets.php`
 im TYPO3-Plugin (Nonce-Erzeugung/-Einbettung).

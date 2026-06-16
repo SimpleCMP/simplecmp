@@ -64,7 +64,20 @@ export class CmsBridge {
    * one noise entry. Empty when `url` isn't parseable.
    */
   private readonly host: string;
-  private readonly auth?: CmsBridgeAuth;
+  /**
+   * Auth header config. The `token` field is mutated in place when
+   * `refreshUrl` is set and a 401 triggers a successful refresh — so
+   * subsequent POSTs in the same session avoid the refresh roundtrip.
+   * A defensive copy is taken at construction so callers' config
+   * objects aren't mutated.
+   */
+  private auth?: CmsBridgeAuth;
+  /**
+   * Single in-flight refresh promise so concurrent 401s share one
+   * roundtrip instead of stampeding the refresh endpoint. Reset to
+   * null once the fetch settles.
+   */
+  private refreshInFlight: Promise<string> | null = null;
   private readonly source: string;
   private readonly dedupTtlMs: number;
   private readonly crossSessionDedupMs: number;
@@ -107,7 +120,10 @@ export class CmsBridge {
         return '';
       }
     })();
-    this.auth = options.auth;
+    // Defensive copy — `_refreshToken` mutates `this.auth.token` after a
+    // successful refresh, so we don't want to write back into the
+    // caller's config object.
+    this.auth = options.auth ? { ...options.auth } : undefined;
     this.source = options.source ?? 'default';
     this.dedupTtlMs = options.dedupTtlMs ?? DEFAULT_DEDUP_TTL_MS;
     this.crossSessionDedupMs = options.crossSessionDedupMs ?? DEFAULT_CROSS_SESSION_TTL_MS;
@@ -375,7 +391,10 @@ export class CmsBridge {
     };
   }
 
-  private async _post(payload: CmsBridgePayload, options: { keepalive?: boolean }): Promise<void> {
+  private async _post(
+    payload: CmsBridgePayload,
+    options: { keepalive?: boolean; retried?: boolean }
+  ): Promise<void> {
     if (!this.fetchFn) throw new Error('fetch is unavailable');
     const headers = new Headers({ 'Content-Type': 'application/json' });
     if (this.auth) {
@@ -397,9 +416,80 @@ export class CmsBridge {
       };
       if (options.keepalive === true) init.keepalive = true;
       const res = await this.fetchFn(this.url, init);
+      if (res.status === 401 && !options.retried && this.auth?.refreshUrl) {
+        // Token may be stale because the init payload was cached
+        // (TYPO3 EXT:staticfilecache, Varnish, …). Try a single
+        // refresh + retry. `keepalive` is dropped on the retry —
+        // sendBeacon-style fire-and-forget can't wait for the
+        // refresh fetch anyway.
+        const newToken = await this._refreshToken();
+        if (newToken !== null && this.auth) {
+          this.auth.token = newToken;
+          return this._post(payload, { ...options, retried: true });
+        }
+        // Refresh failed — fall through to the standard error path.
+        throw new Error('CMS bridge POST responded 401');
+      }
       if (!res.ok) throw new Error(`CMS bridge POST responded ${res.status}`);
     } finally {
       if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * GET the configured `auth.refreshUrl` and return the fresh token, or
+   * `null` on any failure. Concurrent callers share one in-flight fetch
+   * via `refreshInFlight` — without that guard, a batch carrying multiple
+   * detections through a stale-token page would fire N refresh requests
+   * in lockstep.
+   */
+  private async _refreshToken(): Promise<string | null> {
+    const refreshUrl = this.auth?.refreshUrl;
+    if (!refreshUrl || !this.fetchFn) return null;
+    if (this.refreshInFlight !== null) {
+      try {
+        return await this.refreshInFlight;
+      } catch {
+        return null;
+      }
+    }
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    // Refresh timeout is intentionally tighter than the bridge POST
+    // timeout — if the refresh itself is slow, we'd rather let the
+    // outer POST fail fast and try again on the next detection than
+    // hold the original POST hostage.
+    const refreshTimeoutMs = Math.min(2000, this.timeoutMs);
+    const timer =
+      controller && typeof setTimeout !== 'undefined'
+        ? setTimeout(() => controller.abort(), refreshTimeoutMs)
+        : undefined;
+    const fetch = this.fetchFn;
+    this.refreshInFlight = (async () => {
+      try {
+        const res = await fetch(refreshUrl, {
+          method: 'GET',
+          signal: controller?.signal,
+        });
+        if (!res.ok) {
+          throw new Error(`refresh responded ${res.status}`);
+        }
+        const data = (await res.json()) as { token?: unknown };
+        if (typeof data?.token !== 'string' || data.token === '') {
+          throw new Error('refresh response missing token');
+        }
+        return data.token;
+      } finally {
+        if (timer !== undefined) clearTimeout(timer);
+      }
+    })();
+    try {
+      const token = await this.refreshInFlight;
+      return token;
+    } catch (err) {
+      this._warnOnce('tokenRefresh', err);
+      return null;
+    } finally {
+      this.refreshInFlight = null;
     }
   }
 

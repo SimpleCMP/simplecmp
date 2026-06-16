@@ -233,12 +233,56 @@ matters:
 | Status | Bridge behavior |
 |---|---|
 | 2xx | Success. Dedup entry kept for the full TTL window. |
-| 4xx | `console.warn` once; dedup entry kept (receiver said no, don't retry). |
+| 401 + `auth.refreshUrl` set | Bridge `GET`s `refreshUrl`, expects `{ "token": "<fresh>" }` JSON, updates the in-memory token, retries the POST **once**. On retry success the dedup entry is kept; on retry failure follows the appropriate row below. |
+| 4xx (other / 401 without refresh) | `console.warn` once; dedup entry kept (receiver said no, don't retry). |
 | 5xx | `console.warn` once; dedup entry cleared so a future detection can retry. |
 | Network error / timeout (default 5s) | `console.warn` once; dedup entry cleared so a future detection can retry. |
 
 The `console.warn` is gated to fire at most once per error category per
 session — failing receivers don't spam the console.
+
+### `auth.refreshUrl` — fresh tokens for full-page-cached hosts
+
+Configure `auth.refreshUrl` when the init payload (and thus the
+embedded `auth.token`) is served from a full-page HTML cache that
+freezes the token past its server-side TTL (TYPO3 `EXT:staticfilecache`,
+Varnish full-page cache, Cloudflare cache rules):
+
+```js
+SimpleCMP.init({
+  cmsBridgeUrl: 'https://cms.example/api/simplecmp/webhook',
+  cmsBridgeAuth: {
+    token: '<HMAC nonce baked into the cached HTML>',
+    refreshUrl: '/api/simplecmp/v1/bridge-nonce?source=...',
+  },
+  // ...
+});
+```
+
+**Expected response shape** (`refreshUrl` is `GET`ted with no body):
+
+```json
+{ "token": "<fresh HMAC nonce>" }
+```
+
+Any extra fields are ignored. Non-200 responses, missing/empty `token`,
+and timeouts all fall back to the standard 401 error path. The refresh
+fetch is timeout-bounded (≤ 2s, never longer than `timeoutMs`) so a slow
+refresh endpoint doesn't hold the original POST hostage.
+
+**Concurrency**: only one refresh fetch is in flight at any moment —
+concurrent batches share the same promise instead of stampeding the
+refresh endpoint. The `retried` flag inside the bridge prevents loops,
+so a refresh + retry that also gets 401 surfaces the original error
+instead of refreshing again.
+
+**Refresh endpoint requirements**:
+- Same-origin recommended (no extra CSP / CORS preflight needed).
+- Returns `Cache-Control: no-store` (or similar) — must not itself be
+  full-page-cached, otherwise the refresh produces the same stale token.
+- Validates the requesting context (e.g. CMS plugins typically bind the
+  fresh token to the `source` query parameter, with the same character
+  set the receiver enforces on the webhook).
 
 ## CORS
 

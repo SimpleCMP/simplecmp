@@ -8,6 +8,22 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+### Added
+
+- **`CmsBridgeAuth.refreshUrl` — refresh-on-401 escape hatch for
+  full-page-cached hosts.** On a `401 Unauthorized` response, the bridge
+  now `GET`s the configured `refreshUrl`, expects `{ token: <fresh> }`
+  JSON, updates the in-memory token, and retries the POST exactly once.
+  Designed for TYPO3 `EXT:staticfilecache`, Varnish, and Cloudflare full-
+  page caches where the init payload (containing the bridge token) is
+  baked into static HTML and outlives its server-side HMAC TTL.
+  Concurrent batches share a single in-flight refresh; the `retried`
+  flag prevents loops; the refresh fetch is timeout-bounded (≤ 2s) so a
+  slow refresh endpoint can't hold the original POST hostage. See REQ-N9
+  in `docs/requirements.md` and the new section in
+  `docs/cms-bridge-webhook.md`. Existing installs without `refreshUrl`
+  keep the prior behaviour unchanged.
+
 ## [0.4.0] — 2026-06-15
 
 The first feature release since the initial tagged cut (v0.3.0) — roughly a
