@@ -8,7 +8,24 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
-## [0.4.1] — 2026-06-16
+### Added
+
+- **`config.consentLog` — Phase 2 audit-trail surface.** New optional
+  config block on `SimpleCMPConfig` that wires a `ConsentLogger`
+  watcher onto the engine's `ConsentManager.notify('saveConsents', …)`
+  events. Each accept / decline / save-selected click POSTs a v1
+  payload (`schemaVersion, source, versionHash, visitorUuid,
+  decisions, decisionType, pageHost?, uaFamily?`) to the configured
+  endpoint, with the host server pseudonymizing the visitor UUID
+  before persistence (the raw UUID lives only in the visitor's own
+  `localStorage`). Reuses `CmsBridgeAuth` for Bearer auth + REQ-N9
+  refresh-on-401, so the same source-bound nonce works against both
+  `cmsBridgeUrl` and `consentLog.url` endpoints. No-op when
+  `consentLog?.url` is absent — zero overhead for hosts that haven't
+  opted in. See `src/consent-log/` for the module + the TYPO3
+  reference receiver in `t3-simplecmp` Phase 2 (`/api/simplecmp/v1/consent-log`).
+
+
 
 Point release that unblocks the TYPO3 plugin's StaticFileCache support
 (REQ-N9). No other changes; safe to upgrade from 0.4.0 without any host

@@ -11,7 +11,9 @@
 import { auditDom as runAuditDom } from './audit/dom.js';
 import { maxSeverity as auditMaxSeverity, audit as runAudit } from './audit/index.js';
 import type { Check as AuditCheck, AuditResult, Severity as AuditSeverity } from './audit/index.js';
+import { ConsentLogger, getOrCreateVisitorUuid } from './consent-log/index.js';
 import type { CmsBridgeAuth, CmsBridgeOptions } from './cms-bridge/index.js';
+import type { ConsentLogConfig } from './consent-log/index.js';
 import {
   defaultTranslations,
   addEventListener as engineAddEventListener,
@@ -394,6 +396,21 @@ export interface SimpleCMPConfig extends ConsentConfig {
   >;
 
   /**
+   * Visitor consent decision logging — Phase 2 audit trail.
+   *
+   * When `url` is set, each accept / decline / save-selected click
+   * is POSTed to the host endpoint, bound to the snapshot
+   * `version_hash` of the banner state at click time (`configVersion`).
+   * The host pseudonymizes the visitor UUID server-side before
+   * insertion — see `docs/cms-bridge-webhook.md` for the contract.
+   *
+   * Reuses `CmsBridgeAuth` for nonce-Bearer + refresh-on-401, so the
+   * same source-bound nonce works against both `cmsBridgeUrl` and
+   * `consentLog.url` endpoints.
+   */
+  consentLog?: ConsentLogConfig;
+
+  /**
    * Universal pre-consent blocking — JS-injected calls (ADR-0013
    * Phase 2). When set, SimpleCMP installs prototype-level patches on
    * `HTMLScriptElement.prototype.src`,
@@ -609,6 +626,25 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
       manager,
       effectiveConfig.services
     );
+  }
+  // Phase 2 audit trail — log each visitor consent decision against
+  // the snapshot version_hash of the banner state shown to them.
+  // Hooks `ConsentManager.notify('saveConsents', …)` so the watcher
+  // fires when the visitor actively confirms (not on per-toggle
+  // mid-interaction notifications). Zero overhead when
+  // `config.consentLog?.url` is unset.
+  if (effectiveConfig.consentLog?.url) {
+    const visitorUuid = getOrCreateVisitorUuid(
+      effectiveConfig.storageName ?? 'simplecmp',
+    );
+    const consentLogger = new ConsentLogger({
+      url: effectiveConfig.consentLog.url,
+      source: effectiveConfig.consentLog.source ?? effectiveConfig.storageName,
+      auth: effectiveConfig.consentLog.auth,
+      configVersion: effectiveConfig.consentLog.configVersion,
+      visitorUuid,
+    });
+    manager.watch(consentLogger);
   }
 
   // Phase 2 — mount the UI. Defer to DOMContentLoaded if body isn't
