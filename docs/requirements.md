@@ -1252,6 +1252,41 @@ nach Fix Bundle in Shopify re-vendoren.
 
 ---
 
+### REQ-N12 — Zeitbasierter Einwilligungs-Ablauf (Re-Consent-Kadenz)
+
+**Status:** ✅ Umgesetzt (Engine, 2026-06-16).
+
+**Rechtlicher Hintergrund:** Es gibt **keinen gesetzlichen Ablauf** für eine
+Einwilligung (EDSA-Leitlinien 05/2020 §110). Aufsichts-Best-Practice ist eine
+Erneuerung in Intervallen: CNIL/ICO ~6 Monate, AEPD ≤24 Monate. Die **zwingende**
+Re-Consent-Pflicht ist die *materielle Änderung* (DSK: jede Änderung der Cookies/
+Drittdienste lässt die gebündelte Einwilligung entfallen) — die deckt bereits die
+Service-Listen-Abgleichung in `_checkConsents()` + `consentVersion` (REQ-3) ab.
+REQ-N12 ergänzt die *weichere* zeitbasierte Schicht. Siehe `consent-legal-findings`
+(Recherche + Re-Verifikation 2026-06-16).
+
+**Engine:** Neues Config-Feld `consentExpiryDays?: number`. `saveConsents` stempelt
+`ts` in den gespeicherten Datensatz (`{ __v?, ts, consents }`); `loadConsents`
+verwirft gespeicherte Einwilligung, die älter als das Limit ist, und zeigt den
+Banner erneut (gleiche `changed`/`changeDescription`-UX wie der Versions-Mismatch),
+via `_isConsentExpired`. **Default aus** (`undefined`/`0`); Datensätze **ohne `ts`
+werden grandfathered** (nie zwangs-abgelaufen) — Aktivieren invalidiert also nicht
+rückwirkend alle Besucher. Kein Server-Speicher, keine PII — die Altersmarke liegt
+im Cookie des Besuchers.
+
+**Hosts:** Shopify wired (`ShopSettings.consentExpiryDays`, Default 180; Admin-
+Dropdown Never/6/12/24 Mo; durch `/config` + Metafeld + Bridge). Plus der abgeleitete
+`consentVersion` aus den *verarbeitungsrelevanten* Feldern (Dienste + Signal-Vendors),
+damit eine neue/umklassifizierte Erkennung automatisch re-promptet (REQ-3) — ohne
+manuellen Bump. TYPO3-Verdrahtung offen (Svens Seite).
+
+**Acceptance:** frische Einwilligung im Fenster wird honoriert; veraltete wird
+verworfen + re-prompted; `consentExpiryDays:0`/fehlend = aus; fehlendes `ts` =
+grandfathered; `ts` wird bei Save gestempelt. 6 Engine-Tests +
+`storefront-config`/`settings`-Tests (Shopify).
+
+---
+
 ## Bewusst nicht in v1.0
 
 Diese Punkte sind diskutiert und abgelehnt. Bitte erst neu aufmachen, wenn

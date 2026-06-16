@@ -143,6 +143,15 @@ export interface ConsentConfig {
   // REQ-3
   consentVersion?: string | number;
   consentVersionPolicy?: 'any' | 'major';
+  /**
+   * Time-based consent expiry (§6, best-practice re-consent cadence — CNIL/ICO
+   * ~6 mo, AEPD ≤24 mo; no statutory clock). When > 0, stored consent older than
+   * this many days is discarded on the next visit and the banner re-shows
+   * (reusing the `changed`/`changeDescription` UX). `0`/undefined = off (default).
+   * The age is stamped into the visitor's own stored record (`ts`) — no
+   * server-side, no PII.
+   */
+  consentExpiryDays?: number;
   // REQ-5
   respectGPC?: boolean;
   // REQ-N4 / ADR-0015 — region-aware consent regimes.
@@ -237,6 +246,12 @@ export interface VersionMismatchInfo {
   policy: 'any' | 'major';
 }
 
+/** Populated when stored consent was discarded for exceeding `consentExpiryDays`. */
+export interface ConsentExpiredInfo {
+  storedAt: number;
+  expiryDays: number;
+}
+
 /** What `manager.notify(...)` calls dispatch to. */
 export interface ConsentWatcher {
   update(manager: ConsentManager, name: string, data: unknown): void;
@@ -277,6 +292,8 @@ export class ConsentManager {
   changed = false;
   /** REQ-3: populated when stored consentVersion didn't match the configured one. */
   versionMismatch?: VersionMismatchInfo;
+  /** §6: populated when stored consent was discarded for exceeding consentExpiryDays. */
+  consentExpired?: ConsentExpiredInfo;
 
   private states: Record<string, boolean> = {};
   private initialized: Record<string, boolean> = {};
@@ -475,19 +492,26 @@ export class ConsentManager {
       return this.consents;
     }
 
-    // REQ-3: support both legacy and versioned storage shapes.
-    // Legacy: `{ [serviceName]: bool }`. Versioned: `{ __v, consents }`.
+    // REQ-3 / §6: support legacy + wrapped storage shapes.
+    // Legacy: `{ [serviceName]: bool }`. Wrapped: `{ __v?, ts?, consents }`.
+    // Detect the wrapper by an object-typed `consents` key (so a ts-only wrapper,
+    // written when expiry is on but versioning isn't, is still recognised). A
+    // legacy map can't false-positive unless a service is literally named
+    // "consents" with an object value — service names are tracker ids, so no.
     let storedVersion: unknown;
+    let storedTs: unknown;
     let storedConsents: unknown;
+    const asObj = parsed as Record<string, unknown> | null;
     if (
-      parsed !== null &&
-      typeof parsed === 'object' &&
-      '__v' in (parsed as object) &&
-      'consents' in (parsed as object)
+      asObj !== null &&
+      typeof asObj === 'object' &&
+      'consents' in asObj &&
+      typeof asObj.consents === 'object' &&
+      asObj.consents !== null
     ) {
-      const wrapper = parsed as { __v: unknown; consents: unknown };
-      storedVersion = wrapper.__v;
-      storedConsents = wrapper.consents;
+      storedVersion = asObj.__v;
+      storedTs = asObj.ts;
+      storedConsents = asObj.consents;
     } else {
       storedConsents = parsed;
     }
@@ -523,12 +547,35 @@ export class ConsentManager {
       this.consents = this.defaultConsents;
       this.confirmed = false;
       this.changed = true;
+    } else if (this._isConsentExpired(storedTs)) {
+      // §6: stored consent is stale → discard and re-ask. Reuses the
+      // `changed=true` re-prompt UX (same `changeDescription` message).
+      this.consentExpired = {
+        storedAt: storedTs as number,
+        expiryDays: this.config.consentExpiryDays as number,
+      };
+      this.consents = this.defaultConsents;
+      this.confirmed = false;
+      this.changed = true;
     } else {
       this._checkConsents();
       this.notify('consents', this.consents);
     }
 
     return this.consents;
+  }
+
+  /**
+   * §6: is the stored consent older than `consentExpiryDays`? Off when the
+   * config value is 0/undefined. A stored record with no numeric `ts`
+   * (pre-expiry installs, legacy shape) is GRANDFATHERED — never force-expired —
+   * so enabling expiry can't retroactively invalidate everyone at once.
+   */
+  private _isConsentExpired(storedTs: unknown): boolean {
+    const days = this.config.consentExpiryDays ?? 0;
+    if (!(days > 0)) return false;
+    if (typeof storedTs !== 'number' || !Number.isFinite(storedTs)) return false;
+    return Date.now() - storedTs > days * 86_400_000;
   }
 
   /**
@@ -566,16 +613,21 @@ export class ConsentManager {
    * `consentVersion`, the legacy `{[name]: bool}` shape is preserved.
    */
   saveConsents(eventType?: string): void {
-    const payload =
-      this.config.consentVersion !== undefined
-        ? { __v: this.config.consentVersion, consents: this.consents }
-        : this.consents;
+    // Use the wrapper shape when versioning OR expiry is enabled, so a later
+    // visit can read `__v` / `ts`. `__v: undefined` is dropped by JSON.stringify;
+    // loadConsents detects the wrapper by a present object-typed `consents` key.
+    const useWrapper =
+      this.config.consentVersion !== undefined || (this.config.consentExpiryDays ?? 0) > 0;
+    const payload = useWrapper
+      ? { __v: this.config.consentVersion, ts: Date.now(), consents: this.consents }
+      : this.consents;
     const v = encodeURIComponent(JSON.stringify(payload));
     this.store.set(v);
     this.confirmed = true;
     this.changed = false;
-    // Version on disk is now in sync; clear any prior mismatch info.
+    // On-disk state is now fresh; clear any prior mismatch / expiry info.
     this.versionMismatch = undefined;
+    this.consentExpired = undefined;
     const changes = this.changedConsents();
     this.savedConsents = { ...this.consents };
     this.notify('saveConsents', {
