@@ -112,7 +112,7 @@ export function auditDom(root?: Document | ShadowRoot): AuditResult[] {
 // with it the 25 non-English packs — is dropped from the slim bundle.
 update(defaultTranslations, convertToMap(SLIM_BUILD ? { en } : bundledTranslations));
 
-export const VERSION = '0.4.0';
+export const VERSION = '0.4.1';
 
 /**
  * SimpleCMP configuration. Engine fields plus SimpleCMP-specific options

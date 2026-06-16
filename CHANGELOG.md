@@ -8,6 +8,12 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-06-16
+
+Point release that unblocks the TYPO3 plugin's StaticFileCache support
+(REQ-N9). No other changes; safe to upgrade from 0.4.0 without any host
+modification (the new field is additive and only consulted when set).
+
 ### Added
 
 - **`CmsBridgeAuth.refreshUrl` — refresh-on-401 escape hatch for
