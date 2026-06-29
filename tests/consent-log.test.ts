@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConsentLogger } from '../src/consent-log/index.js';
-import {
-  getOrCreateVisitorUuid,
-  visitorIdStorageKey,
-} from '../src/consent-log/visitor-id.js';
+import { getOrCreateVisitorUuid, visitorIdStorageKey } from '../src/consent-log/visitor-id.js';
 
 /**
  * Phase 2 audit-trail unit tests — the ConsentLogger watcher contract
@@ -48,7 +45,7 @@ function makeLogger(opts: {
 function makeSaveConsentsData(
   consents: Record<string, boolean>,
   type = 'accept',
-  changes?: Record<string, boolean>,
+  changes?: Record<string, boolean>
 ): { changes: Record<string, boolean>; consents: Record<string, boolean>; type: string } {
   return {
     changes: changes ?? consents,
@@ -76,7 +73,7 @@ describe('ConsentLogger — Phase 2 audit trail', () => {
       calls.push({
         url,
         method: (init?.method as string) ?? 'GET',
-        body: init?.body as string ?? null,
+        body: (init?.body as string) ?? null,
         authHeader: new Headers(init?.headers ?? {}).get('Authorization'),
       });
       return new Response('{"ok":true}', { status: 200 });
@@ -85,15 +82,19 @@ describe('ConsentLogger — Phase 2 audit trail', () => {
       fetchFn: fetchFn as unknown as typeof fetch,
       auth: { token: 'stale' },
     });
-    logger.update({}, 'saveConsents', makeSaveConsentsData({ matomo: true, youtube: false }, 'partial'));
+    logger.update(
+      {},
+      'saveConsents',
+      makeSaveConsentsData({ matomo: true, youtube: false }, 'partial')
+    );
     // Let the void-Promise inside update() settle.
     await new Promise((r) => setTimeout(r, 0));
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.method).toBe('POST');
-    expect(calls[0]!.url).toBe(URL);
-    expect(calls[0]!.authHeader).toBe('Bearer stale');
-    const body = JSON.parse(calls[0]!.body ?? '{}');
+    expect(calls[0]?.method).toBe('POST');
+    expect(calls[0]?.url).toBe(URL);
+    expect(calls[0]?.authHeader).toBe('Bearer stale');
+    const body = JSON.parse(calls[0]?.body ?? '{}');
     expect(body.schemaVersion).toBe(1);
     expect(body.source).toBe('simplecmp-default');
     expect(body.versionHash).toBe('a'.repeat(64));
@@ -130,7 +131,11 @@ describe('ConsentLogger — Phase 2 audit trail', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
 
     // Genuine change → posts again.
-    logger.update({}, 'saveConsents', { changes: { matomo: false }, consents: { matomo: false }, type: 'decline' });
+    logger.update({}, 'saveConsents', {
+      changes: { matomo: false },
+      consents: { matomo: false },
+      type: 'decline',
+    });
     await new Promise((r) => setTimeout(r, 0));
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
@@ -145,11 +150,15 @@ describe('ConsentLogger — Phase 2 audit trail', () => {
 
     logger.update({}, 'saveConsents', makeSaveConsentsData({ a: true, b: true }, 'accept'));
     await new Promise((r) => setTimeout(r, 0));
-    expect(bodies[0]!.decisionType).toBe('accept');
+    expect(bodies[0]?.decisionType).toBe('accept');
 
-    logger.update({}, 'saveConsents', makeSaveConsentsData({ a: false, b: false }, 'decline', { a: false, b: false }));
+    logger.update(
+      {},
+      'saveConsents',
+      makeSaveConsentsData({ a: false, b: false }, 'decline', { a: false, b: false })
+    );
     await new Promise((r) => setTimeout(r, 0));
-    expect(bodies[1]!.decisionType).toBe('decline');
+    expect(bodies[1]?.decisionType).toBe('decline');
   });
 
   it('refreshes the token on 401 and retries the POST exactly once', async () => {
@@ -185,7 +194,7 @@ describe('ConsentLogger — Phase 2 audit trail', () => {
       `POST ${URL}`,
     ]);
     // Retry POST carries the refreshed token.
-    expect(calls[2]!.authHeader).toBe('Bearer fresh-token');
+    expect(calls[2]?.authHeader).toBe('Bearer fresh-token');
   });
 
   it('warns and stops on refresh failure (no infinite retry)', async () => {

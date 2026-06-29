@@ -11,8 +11,8 @@
 import { auditDom as runAuditDom } from './audit/dom.js';
 import { maxSeverity as auditMaxSeverity, audit as runAudit } from './audit/index.js';
 import type { Check as AuditCheck, AuditResult, Severity as AuditSeverity } from './audit/index.js';
-import { ConsentLogger, getOrCreateVisitorUuid } from './consent-log/index.js';
 import type { CmsBridgeAuth, CmsBridgeOptions } from './cms-bridge/index.js';
+import { ConsentLogger, getOrCreateVisitorUuid } from './consent-log/index.js';
 import type { ConsentLogConfig } from './consent-log/index.js';
 import {
   defaultTranslations,
@@ -634,9 +634,7 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
   // mid-interaction notifications). Zero overhead when
   // `config.consentLog?.url` is unset.
   if (effectiveConfig.consentLog?.url) {
-    const visitorUuid = getOrCreateVisitorUuid(
-      effectiveConfig.storageName ?? 'simplecmp',
-    );
+    const visitorUuid = getOrCreateVisitorUuid(effectiveConfig.storageName ?? 'simplecmp');
     const consentLogger = new ConsentLogger({
       url: effectiveConfig.consentLog.url,
       source: effectiveConfig.consentLog.source ?? effectiveConfig.storageName,

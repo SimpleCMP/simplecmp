@@ -21,16 +21,11 @@
  * regardless of how many decisions fire.
  */
 
-import type {
-  ConsentLogOptions,
-  ConsentLogPayload,
-  SaveConsentsNotification,
-} from './types.js';
 import type { CmsBridgeAuth } from '../cms-bridge/types.js';
+import type { ConsentLogOptions, ConsentLogPayload, SaveConsentsNotification } from './types.js';
 
-interface ConsentManagerLike {
-  // We never call manager methods, only inspect notification args.
-}
+// We never call manager methods, only inspect notification args.
+type ConsentManagerLike = unknown;
 
 interface ConsentWatcherShape {
   update(manager: ConsentManagerLike, name: string, data: unknown): void;
@@ -124,10 +119,7 @@ export class ConsentLogger implements ConsentWatcherShape {
     void this._post(body, { retried: false });
   }
 
-  private async _post(
-    body: ConsentLogPayload,
-    options: { retried: boolean },
-  ): Promise<void> {
+  private async _post(body: ConsentLogPayload, options: { retried: boolean }): Promise<void> {
     if (!this.fetchFn) {
       this._warnOnce('post', new Error('fetch is unavailable'));
       return;
@@ -138,8 +130,7 @@ export class ConsentLogger implements ConsentWatcherShape {
       const scheme = this.auth.scheme ?? 'Bearer';
       headers.set(headerName, `${scheme} ${this.auth.token}`.trim());
     }
-    const controller =
-      typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timer =
       controller && typeof setTimeout !== 'undefined'
         ? setTimeout(() => controller.abort(), this.timeoutMs)
@@ -162,7 +153,7 @@ export class ConsentLogger implements ConsentWatcherShape {
           this.auth.token = newToken;
           return this._post(body, { retried: true });
         }
-        this._warnOnce('post', new Error(`consent-log POST responded 401`));
+        this._warnOnce('post', new Error('consent-log POST responded 401'));
         return;
       }
       if (!res.ok) {
@@ -193,8 +184,7 @@ export class ConsentLogger implements ConsentWatcherShape {
         return null;
       }
     }
-    const controller =
-      typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timeoutMs = Math.min(REFRESH_TIMEOUT_MS, this.timeoutMs);
     const timer =
       controller && typeof setTimeout !== 'undefined'
@@ -234,7 +224,7 @@ export class ConsentLogger implements ConsentWatcherShape {
     this.warned.add(category);
     const message = err instanceof Error ? err.message : String(err);
     console.warn(
-      `SimpleCMP consent-log: ${category} failed (${message}). Subsequent failures of this category will be silent.`,
+      `SimpleCMP consent-log: ${category} failed (${message}). Subsequent failures of this category will be silent.`
     );
   }
 }
@@ -258,7 +248,7 @@ function isStringBoolMap(value: unknown): value is Record<string, boolean> {
 function normalizeDecisionType(
   rawType: unknown,
   _changes: Record<string, boolean>,
-  consents: Record<string, boolean>,
+  consents: Record<string, boolean>
 ): ConsentLogPayload['decisionType'] {
   const values = Object.values(consents);
   if (values.length > 0) {
@@ -279,7 +269,7 @@ function derivePageHost(loc: ConsentLogOptions['location'] | undefined): string 
 }
 
 function deriveUaFamily(
-  nav: ConsentLogOptions['navigator'] | undefined,
+  nav: ConsentLogOptions['navigator'] | undefined
 ): ConsentLogPayload['uaFamily'] | undefined {
   const target = nav ?? (typeof navigator !== 'undefined' ? navigator : undefined);
   const ua = target?.userAgent;
