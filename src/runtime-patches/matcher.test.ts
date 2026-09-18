@@ -35,14 +35,28 @@ describe('buildHostMatcher', () => {
   });
 
   it('returns the first matching service when origins overlap', () => {
-    // Services are walked in config order. Whichever lists the host
-    // first wins. This is the deterministic behavior integrators rely
-    // on when they have specific-before-generic services.
+    // Services are walked in config order *within a precedence tier*.
+    // Whichever lists the host first in that tier wins. This is the
+    // deterministic behavior integrators rely on when they have
+    // specific-before-generic services.
     const matcher = buildHostMatcher([
       { name: 'specific', origins: ['embed.video.example'] },
       { name: 'generic', origins: ['*.video.example'] },
     ]);
     expect(matcher('embed.video.example')).toBe('specific');
+  });
+
+  it('prefers an exact host claim over a wildcard listed before it', () => {
+    // The tiers: path-scoped, then exact/regex host, then `*.apex`.
+    // Config order decides only inside a tier — otherwise the real
+    // library data would hand `maps.google.com` to the generic `google`
+    // service, which lists `*.google.com` and is sorted first.
+    const matcher = buildHostMatcher([
+      { name: 'generic', origins: ['*.video.example'] },
+      { name: 'specific', origins: ['embed.video.example'] },
+    ]);
+    expect(matcher('embed.video.example')).toBe('specific');
+    expect(matcher('other.video.example')).toBe('generic');
   });
 
   it('skips services without an origins array (cookie-only services)', () => {

@@ -437,7 +437,8 @@ Enthält:
       plus initialer `getEntriesByType('resource')`-Drain.
 - [x] `classifier`: `LocalClassifier` matcht gegen `config.services`
       (`cookies` Klaro-Tuple/RegExp/exact, `origins` `string`/`*.suffix`/
-      `RegExp`). Stable Interface für Phase-3-Service-DB-Erweiterung.
+      `RegExp`, jeweils optional mit Pfad-Präfix `host/pfad/`). Stable
+      Interface für Phase-3-Service-DB-Erweiterung.
 - [x] Aktivierung: opt-in via `record: true` (oder `RecorderOptions`-Objekt).
       Hostname-Heuristik gibt `console.warn` aus, wenn Hostname nicht
       nach Dev/Local aussieht; per `silenceProductionWarning: true`
