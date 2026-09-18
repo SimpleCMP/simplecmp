@@ -8,6 +8,8 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-09-18
+
 ### Fixed
 
 - **Path-scoped origin matchers — two services can share one host.**
@@ -42,7 +44,18 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
   opted in. See `src/consent-log/` for the module + the TYPO3
   reference receiver in `t3-simplecmp` Phase 2 (`/api/simplecmp/v1/consent-log`).
 
+- **`consentExpiryDays` — time-based consent expiry (REQ-N12).** Stored
+  consent older than the configured number of days is discarded and the
+  banner re-shows. Off by default (`0`/absent); records written before
+  the feature existed carry no age stamp and are grandfathered in rather
+  than invalidated wholesale. The age lives in the visitor's own cookie,
+  so the feature adds no PII and needs no server state. Complements the
+  *mandatory* re-consent path — material change via `consentVersion` /
+  REQ-3 — with the softer cadence supervisory authorities ask for
+  (CNIL/ICO ~6 months, AEPD ≤24 months). There is no statutory clock
+  (EDPB 05/2020 §110), which is why this ships off by default.
 
+## [0.4.1] — 2026-06-16
 
 Point release that unblocks the TYPO3 plugin's StaticFileCache support
 (REQ-N9). No other changes; safe to upgrade from 0.4.0 without any host
