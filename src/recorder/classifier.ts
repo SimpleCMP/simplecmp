@@ -8,6 +8,16 @@
  * that composes local matching with a remote Service DB lookup; both
  * implement the same `Classifier` interface, so the watchers and the
  * coordinator don't change.
+ *
+ * Origin matchers follow the grammar shared with the server-side rewriter:
+ *
+ *     matcher     := host-pattern [ path-prefix ]
+ *     host-pattern := exact-host | "*." apex
+ *     path-prefix  := "/" …
+ *
+ * RegExp objects and slash-bounded regex strings (`/^...$/`) remain host
+ * patterns and are parsed before any path splitting — they never carry a
+ * path prefix.
  */
 
 import type {
@@ -78,36 +88,99 @@ export function cookieMatches(
   return false;
 }
 
+/** True when the string carries a slash-bounded regex source. */
+function isSlashBoundedRegexSource(matcher: string): boolean {
+  return matcher.length >= 2 && matcher.startsWith('/') && matcher.endsWith('/');
+}
+
+/**
+ * Split a plain string matcher into its host pattern and optional path
+ * prefix. A bare trailing slash has no information and is normalised to
+ * "no path prefix".
+ */
+export function splitOriginMatcher(matcher: string): [string, string | null] {
+  const slash = matcher.indexOf('/');
+  if (slash === -1) return [matcher, null];
+  const hostPattern = matcher.slice(0, slash);
+  const pathPrefix = matcher.slice(slash);
+  return [hostPattern, pathPrefix === '/' ? null : pathPrefix];
+}
+
+/**
+ * Exact host equality, or `*.apex` matching the apex itself and every
+ * subdomain below it.
+ */
+export function hostPatternMatches(host: string, hostPattern: string): boolean {
+  if (hostPattern.startsWith('*.')) {
+    const suffix = hostPattern.slice(2);
+    return host === suffix || host.endsWith(`.${suffix}`);
+  }
+  return host === hostPattern;
+}
+
+/**
+ * Prefix match on a path. A path without a leading slash gets one
+ * prepended first. `/maps/` matches `/maps/embed` and the bare
+ * directory `/maps`, but not `/mapsomething`.
+ */
+export function pathPrefixMatches(path: string, pathPrefix: string): boolean {
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  if (normalized.startsWith(pathPrefix)) return true;
+  // `/maps/` should also accept the directory itself, `/maps`.
+  return pathPrefix.endsWith('/') && normalized === pathPrefix.replace(/\/+$/, '');
+}
+
+/**
+ * True only for plain string matchers that actually name a path. Regex
+ * forms — RegExp objects and slash-bounded regex strings — are host
+ * patterns, never path-scoped matchers.
+ */
+export function isPathScopedMatcher(matcher: OriginMatcher): boolean {
+  if (matcher instanceof RegExp) return false;
+  if (typeof matcher !== 'string') return false;
+  if (isSlashBoundedRegexSource(matcher)) return false;
+  return splitOriginMatcher(matcher)[1] !== null;
+}
+
 /**
  * Match a host against a single origin matcher entry. Exported so the
  * runtime-patches matcher (ADR-0013 Phase 2) can use the same wildcard
  * semantics — keeps the server-side rewriter, the recorder, and the
  * JS-injected-call patch all classifying hosts consistently.
+ *
+ * `path`, when known, is also checked for path-scoped string matchers.
+ * When the caller knows no path (undefined or null), such a matcher
+ * degrades to its host half alone: host-only callers ask "which services
+ * CAN live on this host", and answering "none" would be a regression.
  */
-export function originMatches(host: string, matcher: OriginMatcher): boolean {
+export function originMatches(host: string, matcher: OriginMatcher, path?: string | null): boolean {
   if (matcher instanceof RegExp) {
     return matcher.test(host);
   }
   if (typeof matcher !== 'string') return false;
+
   // Slash-bounded form per the Service-DB protocol — same convention
   // as cookies (regex source via a bounding pair). Anchored to a FULL-host
   // match: unlike cookie-name regexes (intentionally partial, e.g.
   // `/^_ga/`), an unanchored host regex lets a substring impersonate a
   // service — `/tracker\.com/` would otherwise match
   // `eviltracker.com.attacker.net`. The `(?:…)` group makes the anchors
-  // wrap any top-level alternation in the source.
-  if (matcher.length >= 2 && matcher.startsWith('/') && matcher.endsWith('/')) {
+  // wrap any top-level alternation in the source. Handled here, before
+  // any path splitting — a regex source is full of slashes that are not
+  // path separators.
+  if (isSlashBoundedRegexSource(matcher)) {
     try {
       return new RegExp(`^(?:${matcher.slice(1, -1)})$`).test(host);
     } catch {
       return false;
     }
   }
-  if (matcher.startsWith('*.')) {
-    const suffix = matcher.slice(2);
-    return host === suffix || host.endsWith(`.${suffix}`);
-  }
-  return matcher === host;
+
+  const [hostPattern, pathPrefix] = splitOriginMatcher(matcher);
+  if (!hostPatternMatches(host, hostPattern)) return false;
+  if (pathPrefix === null) return true;
+  if (path === null || path === undefined) return true;
+  return pathPrefixMatches(path, pathPrefix);
 }
 
 /** Whether any observed origin matches the given matcher. */

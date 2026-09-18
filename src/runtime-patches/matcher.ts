@@ -19,20 +19,51 @@
  *   broken-until-curated embeds is acceptable. The host shows up in
  *   the detection log; admin promotes via Kuratieren as usual.
  *
- * Wildcard semantics match `recorder/classifier.ts::originMatches` —
- * imported directly, so all three layers (rewriter, recorder, runtime
- * patches) classify hosts identically.
+ * Match grammar:
+ *
+ *     matcher     := host-pattern [ path-prefix ]
+ *     host-pattern := exact-host | "*." apex
+ *     path-prefix  := "/" …
+ *
+ * Path-scoped claims (`www.google.com/maps/`) are split off at build
+ * time and checked before any host-only claim. Host-only claims use the
+ * server-side HostMatcher's ordering: exact/regex host patterns first,
+ * then `*.apex` wildcards — so an exact `maps.google.com` beats a
+ * generic `*.google.com` even when the generic service is listed first.
+ *
+ * Asymmetry with `originMatches`: `originMatches` DEGRADES to the host
+ * half when the caller knows no path, because a host-only caller asks
+ * "which services can live here?". This matcher must return exactly one
+ * service and therefore SKIPS path-scoped claims it cannot verify — an
+ * unverifiable claim must not beat a verifiable host-only match.
  *
  * Same-origin / allowlisted hosts are NOT this matcher's concern —
  * `decideBlock` filters them out before calling here.
  */
 
-import { originMatches } from '../recorder/classifier.js';
+import {
+  hostPatternMatches,
+  isPathScopedMatcher,
+  originMatches,
+  pathPrefixMatches,
+  splitOriginMatcher,
+} from '../recorder/classifier.js';
 import type { OriginMatcher } from '../recorder/types.js';
 
 interface ServiceWithOrigins {
   name: string;
   origins?: readonly OriginMatcher[];
+}
+
+interface PathScopedClaim {
+  name: string;
+  hostPattern: string;
+  pathPrefix: string;
+}
+
+interface HostOnlyClaim {
+  name: string;
+  matcher: OriginMatcher;
 }
 
 export interface BuildHostMatcherOptions {
@@ -57,25 +88,68 @@ export interface BuildHostMatcherOptions {
 export function buildHostMatcher(
   services: readonly ServiceWithOrigins[],
   options: BuildHostMatcherOptions = {}
-): (host: string) => string | null {
-  // Snapshot the (name, origins) pairs at build time — the patches call
-  // this function on every URL setter / fetch call, and re-resolving
-  // the array each time is wasteful.
-  const indexed = services
-    .filter(
-      (s): s is ServiceWithOrigins & { origins: readonly OriginMatcher[] } =>
-        Array.isArray(s.origins) && s.origins.length > 0
-    )
-    .map((s) => ({ name: s.name, origins: s.origins }));
-  const blockAllUnknown = options.blockAllUnknown === true;
+): (host: string, path?: string | null) => string | null {
+  // Partition once at build time; the returned matcher runs on every
+  // URL setter and fetch call.
+  const pathScoped: PathScopedClaim[] = [];
+  const exactHostOnly: HostOnlyClaim[] = [];
+  const wildcardHostOnly: HostOnlyClaim[] = [];
 
-  return (host: string): string | null => {
-    if (host === '') return null;
-    for (const service of indexed) {
-      for (const matcher of service.origins) {
-        if (originMatches(host, matcher)) return service.name;
+  for (const service of services) {
+    if (!service.origins || service.origins.length === 0) continue;
+    for (const matcher of service.origins) {
+      if (matcher instanceof RegExp) {
+        exactHostOnly.push({ name: service.name, matcher });
+        continue;
+      }
+      if (typeof matcher !== 'string') continue;
+
+      if (isPathScopedMatcher(matcher)) {
+        const [hostPattern, pathPrefix] = splitOriginMatcher(matcher);
+        // The guard above means pathPrefix is never null here; the
+        // explicit check keeps the tuple type usable under strict mode.
+        if (pathPrefix !== null) {
+          pathScoped.push({ name: service.name, hostPattern, pathPrefix });
+        }
+        continue;
+      }
+
+      if (matcher.startsWith('*.')) {
+        wildcardHostOnly.push({ name: service.name, matcher });
+      } else {
+        exactHostOnly.push({ name: service.name, matcher });
       }
     }
+  }
+
+  const blockAllUnknown = options.blockAllUnknown === true;
+
+  return (host, path) => {
+    if (host === '') return null;
+
+    // Most specific first: claims that name a path beat host-only
+    // claims. They are skipped when no path was supplied because they
+    // cannot be verified against a real pathname.
+    if (path !== null && path !== undefined) {
+      for (const claim of pathScoped) {
+        if (
+          hostPatternMatches(host, claim.hostPattern) &&
+          pathPrefixMatches(path, claim.pathPrefix)
+        ) {
+          return claim.name;
+        }
+      }
+    }
+
+    // Exact and regex host patterns are more specific than `*.apex`
+    // wildcards. Each group is still walked in config order.
+    for (const claim of exactHostOnly) {
+      if (originMatches(host, claim.matcher)) return claim.name;
+    }
+    for (const claim of wildcardHostOnly) {
+      if (originMatches(host, claim.matcher)) return claim.name;
+    }
+
     return blockAllUnknown ? host : null;
   };
 }

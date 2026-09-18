@@ -8,6 +8,23 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Path-scoped origin matchers — two services can share one host.**
+  `www.google.com` serves both the Maps embed (`/maps/embed?pb=…`) and
+  the reCAPTCHA loader (`/recaptcha/api.js`). Origin matchers were
+  host-only, so whichever service claimed the host also swallowed the
+  other one, and the visitor was asked to consent to the wrong service
+  under the wrong purpose (functional vs. marketing). Matchers may now
+  carry a path prefix — `www.google.com/maps/`, `*.google.com/recaptcha/`
+  — and `decideBlock` forwards the URL's pathname to the matcher.
+  `buildHostMatcher` resolves path-scoped claims before host claims,
+  since a matcher naming a path is strictly more specific. The regex
+  matcher forms are untouched: they are host patterns and are never
+  split at a slash. Mirrors the server-side fix in the TYPO3 extension
+  (`SimpleCMP/t3-simplecmp#8`), so rewriter and runtime patches agree on
+  attribution.
+
 ### Added
 
 - **`config.consentLog` — Phase 2 audit-trail surface.** New optional

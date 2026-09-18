@@ -57,15 +57,20 @@ export interface BlockInfo {
 
 export interface RuntimePatchOptions {
   /**
-   * Host → library service id lookup. Returns `null` when the host
-   * doesn't belong to any known third-party service (= pass through).
+   * Host → library service id lookup. Accepts the pathname when known
+   * so path-scoped claims (`www.google.com/maps/`) can be resolved at
+   * runtime — `www.google.com` serves both the Maps embed and the
+   * reCAPTCHA loader, and they carry different purposes. Returns `null`
+   * when the host doesn't belong to any known third-party service
+   * (= pass through).
    *
    * In production this is the same matcher the recorder uses (see
-   * `src/recorder/classifier.ts::originMatches`). For Phase 0 the demo
-   * page wires up a hardcoded test matcher; productionisation will
-   * derive this from the bundled `simplecmp/services-library`.
+   * `src/recorder/classifier.ts::originMatches`), built from the
+   * bundled `simplecmp/services-library` by `buildHostMatcher`. A
+   * one-parameter matcher stays valid — integrators that ignore the
+   * path keep working, they just can't resolve path-scoped claims.
    */
-  matcher: (host: string) => string | null;
+  matcher: (host: string, path?: string | null) => string | null;
 
   /**
    * Returns true if consent has been granted for the given service.
@@ -125,7 +130,7 @@ export function installRuntimePatches(options: RuntimePatchOptions): () => void 
 // --- internal --------------------------------------------------------
 
 interface Resolved {
-  matcher: (host: string) => string | null;
+  matcher: (host: string, path?: string | null) => string | null;
   consentChecker: (serviceId: string) => boolean;
   sameOriginHosts: readonly string[];
   onBlock: (info: BlockInfo) => void;
@@ -149,7 +154,7 @@ export function decideBlock(url: string, opts: Resolved): string | null {
   } catch {
     return null;
   }
-  const { host, hostname } = parsed;
+  const { host, hostname, pathname } = parsed;
   if (host === '' || opts.sameOriginHosts.includes(host)) return null;
   // Same-origin check above uses `host` (port-strict) so a page on
   // `localhost:3000` doesn't auto-trust `localhost:8080`. The matcher
@@ -157,7 +162,7 @@ export function decideBlock(url: string, opts: Resolved): string | null {
   // of `tracker.com` matches `https://tracker.com:8443/x` too —
   // consent decisions apply per-host, not per-host-port. Closes a
   // port-smuggling bypass surfaced by the decideBlock fuzz.
-  const service = opts.matcher(hostname);
+  const service = opts.matcher(hostname, pathname);
   if (service === null) return null;
   if (opts.consentChecker(service)) return null;
   return service;
