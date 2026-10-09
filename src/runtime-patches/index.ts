@@ -155,7 +155,7 @@ export function decideBlock(url: string, opts: Resolved): string | null {
     return null;
   }
   const { host, hostname, pathname } = parsed;
-  if (host === '' || opts.sameOriginHosts.includes(host)) return null;
+  if (host === '' || isSameOriginHost(host, hostname, opts.sameOriginHosts)) return null;
   // Same-origin check above uses `host` (port-strict) so a page on
   // `localhost:3000` doesn't auto-trust `localhost:8080`. The matcher
   // lookup below uses `hostname` (port-stripped) so a library entry
@@ -166,6 +166,41 @@ export function decideBlock(url: string, opts: Resolved): string | null {
   if (service === null) return null;
   if (opts.consentChecker(service)) return null;
   return service;
+}
+
+/**
+ * Same-origin / allowlist check with the semantics of the server-side
+ * rewriter (`simplecmp.universalBlocking.allowlist` in t3-simplecmp):
+ *
+ * - exact entries (`cdn.example.com`, `localhost:3000`) compare against
+ *   `host`, so a port in the entry stays port-strict;
+ * - `*.example.com` matches the apex and every subdomain, port-agnostic.
+ *
+ * Before, every entry was compared verbatim against `host`: a wildcard the
+ * server honoured never matched in the browser, and e.g. a chat widget
+ * whose script tags the rewriter let through was cut off from its own API
+ * host at runtime.
+ *
+ * Exported for unit testing — not re-exported via `src/index.ts`.
+ */
+export function isSameOriginHost(
+  host: string,
+  hostname: string,
+  entries: readonly string[]
+): boolean {
+  const lowerHost = host.toLowerCase();
+  const lowerHostname = hostname.toLowerCase();
+  for (const raw of entries) {
+    const entry = raw.trim().toLowerCase();
+    if (entry === '') continue;
+    if (entry.startsWith('*.')) {
+      const apex = entry.slice(2);
+      if (lowerHostname === apex || lowerHostname.endsWith(`.${apex}`)) return true;
+      continue;
+    }
+    if (entry === lowerHost) return true;
+  }
+  return false;
 }
 
 /**
