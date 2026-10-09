@@ -18,6 +18,7 @@ import {
   defaultTranslations,
   addEventListener as engineAddEventListener,
   getManager as engineGetManager,
+  setDefaultConfig as engineSetDefaultConfig,
   updateConfig as engineUpdateConfig,
   installConsentMode,
 } from './engine/index.js';
@@ -600,6 +601,11 @@ export function init(config: SimpleCMPConfig): LitInitHandle {
   // `document.documentElement` not `document.body`; patches just swap
   // prototype descriptors. None need a parsed body.
   const manager = engineGetManager(effectiveConfig);
+  // Make the public `getManager()` (no argument) resolve to this manager.
+  // Klaro set the default config in `setup()`, which the Lit path never
+  // calls, so integrations reading or granting consent from outside —
+  // e.g. a CMS's own video opt-in — got "called without config" instead.
+  engineSetDefaultConfig(effectiveConfig);
   if (effectiveConfig.record) {
     // `deferRecorder` moves the recorder's setup off the critical path to idle
     // (drift-monitoring trade-off; see the config field). Default stays
