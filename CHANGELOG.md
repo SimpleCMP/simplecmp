@@ -10,6 +10,15 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Fixed
 
+- **`getManager()` without an argument works after `init()`.** The Lit init
+  path never set the engine's default config (Klaro did that in `setup()`),
+  so the public `SimpleCMP.getManager()` threw "called without config and no
+  default config set" even on an initialised page. Integrations that read or
+  grant consent from outside — e.g. a CMS's own video opt-in — had no way to
+  reach the manager. `init()` now registers its config as the default.
+
+### Fixed
+
 - **Wildcard entries in `sameOriginHosts` match at runtime.** The runtime
   patches compared every entry verbatim against the request's `host`, so
   `*.example.com` — which the t3-simplecmp server-side rewriter honours
