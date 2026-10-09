@@ -8,6 +8,17 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Wildcard entries in `sameOriginHosts` match at runtime.** The runtime
+  patches compared every entry verbatim against the request's `host`, so
+  `*.example.com` — which the t3-simplecmp server-side rewriter honours
+  (apex + every subdomain) — never matched in the browser. A chat widget let
+  through by `*.botpress.cloud` was then cut off from its API host
+  (`webchat.botpress.cloud`) by the runtime. `decideBlock` now uses the same
+  semantics: wildcards match apex and subdomains, port-agnostic; exact
+  entries stay port-strict.
+
 ## [0.5.0] — 2026-09-18
 
 ### Fixed
