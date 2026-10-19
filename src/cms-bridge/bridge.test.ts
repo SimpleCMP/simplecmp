@@ -439,6 +439,90 @@ describe('CmsBridge — privacy + sampling', () => {
   });
 });
 
+describe('CmsBridge — identifier normalisation', () => {
+  function sentIdentifiers(fetchMock: ReturnType<typeof vi.fn>): string[] {
+    return fetchMock.mock.calls
+      .flatMap(
+        (call) =>
+          (JSON.parse(String(call[1].body)) as { detections: { identifier: string }[] }).detections
+      )
+      .map((d) => d.identifier);
+  }
+
+  it('strips query string and fragment from request identifiers (tracking ids)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    const bridge = bridgeWith({ fetch: fetchMock });
+
+    bridge.onDetection(
+      makeDetection({
+        kind: 'request',
+        identifier: 'https://bat.bing.com/actionp/0?ti=1&mid=visitor-uuid#frag',
+        origin: 'bat.bing.com',
+      })
+    );
+    await tick();
+
+    expect(sentIdentifiers(fetchMock)).toEqual(['https://bat.bing.com/actionp/0']);
+  });
+
+  it('dedups request URLs that differ only in their query string', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    const bridge = bridgeWith({ fetch: fetchMock });
+
+    for (const cid of ['a', 'b', 'c']) {
+      bridge.onDetection(
+        makeDetection({
+          kind: 'request',
+          identifier: `https://region1.google-analytics.com/g/collect?cid=${cid}`,
+          origin: 'region1.google-analytics.com',
+        })
+      );
+    }
+    await tick();
+
+    expect(sentIdentifiers(fetchMock)).toEqual(['https://region1.google-analytics.com/g/collect']);
+  });
+
+  it('caps over-long request identifiers at 256 chars so the batch is not rejected', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    const bridge = bridgeWith({ fetch: fetchMock });
+
+    bridge.onDetection(
+      makeDetection({
+        kind: 'script',
+        identifier: `https://cdn.example.test/${'x'.repeat(400)}.js`,
+        origin: 'cdn.example.test',
+      })
+    );
+    await tick();
+
+    const [identifier] = sentIdentifiers(fetchMock);
+    expect(identifier).toHaveLength(256);
+    expect(identifier.startsWith('https://cdn.example.test/')).toBe(true);
+  });
+
+  it('drops over-long cookie names instead of truncating them', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    const bridge = bridgeWith({ fetch: fetchMock });
+
+    bridge.onDetection(makeDetection({ identifier: 'c'.repeat(257) }));
+    bridge.onDetection(makeDetection({ identifier: '_ga' }));
+    await tick();
+
+    expect(sentIdentifiers(fetchMock)).toEqual(['_ga']);
+  });
+
+  it('keeps cookie names containing "?" untouched', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    const bridge = bridgeWith({ fetch: fetchMock });
+
+    bridge.onDetection(makeDetection({ identifier: 'odd?name' }));
+    await tick();
+
+    expect(sentIdentifiers(fetchMock)).toEqual(['odd?name']);
+  });
+});
+
 describe('CmsBridge — failure handling', () => {
   it('clears the in-memory dedup on 5xx so a later event retries', async () => {
     const fetchMock = vi
