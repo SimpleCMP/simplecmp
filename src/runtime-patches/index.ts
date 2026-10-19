@@ -245,9 +245,14 @@ function patchElementSrc(
         originalSet.call(this, value);
         return;
       }
-      const service = decideBlock(value, opts);
+      // Pages using Trusted Types (gtag.js / GTM do) assign a
+      // TrustedScriptURL object, not a string. Match and report on its
+      // string form, but hand the original value to the setter so the
+      // page's Trusted Types policy still sees what it created.
+      const url = String(value);
+      const service = decideBlock(url, opts);
       if (service !== null) {
-        opts.onBlock({ mechanism, url: value, service });
+        opts.onBlock({ mechanism, url, service });
         return;
       }
       originalSet.call(this, value);
