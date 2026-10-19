@@ -239,6 +239,60 @@ describe('dataLayer GTM event', () => {
   });
 });
 
+describe('one update per decision', () => {
+  const updates = () => consentCommands().filter((c) => c.mode === 'update');
+  const events = () =>
+    dataLayer().filter((e) => (e as { event?: string }).event === 'simplecmp_consent_update');
+
+  it('accept-all emits a single update and event, not one per service', () => {
+    const manager = makeManager({ regimeDefault: 'opt-in' });
+    installConsentMode(true, manager, SERVICES);
+    manager.changeAll(true);
+    manager.saveConsents();
+    expect(updates()).toHaveLength(1);
+    expect(events()).toHaveLength(1);
+    expect(updates()[0]?.map.ad_storage).toBe('granted');
+  });
+
+  it('unsaved toggles in the dialog grant nothing', () => {
+    const manager = makeManager({ regimeDefault: 'opt-in' });
+    installConsentMode(true, manager, SERVICES);
+    manager.updateConsent('gads', true);
+    expect(updates()).toHaveLength(0);
+    expect(events()).toHaveLength(0);
+  });
+
+  it('declining everything still emits its update and event', () => {
+    const manager = makeManager({ regimeDefault: 'opt-in' });
+    installConsentMode(true, manager, SERVICES);
+    manager.changeAll(false);
+    manager.saveConsents();
+    expect(updates()).toHaveLength(1);
+    expect(updates()[0]?.map.ad_storage).toBe('denied');
+    expect(events()).toHaveLength(1);
+  });
+
+  it('saving the same decision twice does not repeat the update', () => {
+    const manager = makeManager({ regimeDefault: 'opt-in' });
+    installConsentMode(true, manager, SERVICES);
+    manager.changeAll(true);
+    manager.saveConsents();
+    manager.saveConsents();
+    expect(updates()).toHaveLength(1);
+  });
+
+  it('withdrawal via resetConsents emits a denied update', () => {
+    const manager = makeManager({ regimeDefault: 'opt-in' });
+    installConsentMode(true, manager, SERVICES);
+    manager.changeAll(true);
+    manager.saveConsents();
+    manager.resetConsents();
+    expect(updates()).toHaveLength(2);
+    expect(updates()[1]?.map.ad_storage).toBe('denied');
+    expect(updates()[1]?.map.analytics_storage).toBe('denied');
+  });
+});
+
 describe('ads_data_redaction (dynamic)', () => {
   it('redacts while ad_storage denied, clears once granted', () => {
     const manager = makeManager({ regimeDefault: 'opt-in' });

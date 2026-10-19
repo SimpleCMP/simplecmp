@@ -294,8 +294,18 @@ export function installConsentMode(
     };
   };
 
+  // Last emitted `update`, so a repeated save of the same decision does not
+  // push another one (and fire GTM event triggers again). Compared against
+  // updates only — a first decision equal to the default (decline all) still
+  // gets its `update` and event.
+  let lastUpdateKey: string | null = null;
   const emit = (mode: EmitMode, stateFn: (s: Service) => boolean): void => {
     const view = viewFor(stateFn);
+    if (mode === 'update') {
+      const key = JSON.stringify(view.services());
+      if (key === lastUpdateKey) return;
+      lastUpdateKey = key;
+    }
     for (const a of adapters) a.emit(mode, view);
   };
 
@@ -311,11 +321,23 @@ export function installConsentMode(
     emit('update', (s) => manager.getConsent(s.name));
   }
 
-  // Update — every later decision.
+  // Update — once per decision. `consents` fires for every single
+  // `updateConsent()`: accept-all walks the services one by one, and toggles
+  // in the preferences dialog fire before the visitor saves. Reacting to it
+  // pushed one `update` (and one GTM event) per service with every
+  // intermediate state — a per-vendor GTM trigger fired several times, and
+  // unsaved toggles granted signals. So: emit on `saveConsents`, and on
+  // `consents` only when nothing is pending and nothing is decided, which is
+  // `resetConsents()` (withdrawal back to the defaults).
   const watcher: ConsentWatcher = {
     update: (m, name) => {
-      if (name !== 'consents' && name !== 'saveConsents') return;
-      emit('update', (s) => m.getConsent(s.name));
+      if (name === 'saveConsents') {
+        emit('update', (s) => m.getConsent(s.name));
+        return;
+      }
+      if (name === 'consents' && !m.confirmed && Object.keys(m.changedConsents()).length === 0) {
+        emit('update', (s) => m.getConsent(s.name));
+      }
     },
   };
   manager.watch(watcher);
