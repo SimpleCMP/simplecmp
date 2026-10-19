@@ -53,6 +53,33 @@ function stripQuery(url: string): string {
   return url.slice(0, Math.min(...cuts));
 }
 
+/**
+ * Server-side cap on `detections[].identifier` (t3-simplecmp
+ * `WebhookPayloadValidator::MAX_IDENTIFIER`). One oversized entry makes
+ * the receiver reject the whole batch with 400, so we never send one.
+ */
+const MAX_IDENTIFIER_LENGTH = 256;
+
+/**
+ * Normalise a detection identifier for the bridge, or `null` to skip it.
+ *
+ * Non-cookie identifiers are resource URLs; their query strings carry
+ * per-visitor tracking ids (GA `cid`, Bing `mid`, …) that must not reach
+ * the CMS, and they push collect-endpoint URLs past the length cap. The
+ * stripped URL is also the dedup key, so `/collect?…` hits with changing
+ * parameters count as one resource. Browsers serialise resource URLs
+ * percent-encoded, so length in UTF-16 units equals length in bytes.
+ *
+ * A cookie name cannot be shortened without inventing a different cookie,
+ * so an oversized one is dropped instead.
+ */
+function bridgeIdentifier(d: Detection): string | null {
+  if (d.kind === 'cookie') {
+    return d.identifier.length > MAX_IDENTIFIER_LENGTH ? null : d.identifier;
+  }
+  return stripQuery(d.identifier).slice(0, MAX_IDENTIFIER_LENGTH);
+}
+
 export class CmsBridge {
   private readonly url: string;
   /**
@@ -164,7 +191,10 @@ export class CmsBridge {
     if (this.respectDoNotTrack && this.nav?.doNotTrack === '1') return;
     if (this.host && d.origin === this.host) return;
 
-    const key = `${d.kind}:${d.identifier}`;
+    const identifier = bridgeIdentifier(d);
+    if (identifier === null || identifier === '') return;
+
+    const key = `${d.kind}:${identifier}`;
     if (this._dedupHit(key)) return;
 
     // Mark sent BEFORE enqueue so re-entrant events from the same tick
@@ -173,7 +203,7 @@ export class CmsBridge {
     const now = this.now();
     this.lastSent.set(key, now);
     this.pendingKeys.push(key);
-    this.pending.push(this._toBridgeDetection(d));
+    this.pending.push(this._toBridgeDetection({ ...d, identifier }));
 
     if (this.pending.length >= this.maxBatchSize) {
       this._flush();
