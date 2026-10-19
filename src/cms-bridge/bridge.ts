@@ -74,10 +74,13 @@ const MAX_IDENTIFIER_LENGTH = 256;
  * so an oversized one is dropped instead.
  */
 function bridgeIdentifier(d: Detection): string | null {
+  // String() guards against non-string identifiers from synthetic
+  // detections (e.g. a TrustedScriptURL that slipped through a patch).
+  const identifier = String(d.identifier);
   if (d.kind === 'cookie') {
-    return d.identifier.length > MAX_IDENTIFIER_LENGTH ? null : d.identifier;
+    return identifier.length > MAX_IDENTIFIER_LENGTH ? null : identifier;
   }
-  return stripQuery(d.identifier).slice(0, MAX_IDENTIFIER_LENGTH);
+  return stripQuery(identifier).slice(0, MAX_IDENTIFIER_LENGTH);
 }
 
 export class CmsBridge {

@@ -512,6 +512,23 @@ describe('CmsBridge — identifier normalisation', () => {
     expect(sentIdentifiers(fetchMock)).toEqual(['_ga']);
   });
 
+  it('stringifies non-string identifiers instead of throwing', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    const bridge = bridgeWith({ fetch: fetchMock });
+    const trustedUrl = { toString: () => 'https://www.googletagmanager.com/gtag/js?id=AW-1' };
+
+    bridge.onDetection(
+      makeDetection({
+        kind: 'script',
+        identifier: trustedUrl as unknown as string,
+        origin: 'www.googletagmanager.com',
+      })
+    );
+    await tick();
+
+    expect(sentIdentifiers(fetchMock)).toEqual(['https://www.googletagmanager.com/gtag/js']);
+  });
+
   it('keeps cookie names containing "?" untouched', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse());
     const bridge = bridgeWith({ fetch: fetchMock });
