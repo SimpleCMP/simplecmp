@@ -202,6 +202,31 @@ describe('dataLayer GTM event', () => {
     expect(events.length).toBeGreaterThan(0);
   });
 
+  it('carries the decision per service and per purpose', () => {
+    const manager = makeManager({ regimeDefault: 'opt-in' });
+    installConsentMode(true, manager, SERVICES);
+    manager.updateConsent('gads', true); // marketing only
+    manager.saveConsents();
+    const last = dataLayer()
+      .filter((e) => (e as { event?: string }).event === 'simplecmp_consent_update')
+      .at(-1) as { simplecmp?: unknown } | undefined;
+    expect(last?.simplecmp).toEqual({
+      services: { ga4: false, gads: true },
+      purposes: { analytics: false, marketing: true },
+    });
+  });
+
+  it('replays the stored per-service state for a returning visitor', () => {
+    const stored = JSON.stringify({ ga4: true, gads: false });
+    const manager = makeManager({ regimeDefault: 'opt-in' }, stored);
+    installConsentMode(true, manager, SERVICES);
+    const events = dataLayer().filter(
+      (e) => (e as { event?: string }).event === 'simplecmp_consent_update'
+    ) as { simplecmp?: { services?: Record<string, boolean> } }[];
+    expect(events).toHaveLength(1);
+    expect(events[0]?.simplecmp?.services).toEqual({ ga4: true, gads: false });
+  });
+
   it('omits the event when dataLayerEvent: false', () => {
     const manager = makeManager();
     installConsentMode({ dataLayerEvent: false }, manager, SERVICES);

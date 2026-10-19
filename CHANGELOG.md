@@ -8,6 +8,14 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ## [Unreleased]
 
+### Added
+
+- **Consent per service in the GTM event.** `simplecmp_consent_update` now
+  carries `simplecmp: {services: {[name]: boolean}, purposes: {[id]: boolean}}`.
+  Consent Mode signals are per purpose, so one consented marketing service
+  grants `ad_storage` to every marketing tag; with a Data Layer Variable on
+  `simplecmp.services.<name>` a GTM tag can be gated per vendor instead.
+
 ### Fixed
 
 - **`getManager()` without an argument works after `init()`.** The Lit init
