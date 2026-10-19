@@ -529,6 +529,43 @@ describe('CmsBridge — identifier normalisation', () => {
     expect(sentIdentifiers(fetchMock)).toEqual(['https://www.googletagmanager.com/gtag/js']);
   });
 
+  it('drops non-web identifiers injected by browser extensions', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    const bridge = bridgeWith({ fetch: fetchMock });
+
+    for (const identifier of [
+      'moz-extension://d4518658-2afa-469a-ae46-c3fef1809387/content.js',
+      'chrome-extension://caljgklbbfbcjjanaijlacgncafpegll/html/inlineForm.html',
+      'webkit-masked-url://hidden/',
+    ]) {
+      bridge.onDetection(makeDetection({ kind: 'script', identifier }));
+    }
+    bridge.onDetection(
+      makeDetection({ kind: 'script', identifier: 'https://cdn.example.test/a.js' })
+    );
+    await tick();
+
+    expect(sentIdentifiers(fetchMock)).toEqual(['https://cdn.example.test/a.js']);
+  });
+
+  it('drops resources injected by Kaspersky (per-install GUID in the path)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    const bridge = bridgeWith({ fetch: fetchMock });
+
+    bridge.onDetection(
+      makeDetection({
+        kind: 'script',
+        identifier:
+          'https://gc.kes.v2.scr.kaspersky-labs.com/0BE8F50F-5E01-419A-887D-53F1703E2A12/main.js',
+        origin: 'gc.kes.v2.scr.Kaspersky-Labs.com',
+      })
+    );
+    bridge.onDetection(makeDetection({ identifier: '_ga' }));
+    await tick();
+
+    expect(sentIdentifiers(fetchMock)).toEqual(['_ga']);
+  });
+
   it('keeps cookie names containing "?" untouched', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse());
     const bridge = bridgeWith({ fetch: fetchMock });
@@ -537,6 +574,27 @@ describe('CmsBridge — identifier normalisation', () => {
     await tick();
 
     expect(sentIdentifiers(fetchMock)).toEqual(['odd?name']);
+  });
+});
+
+describe('CmsBridge — referrer', () => {
+  afterEach(() => {
+    Reflect.deleteProperty(document, 'referrer');
+  });
+
+  it('strips query string and fragment from page.referrer (campaign click ids)', async () => {
+    Object.defineProperty(document, 'referrer', {
+      configurable: true,
+      value: 'https://www.example.test/landing/?gclid=abc&utm_source=x#top',
+    });
+    const fetchMock = vi.fn().mockResolvedValue(okResponse());
+    const bridge = bridgeWith({ fetch: fetchMock });
+
+    bridge.onDetection(makeDetection());
+    await tick();
+
+    const body = JSON.parse(fetchMock.mock.calls[0]?.[1].body as string);
+    expect(body.page.referrer).toBe('https://www.example.test/landing/');
   });
 });
 

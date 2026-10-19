@@ -80,7 +80,25 @@ function bridgeIdentifier(d: Detection): string | null {
   if (d.kind === 'cookie') {
     return identifier.length > MAX_IDENTIFIER_LENGTH ? null : identifier;
   }
+  // Only web resources belong to the site. chrome-extension://,
+  // moz-extension:// (random UUID per Firefox install), webkit-masked-url://
+  // etc. are injected by the visitor's browser, not loaded by the page.
+  if (!/^https?:\/\//i.test(identifier)) return null;
   return stripQuery(identifier).slice(0, MAX_IDENTIFIER_LENGTH);
+}
+
+/**
+ * Hosts whose resources are injected into the page by software on the
+ * visitor's device, not by the site. Kaspersky puts a per-installation
+ * GUID into the URL path, so reporting it would ship a device identifier
+ * to the CMS. Matched as a hostname suffix.
+ */
+const VISITOR_INJECTED_HOST_SUFFIXES = ['.kaspersky-labs.com'];
+
+function isVisitorInjected(origin: string | undefined): boolean {
+  if (origin === undefined) return false;
+  const host = origin.toLowerCase();
+  return VISITOR_INJECTED_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
 }
 
 export class CmsBridge {
@@ -193,6 +211,7 @@ export class CmsBridge {
     if (!this.sessionInScope) return;
     if (this.respectDoNotTrack && this.nav?.doNotTrack === '1') return;
     if (this.host && d.origin === this.host) return;
+    if (isVisitorInjected(d.origin)) return;
 
     const identifier = bridgeIdentifier(d);
     if (identifier === null || identifier === '') return;
@@ -411,7 +430,9 @@ export class CmsBridge {
       url: loc ? stripQuery(loc.href) : '',
     };
     const referrer = doc?.referrer;
-    if (referrer) page.referrer = referrer;
+    // Campaign parameters (gclid, msclkid, utm_*) on the referring URL
+    // identify the click; strip them like page.url.
+    if (referrer) page.referrer = stripQuery(referrer);
     const userAgent = nav?.userAgent;
     if (userAgent) page.userAgent = userAgent;
     return {
