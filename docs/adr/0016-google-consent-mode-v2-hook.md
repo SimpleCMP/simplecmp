@@ -138,7 +138,12 @@ Deltas relevant to this ADR:
   tracks `ad_storage` (true while denied), emitted before `default` and on each
   update — not a static passthrough.
 - **`dataLayerEvent` defaults to on** (`'simplecmp_consent_update'`); `false`
-  disables it.
+  disables it. The event carries the decision under `simplecmp`:
+  `{services: {[name]: boolean}, purposes: {[id]: boolean}}`. Consent Mode
+  signals are per purpose — one consented marketing service grants `ad_storage`
+  for every marketing tag in the container — so a GTM trigger condition on the
+  Data Layer Variable `simplecmp.services.<name>` is how a tag is gated per
+  vendor (e.g. LinkedIn off, Google Ads on).
 - **`default` covers only mapped signals** plus `security_storage: 'granted'`;
   unmapped signals stay unset (unset ≠ denied) and are opt-in via `purposeSignals`.
 - The `gtag` shim must use the canonical `function gtag(){dataLayer.push(arguments)}`

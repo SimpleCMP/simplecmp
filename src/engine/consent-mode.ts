@@ -57,6 +57,12 @@ export interface ConsentModeConfig {
    * Also push a GTM custom event on each Google update. Default on
    * (`'simplecmp_consent_update'`); `false` disables. Hardcoded gtag reacts to
    * the consent command itself; GTM triggers need the event.
+   *
+   * The event carries the decision per service and per purpose under the
+   * `simplecmp` key (`{services: {[name]: boolean}, purposes: {[id]: boolean}}`).
+   * Consent Mode signals are per purpose, so one consented marketing service
+   * grants `ad_storage` for every marketing tag; a GTM trigger condition on
+   * `simplecmp.services.<name>` (Data Layer Variable) gates a tag per vendor.
    */
   dataLayerEvent?: boolean | string;
   /**
@@ -109,6 +115,10 @@ type EmitMode = 'default' | 'update';
  */
 interface ConsentView {
   granted(purpose: string): boolean;
+  /** Decision per service name. */
+  services(): Record<string, boolean>;
+  /** Decision per purpose that any service carries. */
+  purposes(): Record<string, boolean>;
 }
 
 /** A vendor that can be signalled in-page. Built once per install. */
@@ -186,7 +196,10 @@ function googleAdapter(opts: ResolvedOpts, w: GtagWindow): ConsentVendorAdapter 
       } else {
         gtag('consent', 'update', { ...map });
         if (opts.dataLayerEvent !== null && Array.isArray(w.dataLayer)) {
-          w.dataLayer.push({ event: opts.dataLayerEvent });
+          w.dataLayer.push({
+            event: opts.dataLayerEvent,
+            simplecmp: { services: view.services(), purposes: view.purposes() },
+          });
         }
       }
     },
@@ -268,9 +281,18 @@ export function installConsentMode(
   const adapters = buildAdapters(opts, window);
   if (adapters.length === 0) return () => {};
 
-  const viewFor = (stateFn: (s: Service) => boolean): ConsentView => ({
-    granted: (purpose) => services.some((s) => (s.purposes ?? []).includes(purpose) && stateFn(s)),
-  });
+  const viewFor = (stateFn: (s: Service) => boolean): ConsentView => {
+    const granted = (purpose: string): boolean =>
+      services.some((s) => (s.purposes ?? []).includes(purpose) && stateFn(s));
+    return {
+      granted,
+      services: () => Object.fromEntries(services.map((s) => [s.name, stateFn(s)])),
+      purposes: () => {
+        const ids = new Set(services.flatMap((s) => s.purposes ?? []));
+        return Object.fromEntries([...ids].map((p) => [p, granted(p)]));
+      },
+    };
+  };
 
   const emit = (mode: EmitMode, stateFn: (s: Service) => boolean): void => {
     const view = viewFor(stateFn);
