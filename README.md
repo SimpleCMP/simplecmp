@@ -54,7 +54,11 @@ Beyond the four differentiators above, SimpleCMP ships a complete consent layer:
   optional `consentMode` hook emits Google's `gtag('consent', …)` plus a GTM
   dataLayer event, and (ADR-0017) Meta Pixel + Microsoft UET vendor signals, from
   the consent state. It *signals* the merchant's existing tags; it never loads
-  them itself.
+  them itself. One `update` per saved decision (and on withdrawal); the
+  `simplecmp_consent_update` event carries
+  `simplecmp: {services: {[name]: boolean}, purposes: {[id]: boolean}}`, so a
+  GTM Data Layer Variable on `simplecmp.services.<name>` can gate a tag per
+  vendor — Consent Mode signals alone are per purpose.
 - **Universal pre-consent blocking (ADR-0012/0013)** — blocks third-party
   scripts / iframes / pixels before consent, with click-to-enable placeholders;
   plus opt-in **stylesheet blocking** for third-party CSS such as Google Fonts

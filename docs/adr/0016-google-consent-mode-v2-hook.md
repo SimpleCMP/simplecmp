@@ -144,6 +144,10 @@ Deltas relevant to this ADR:
   for every marketing tag in the container — so a GTM trigger condition on the
   Data Layer Variable `simplecmp.services.<name>` is how a tag is gated per
   vendor (e.g. LinkedIn off, Google Ads on).
+- **One `update` per decision.** Emitted on `saveConsents`, and on
+  `resetConsents()` (withdrawal) — not on every `updateConsent()`, which
+  fires once per service during accept-all and for unsaved toggles in the
+  preferences dialog. A repeated save of the same decision is not re-emitted.
 - **`default` covers only mapped signals** plus `security_storage: 'granted'`;
   unmapped signals stay unset (unset ≠ denied) and are opt-in via `purposeSignals`.
 - The `gtag` shim must use the canonical `function gtag(){dataLayer.push(arguments)}`
