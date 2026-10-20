@@ -18,6 +18,24 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Fixed
 
+- **Consent Mode: one `update` per decision.** The hook reacted to every
+  single `updateConsent()`, so accept-all pushed one `consent update` and one
+  `simplecmp_consent_update` event per service with intermediate states, and
+  unsaved toggles in the preferences dialog granted signals. It now emits on
+  save and on withdrawal only, and does not repeat an unchanged decision.
+- **CMS bridge sends resource URLs without query string.** Collect URLs
+  (Bing UET, GA4) exceeded the receiver's 256-character limit, which rejected
+  the whole batch with 400 — and carried per-visitor tracking ids. Identifiers
+  of non-cookie detections are now stripped of query and fragment and capped
+  at 256 characters; the referrer is stripped too.
+- **CMS bridge skips visitor-side injections.** Browser extensions
+  (`chrome-extension://`, `moz-extension://` with its per-install UUID, …) and
+  Kaspersky (`*.kaspersky-labs.com`, per-install GUID in the path) are not
+  loaded by the site and are no longer reported.
+- **Trusted Types values on `script.src`.** GTM assigns a `TrustedScriptURL`
+  object; the blocking patch passed it on as the reported URL, which made the
+  recorder throw (`r.indexOf is not a function`). It now reports the string
+  form and still hands the original value to the browser.
 - **`getManager()` without an argument works after `init()`.** The Lit init
   path never set the engine's default config (Klaro did that in `setup()`),
   so the public `SimpleCMP.getManager()` threw "called without config and no
