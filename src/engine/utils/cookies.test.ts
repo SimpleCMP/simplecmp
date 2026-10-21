@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { deleteCookie, getCookie } from './cookies.js';
+import { cookieDomainCandidates, deleteCookie, getCookie } from './cookies.js';
 
 describe('deleteCookie', () => {
   it('returns true after removing a previously-set cookie', () => {
@@ -40,5 +40,27 @@ describe('deleteCookie', () => {
       // shadows the instance-level override we set above.
       if (original) Object.defineProperty(document, 'cookie', original);
     }
+  });
+});
+
+describe('cookieDomainCandidates', () => {
+  it('walks from the dotted host up to the registrable domain', () => {
+    expect(cookieDomainCandidates('www.linear.eu')).toEqual(['.www.linear.eu', 'linear.eu']);
+    expect(cookieDomainCandidates('a.b.example.co.uk')).toEqual([
+      '.a.b.example.co.uk',
+      'b.example.co.uk',
+      'example.co.uk',
+      'co.uk',
+    ]);
+  });
+
+  it('returns only the dotted host for a two-label domain', () => {
+    expect(cookieDomainCandidates('linear.eu')).toEqual(['.linear.eu']);
+  });
+
+  it('returns nothing for IPs and single-label hosts', () => {
+    expect(cookieDomainCandidates('localhost')).toEqual([]);
+    expect(cookieDomainCandidates('127.0.0.1')).toEqual([]);
+    expect(cookieDomainCandidates('::1')).toEqual([]);
   });
 });
