@@ -18,6 +18,15 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Fixed
 
+- **Revocation leaves nothing behind.** Withdrawing consent now deletes what
+  the service stored, which previously survived in three ways:
+  cookies on the parent domain (Google Analytics, Google Ads and Microsoft
+  UET write `_ga`, `_gcl_au`, `_uet*` on `example.com` while the page is
+  `www.example.com`) — deletion now walks up from the host to the
+  registrable domain; services-library patterns (`'/^_ga_/'`,
+  `{name: 'AEC', requireOrigin: …}`) were not understood and silently
+  skipped; and `localStorage` was never touched — keys matching the
+  service's `cookies` patterns are removed too, never the consent record.
 - **Consent Mode: one `update` per decision.** The hook reacted to every
   single `updateConsent()`, so accept-all pushed one `consent update` and one
   `simplecmp_consent_update` event per service with intermediate states, and

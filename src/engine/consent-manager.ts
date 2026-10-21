@@ -24,7 +24,7 @@ import stores, {
   type StoreManagerLike,
 } from './stores.js';
 import { applyDataset, dataset } from './utils/compat.js';
-import { deleteCookie, getCookies } from './utils/cookies.js';
+import { cookieDomainCandidates, deleteCookie, getCookies } from './utils/cookies.js';
 
 // --- public types ----------------------------------------------------------
 
@@ -266,6 +266,59 @@ function isKeyedStore(s: Store): s is KeyedStore {
 
 function escapeRegexStr(str: string): string {
   return str.replace(/[-[\]/{}()*+?.\\^$|]/g, '\\$&');
+}
+
+interface StoragePattern {
+  regex: RegExp;
+  path?: string;
+  domain?: string;
+}
+
+/**
+ * Normalise one `service.cookies` entry. Accepted shapes:
+ *
+ * - `RegExp`
+ * - `'^…'` — regex source (Klaro convention)
+ * - `'/…/flags'` — regex literal as string (services-library convention)
+ * - plain string — exact name
+ * - `[pattern, path?, domain?]` tuple
+ * - `{ pattern | name, path?, domain? }` — `name` is the services-library
+ *   key; extra keys such as `requireOrigin` only matter for detection
+ *   and are ignored here.
+ */
+function toStoragePattern(entry: unknown): StoragePattern | null {
+  let pattern: unknown = entry;
+  let path: string | undefined;
+  let domain: string | undefined;
+  if (Array.isArray(entry)) {
+    [pattern, path, domain] = entry as [unknown, string | undefined, string | undefined];
+  } else if (entry !== null && typeof entry === 'object' && !(entry instanceof RegExp)) {
+    const e = entry as { pattern?: unknown; name?: unknown; path?: string; domain?: string };
+    pattern = e.pattern ?? e.name;
+    path = e.path;
+    domain = e.domain;
+  }
+  let regex: RegExp;
+  if (pattern instanceof RegExp) {
+    regex = pattern;
+  } else if (typeof pattern === 'string' && pattern !== '') {
+    const literal = /^\/(.+)\/([a-z]*)$/.exec(pattern);
+    try {
+      if (literal !== null) {
+        // Drop g/y: a stateful lastIndex would make repeated exec() skip matches.
+        regex = new RegExp(literal[1] ?? '', (literal[2] ?? '').replace(/[gy]/g, ''));
+      } else if (pattern.startsWith('^')) {
+        regex = new RegExp(pattern);
+      } else {
+        regex = new RegExp(`^${escapeRegexStr(pattern)}$`);
+      }
+    } catch {
+      return null;
+    }
+  } else {
+    return null;
+  }
+  return { regex, path, domain };
 }
 
 /** Run a service handler; supports both function form and Klaro's string-eval form. */
@@ -984,44 +1037,29 @@ export class ConsentManager {
     anchor.insertAdjacentElement('afterend', notice);
   }
 
-  /** Delete cookies set by a service when consent is revoked. */
+  /**
+   * Delete what a service stored in the browser when consent is revoked.
+   *
+   * `service.cookies` names the storage keys a service writes. They are
+   * matched against cookies and against `localStorage` keys — trackers
+   * such as Microsoft UET keep the same identifiers in both, and
+   * first-party attribution scripts often use only `localStorage`.
+   */
   updateServiceStorage(service: Service, consent: boolean): void {
     if (consent) return;
     if (!service.cookies || service.cookies.length === 0) return;
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
+    const patterns = service.cookies
+      .map(toStoragePattern)
+      .filter((p): p is StoragePattern => p !== null);
+    this.deleteServiceCookies(service, patterns);
+    this.deleteServiceLocalStorage(patterns);
+  }
+
+  private deleteServiceCookies(service: Service, patterns: StoragePattern[]): void {
     const cookies = getCookies();
-    for (const entry of service.cookies) {
-      let cookiePattern: unknown = entry;
-      let cookiePath: string | undefined;
-      let cookieDomain: string | undefined;
-      if (Array.isArray(cookiePattern)) {
-        [cookiePattern, cookiePath, cookieDomain] = cookiePattern as [
-          unknown,
-          string | undefined,
-          string | undefined,
-        ];
-      } else if (
-        cookiePattern !== null &&
-        typeof cookiePattern === 'object' &&
-        !(cookiePattern instanceof RegExp)
-      ) {
-        const cp = cookiePattern as { pattern?: unknown; path?: string; domain?: string };
-        cookiePattern = cp.pattern;
-        cookiePath = cp.path;
-        cookieDomain = cp.domain;
-      }
-      if (cookiePattern === undefined) continue;
-      let regex: RegExp;
-      if (cookiePattern instanceof RegExp) {
-        regex = cookiePattern;
-      } else if (typeof cookiePattern === 'string') {
-        regex = cookiePattern.startsWith('^')
-          ? new RegExp(cookiePattern)
-          : new RegExp(`^${escapeRegexStr(cookiePattern)}$`);
-      } else {
-        continue;
-      }
+    for (const { regex, path, domain } of patterns) {
       for (const cookie of cookies) {
         if (regex.exec(cookie.name) === null) continue;
         console.debug(
@@ -1030,21 +1068,51 @@ export class ConsentManager {
           'Matched pattern:',
           regex,
           'Path:',
-          cookiePath,
+          path,
           'Domain:',
-          cookieDomain
+          domain
         );
-        let deleted = deleteCookie(cookie.name, cookiePath, cookieDomain);
-        // If no domain was specified, also try `.<host>` since some services
-        // (Facebook pixel etc.) explicitly set the dotted form.
-        if (!deleted && cookieDomain === undefined) {
-          deleted = deleteCookie(cookie.name, cookiePath, `.${window.location.hostname}`);
+        let deleted = deleteCookie(cookie.name, path, domain);
+        // Without an explicit domain, walk up from `.<host>` to the
+        // registrable domain — Facebook sets the dotted host, Google
+        // Analytics / Ads and Microsoft UET the parent domain.
+        if (domain === undefined) {
+          for (const candidate of cookieDomainCandidates(window.location.hostname)) {
+            if (deleted) break;
+            deleted = deleteCookie(cookie.name, path, candidate);
+          }
         }
         if (!deleted) {
           console.warn(
             `SimpleCMP: cookie "${cookie.name}" still present after deletion attempt for service "${service.name}". It may be set on a path/domain we cannot reach from JS, or another script re-set it.`
           );
         }
+      }
+    }
+  }
+
+  private deleteServiceLocalStorage(patterns: StoragePattern[]): void {
+    let storage: Storage;
+    try {
+      storage = window.localStorage;
+    } catch {
+      return; // blocked site data
+    }
+    if (storage === undefined || storage === null) return;
+    let keys: string[];
+    try {
+      keys = Object.keys(storage);
+    } catch {
+      return;
+    }
+    for (const key of keys) {
+      // Never let a broad pattern take the consent record with it.
+      if (key === this.storageName) continue;
+      if (!patterns.some(({ regex }) => regex.exec(key) !== null)) continue;
+      try {
+        storage.removeItem(key);
+      } catch {
+        // ignore — nothing else to try
       }
     }
   }

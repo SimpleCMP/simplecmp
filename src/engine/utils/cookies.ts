@@ -63,6 +63,29 @@ export function setCookie(
 }
 
 /**
+ * Domain attributes a cookie visible on `hostname` may have been set with:
+ * the dotted host itself, then every parent domain down to two labels.
+ * Trackers like Google Analytics, Google Ads and Microsoft UET write their
+ * cookies on the registrable domain (`linear.eu` when the page is
+ * `www.linear.eu`); a delete that only names the host leaves them behind.
+ *
+ * Without a public-suffix list we cannot tell `example.co.uk` from `co.uk`,
+ * so the list stops at two labels and may include a public suffix — the
+ * browser silently rejects writes to those, which is harmless here.
+ * IP addresses and single-label hosts (`localhost`) yield no candidates.
+ */
+export function cookieDomainCandidates(hostname: string): string[] {
+  if (hostname === '' || /^[\d.]+$/.test(hostname) || hostname.includes(':')) return [];
+  const labels = hostname.split('.');
+  if (labels.length < 2) return [];
+  const candidates = [`.${hostname}`];
+  for (let i = 1; i <= labels.length - 2; i++) {
+    candidates.push(labels.slice(i).join('.'));
+  }
+  return candidates;
+}
+
+/**
  * Delete a cookie. Tries multiple Path/Domain combinations because browsers
  * scope cookies by both — without trying each variation we leave orphans
  * behind on some setups.
