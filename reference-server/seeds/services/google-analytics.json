@@ -17,6 +17,6 @@
   },
   "matches": {
     "cookies": ["_ga", "/^_ga_/", "_gid", "_gat", "/^_gac_/"],
-    "origins": ["www.google-analytics.com", "ssl.google-analytics.com", "stats.g.doubleclick.net"]
+    "origins": ["www.google-analytics.com", "ssl.google-analytics.com", "*.google-analytics.com", "*.analytics.google.com", "stats.g.doubleclick.net"]
   }
 }
