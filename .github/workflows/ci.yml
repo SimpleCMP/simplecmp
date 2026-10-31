@@ -60,7 +60,10 @@ jobs:
 
   a11y:
     name: Accessibility (axe-core)
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04 in 10/2026 and Playwright's
+    # `install --with-deps chromium` refuses that platform. Back to
+    # ubuntu-latest once Playwright supports it.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
