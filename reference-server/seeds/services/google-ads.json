@@ -13,6 +13,6 @@
   },
   "matches": {
     "cookies": ["IDE", "/^_gcl_/", "DSID"],
-    "origins": ["*.doubleclick.net", "googleads.g.doubleclick.net", "www.googleadservices.com"]
+    "origins": ["*.doubleclick.net", "googleads.g.doubleclick.net", "www.googleadservices.com", "www.google.com"]
   }
 }
