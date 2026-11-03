@@ -271,7 +271,14 @@ describe('<simplecmp-contextual-notice>', () => {
     expect(description).toBe('This embed needs YouTube to load.');
   });
 
-  it('focuses the first action button when auto-inserted by the engine', async () => {
+  it('does not steal focus when auto-inserted by the engine', async () => {
+    // Regression: auto-placeholders focused their first button on first
+    // paint. With several blocked embeds the last one kept focus and the
+    // browser scrolled the page down to it on load.
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
     const el = document.createElement('simplecmp-contextual-notice') as SimpleCmpContextualNotice;
     el.config = baseConfig;
     el.manager = manager;
@@ -279,11 +286,10 @@ describe('<simplecmp-contextual-notice>', () => {
     el.setAttribute('data-simplecmp-auto-placeholder', '');
     document.body.appendChild(el);
     await el.updateComplete;
-    // Give Lit one extra tick for the focus call inside firstUpdated.
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const focused = el.shadowRoot?.activeElement;
-    expect(focused?.tagName.toLowerCase()).toBe('button');
+    expect(document.activeElement).toBe(input);
+    expect(el.shadowRoot?.activeElement).toBeNull();
   });
 
   it('does not steal focus when authored by the integrator (no auto-placeholder marker)', async () => {
