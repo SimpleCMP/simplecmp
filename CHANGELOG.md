@@ -18,6 +18,11 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Fixed
 
+- **Blocked embeds no longer scroll the page on load.** Auto-inserted
+  contextual notices focused their first button on first paint. With several
+  blocked embeds (a page of YouTube videos) the last notice kept focus and
+  the browser jumped down to it; keyboard users also skipped everything
+  above it. Notices no longer take focus on their own.
 - **Revocation leaves nothing behind.** Withdrawing consent now deletes what
   the service stored, which previously survived in three ways:
   cookies on the parent domain (Google Analytics, Google Ads and Microsoft

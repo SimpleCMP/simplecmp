@@ -37,21 +37,12 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
   @property({ type: String, attribute: 'service-name' })
   serviceName?: string;
 
-  /**
-   * Whether the host element carries `data-simplecmp-auto-placeholder` —
-   * set by `ConsentManager._toggleAutoPlaceholder` when the engine
-   * inserts this notice itself. We use it to decide whether to steal
-   * focus on first paint (auto-insert: yes; integrator-authored: no).
-   */
-  private _autoPlaceholder = false;
-
   /** Open state for the L2 Provider-Informationen modal (REQ-19). */
   @state()
   private _providerInfoOpen = false;
 
   override connectedCallback(): void {
     super.connectedCallback();
-    this._autoPlaceholder = this.hasAttribute('data-simplecmp-auto-placeholder');
     // Landmark role + accessible name. Set on the host so screen
     // readers see this as a discrete region. The aria-label is
     // refreshed on each render in `firstUpdated`/`updated` once the
@@ -480,7 +471,6 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
   override firstUpdated(changed: PropertyValues): void {
     super.firstUpdated?.(changed);
     this._updateAriaLabel();
-    this._maybeFocusFirstAction();
   }
 
   override updated(changed: PropertyValues): void {
@@ -505,19 +495,6 @@ export class SimpleCmpContextualNotice extends SimpleCmpElement {
     if (this.getAttribute('aria-label') !== final) {
       this.setAttribute('aria-label', final);
     }
-  }
-
-  /**
-   * When the engine auto-inserts this notice (engine adds
-   * `data-simplecmp-auto-placeholder` on the host), focus the first
-   * non-disabled action button so keyboard users land on a useful
-   * control. Integrator-authored notices (no marker attribute) don't
-   * steal focus — they're declarative markup, not a dialog.
-   */
-  private _maybeFocusFirstAction(): void {
-    if (!this._autoPlaceholder) return;
-    const button = this.renderRoot.querySelector<HTMLButtonElement>('button:not([disabled])');
-    button?.focus();
   }
 
   private _tString(key: string | string[]): string {
