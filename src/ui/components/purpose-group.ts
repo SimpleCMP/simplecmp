@@ -10,6 +10,11 @@
  *   - mixed             → indeterminate
  *   - all disabled      → unchecked
  *   - all required-only → checked + disabled
+ *
+ * A purpose's `description` may say its services cannot be switched off
+ * (the bundled `functional` text does). That only holds when every service
+ * in the group is required, so groups with an optional service use
+ * `descriptionOptional` when the language pack provides one.
  */
 
 import { css, html, nothing } from 'lit';
@@ -114,7 +119,11 @@ export class SimpleCmpPurposeGroup extends SimpleCmpElement {
 
     const status = this._computeStatus();
     const title = this._tString(['!', 'purposes', this.purpose, 'title?']) || asTitle(this.purpose);
-    const description = this._tString(['!', 'purposes', this.purpose, 'description']);
+    const description =
+      (status.allRequired
+        ? ''
+        : this._tString(['!', 'purposes', this.purpose, 'descriptionOptional'])) ||
+      this._tString(['!', 'purposes', this.purpose, 'description']);
 
     const id = `simplecmp-purpose-${this.purpose}`;
 

@@ -18,6 +18,12 @@ once it reaches 1.0. Until then, breaking changes may occur in minor versions.
 
 ### Fixed
 
+- **"Cannot be disabled" only where it is true.** The bundled `functional`
+  purpose text says its services cannot be switched off, but the switch is
+  locked only for services marked `required`. A group with an optional
+  service now shows `purposes.<purpose>.descriptionOptional` (shipped for
+  `functional` in every language that had the old text); fully required
+  groups keep `description`.
 - **Blocked embeds no longer scroll the page on load.** Auto-inserted
   contextual notices focused their first button on first paint. With several
   blocked embeds (a page of YouTube videos) the last notice kept focus and

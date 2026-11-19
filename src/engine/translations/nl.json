@@ -45,6 +45,7 @@
     },
     "functional": {
       "description": "Deze diensten zijn essentieel voor het correct functioneren van deze website. U kunt ze hier niet uitschakelen omdat de dienst anders niet correct zou werken.\n",
+      "descriptionOptional": "Deze diensten leveren functies van deze website. U kunt de diensten uitschakelen die niet als altijd nodig zijn gemarkeerd.",
       "title": "Dienstverlening"
     },
     "marketing": {

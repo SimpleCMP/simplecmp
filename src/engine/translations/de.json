@@ -70,6 +70,7 @@
     },
     "functional": {
       "description": "Diese Dienste sind für die korrekte Funktion dieser Website unerlässlich. Sie können sie hier nicht deaktivieren, da der Dienst sonst nicht richtig funktionieren würde.\n",
+      "descriptionOptional": "Diese Dienste stellen Funktionen dieser Website bereit. Dienste, die nicht als immer erforderlich gekennzeichnet sind, können Sie hier deaktivieren.",
       "title": "Dienstbereitstellung"
     },
     "marketing": {
