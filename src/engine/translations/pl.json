@@ -45,6 +45,7 @@
     },
     "functional": {
       "description": "Usługi te są niezbędne do prawidłowego funkcjonowania niniejszej strony internetowej. Nie mogą Państwo ich tutaj wyłączyć, ponieważ w przeciwnym razie strona nie działałaby prawidłowo.\n",
+      "descriptionOptional": "Usługi te zapewniają funkcje niniejszej strony internetowej. Mogą Państwo wyłączyć te, które nie są oznaczone jako zawsze wymagane.",
       "title": "Świadczenie usług"
     },
     "marketing": {

@@ -40,6 +40,7 @@
     },
     "functional": {
       "description": "Estes servizos son esenciais para o correcto funcionamiento deste sitio web. Non pode desactivalos xa que a páxina non funcionaría correctamente.",
+      "descriptionOptional": "Estes servizos proporcionan funcións deste sitio web. Pode desactivar os que non estean marcados como sempre requiridos.",
       "title": "Prestación de servizos"
     },
     "marketing": {

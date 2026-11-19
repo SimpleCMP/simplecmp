@@ -23,7 +23,8 @@
       "description": "Estos servicios procesan información personal para mostrarte anuncios personalizados o basados en tus intereses."
     },
     "functional": {
-      "description": "Estos servicios son esenciales para el correcto funcionamiento de este sitio web. No puedes desactivarlos ya que la página no funcionaría correctamente."
+      "description": "Estos servicios son esenciales para el correcto funcionamiento de este sitio web. No puedes desactivarlos ya que la página no funcionaría correctamente.",
+      "descriptionOptional": "Estos servicios proporcionan funciones de este sitio web. Puedes desactivar los que no estén marcados como siempre requeridos."
     },
     "marketing": {
       "description": "Estos servicios procesan información personal para mostrarte contenido relevante sobre productos, servicios o temas que puedan interesarte."

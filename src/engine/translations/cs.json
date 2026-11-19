@@ -16,7 +16,8 @@
   "purposes": {
     "functional": {
       "title|capitalize": "Poskytování služeb",
-      "description": "Tyto služby jsou nezbytné pro správné fungování tohoto webu. Nelze je zde deaktivovat, protože služba by jinak nefungovala správně.\n"
+      "description": "Tyto služby jsou nezbytné pro správné fungování tohoto webu. Nelze je zde deaktivovat, protože služba by jinak nefungovala správně.\n",
+      "descriptionOptional": "Tyto služby zajišťují funkce tohoto webu. Ty, které nejsou označeny jako vždy vyžadované, zde můžete deaktivovat."
     },
     "performance": {
       "title|capitalize": "Optimalizace výkonu",

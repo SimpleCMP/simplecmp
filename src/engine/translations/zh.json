@@ -45,6 +45,7 @@
     },
     "functional": {
       "description": "这些服务对于本网站的正常运行是必不可少的。您不能在这里禁用它们，否则服务将无法正常运行。\n",
+      "descriptionOptional": "这些服务提供本网站的功能。您可以禁用未标记为总是需要的服务。",
       "title": "服务提供"
     },
     "marketing": {

@@ -35,6 +35,7 @@
     },
     "functional": {
       "description": "Aquestes servicis son essencials pel foncionament corrèct d’aqueste site web. Los podètz pas desactivar aquí pr’amor que lo servici foncionariá pas coma cal autrament.\n",
+      "descriptionOptional": "Aquestes servicis fornisson de foncionalitats d’aqueste site web. Podètz desactivar los que son pas marcats coma totjorn requesits.",
       "title": "Servici de provision"
     },
     "marketing": {

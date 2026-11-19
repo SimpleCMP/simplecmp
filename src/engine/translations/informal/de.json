@@ -34,6 +34,9 @@
     },
     "personalization": {
       "description": "Diese Dienste passen die Inhalte dieser Seite an deine Vorlieben und dein bisheriges Verhalten an."
+    },
+    "functional": {
+      "descriptionOptional": "Diese Dienste stellen Funktionen dieser Website bereit. Dienste, die nicht als immer erforderlich gekennzeichnet sind, kannst du hier deaktivieren."
     }
   },
   "service": {

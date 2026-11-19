@@ -63,6 +63,7 @@
     },
     "functional": {
       "description": "These services are essential for the correct functioning of this website. You cannot disable them here as the service would not work correctly otherwise.\n",
+      "descriptionOptional": "These services provide features of this website. You can disable the ones not marked as always required.",
       "title": "Service Provision"
     },
     "marketing": {

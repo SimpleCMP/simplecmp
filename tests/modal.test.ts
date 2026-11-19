@@ -303,4 +303,34 @@ describe('<simplecmp-purpose-group>', () => {
     expect(manager.consents.gtag).toBe(true);
     expect(manager.consents.ads).toBe(false); // marketing is a different purpose
   });
+
+  async function functionalDescription(required: boolean[]): Promise<string | undefined> {
+    const { el } = await mountModal({
+      services: required.map((r, i) => ({ name: `fn${i}`, purposes: ['functional'], required: r })),
+      translations: {
+        en: {
+          ...baseConfig.translations.en,
+          purposes: {
+            functional: {
+              title: 'Functional',
+              description: 'Cannot be disabled',
+              descriptionOptional: 'Optional ones can be disabled',
+            },
+          },
+        },
+      },
+    });
+    const group = el.shadowRoot?.querySelector<SimpleCmpPurposeGroup>('simplecmp-purpose-group');
+    if (group === null || group === undefined) throw new Error('Expected purpose-group');
+    await group.updateComplete;
+    return group.shadowRoot?.querySelector('.description')?.textContent ?? undefined;
+  }
+
+  it('keeps the "cannot be disabled" description when every service is required', async () => {
+    expect(await functionalDescription([true, true])).toBe('Cannot be disabled');
+  });
+
+  it('uses descriptionOptional when a service in the group can be switched off', async () => {
+    expect(await functionalDescription([true, false])).toBe('Optional ones can be disabled');
+  });
 });

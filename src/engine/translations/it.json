@@ -45,6 +45,7 @@
     },
     "functional": {
       "description": "Questi servizi sono essenziali per il corretto funzionamento di questo sito web. Non può disattivarli qui perché altrimenti il servizio non funzionerebbe correttamente.\n",
+      "descriptionOptional": "Questi servizi forniscono funzionalità di questo sito web. Può disattivare quelli non contrassegnati come sempre richiesti.",
       "title": "Fornitura di servizi"
     },
     "marketing": {
